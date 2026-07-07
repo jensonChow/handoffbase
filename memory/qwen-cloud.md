@@ -17,6 +17,18 @@ Qwen Cloud must be central to the Track 1 submission. It should power memory rea
 
 The product is Qwen-first for the hackathon but provider-agnostic long term. Qwen must sit behind `QwenMemoryProvider`, not inside the memory core.
 
+## Current Implementation
+
+`packages/memory-core/src/reasoning` defines the provider boundary and includes:
+
+- `MemoryReasoningProvider`
+- `QwenMemoryProvider`
+- `MockMemoryProvider`
+- provider prompts
+- structured-output parser/validator
+
+Local runs use `MockMemoryProvider` unless `QWEN_API_KEY` or `DASHSCOPE_API_KEY` is set. Qwen requests use the DashScope OpenAI-compatible chat completions endpoint by default and request JSON object output.
+
 ## Alibaba Cloud Deployment
 
 Hackathon backend should run on Alibaba Cloud and include visible code-level proof of Alibaba Cloud service/API usage. Storage can be Postgres/pgvector as long as deployment proof is clear.

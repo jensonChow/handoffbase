@@ -13,6 +13,17 @@
 - Storage Layer: Postgres + pgvector + event log。
 - Dashboard: Memory Vault、pending review、trace、edit/delete/export。
 
+## Current MVP Implementation
+
+当前仓库使用 npm workspace:
+
+- 根目录 `src/`: Remote Streamable HTTP MCP server 和 `ContinuityMemoryService`。
+- `packages/memory-core`: memory records、lifecycle、validation、sensitive-data rejection、event log、trace、in-memory store、SQL migration、provider interface、Qwen/mock providers。
+- `apps/dashboard`: Next.js Memory Vault dashboard，当前通过 mock client boundary 展示 vault、pending、edit/delete、trace、conflicts。
+- `demo/opportunity-scout`: AI Opportunity Scout seed memories、session flow 和 JSON-RPC examples。
+
+本地 MVP 默认使用 in-memory store 和 `MockMemoryProvider`。设置 Qwen/DashScope env 后由 `QwenMemoryProvider` 通过统一 provider interface 接管 reasoning。
+
 ## Provider Abstraction
 
 Memory Core 只能依赖 `MemoryReasoningProvider` 接口。比赛版实现 `QwenMemoryProvider`，长期可以增加 OpenAI、Anthropic 或本地模型 provider。

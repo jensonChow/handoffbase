@@ -1,0 +1,58 @@
+{
+  "session_id": "demo-session-02-bootstrap-rank",
+  "title": "Session 2: bootstrap, recall, and rank opportunities",
+  "host_id": "codex",
+  "agent_profile_id": "opportunity-scout",
+  "goal": "Start a fresh session, recall the user's preferences, and rank Qwen, TRAE, and CockroachDB with verification gates.",
+  "steps": [
+    {
+      "kind": "tool_call",
+      "tool": "continuity_bootstrap",
+      "arguments": {
+        "host": "codex",
+        "agent_profile": "opportunity-scout",
+        "user_id": "demo-user",
+        "project": {
+          "name": "AI Opportunity Scout",
+          "root": "demo/opportunity-scout"
+        },
+        "task_hint": "Rank Qwen, TRAE, and CockroachDB opportunities for an AI Opportunity Scout MVP.",
+        "token_budget": 1200
+      },
+      "expected_context_pack_contains": [
+        "AI Agent or MemoryAgent preference",
+        "credential, network, founder resources preference",
+        "verify deadline, timezone, eligibility",
+        "region eligibility failure memory"
+      ]
+    },
+    {
+      "kind": "tool_call",
+      "tool": "memory_recall",
+      "arguments": {
+        "query": "Rank Qwen, TRAE, and CockroachDB opportunities for this user's AI hackathon goals.",
+        "scopes": {
+          "tenant_id": "demo-tenant",
+          "user_id": "demo-user",
+          "project_id": "ai-opportunity-scout",
+          "agent_profile_id": "opportunity-scout",
+          "host_id": "codex"
+        },
+        "types": ["user_preference", "procedure", "failure_memory", "decision_memory"],
+        "limit": 8,
+        "token_budget": 900
+      },
+      "expected_memory_ids": [
+        "demo-mem-pref-agent-memory-hackathons",
+        "demo-mem-pref-credential-network-founder",
+        "demo-mem-procedure-verify-deadline-eligibility-timezone",
+        "demo-mem-failure-region-eligibility-mistake",
+        "demo-mem-decision-qwen-trae-cockroachdb-ranking"
+      ]
+    },
+    {
+      "kind": "assistant_response",
+      "text": "Demo ranking: P0 Qwen Cloud Track 1 / MemoryAgent after official deadline and eligibility verification, because it directly matches the MemoryAgent product and Qwen provider story. P1 TRAE if the official materials confirm strong developer-agent workflow and network value. P2/watchlist CockroachDB unless its database resources directly improve the current backend. I would not finalize any recommendation until deadline, timezone, and region eligibility are verified from primary sources."
+    }
+  ]
+}

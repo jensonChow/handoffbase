@@ -11,6 +11,8 @@
 - `operations.md`: 开发、部署、验证、提交材料和安全操作记忆。
 - `decisions.md`: 按时间记录仍有效的关键决策。
 
+Session-scoped transfer notes live in `docs/handoff.md`; do not duplicate short-term handoff state into durable memory files.
+
 ## Update Rules
 
 - 修改产品方向、架构、接口、部署或比赛策略后，同步更新对应 memory 文件。

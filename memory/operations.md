@@ -4,13 +4,30 @@
 
 - TypeScript.
 - Official MCP TypeScript SDK.
-- Node.js with Fastify or Hono.
+- Node.js with Express adapter for the MCP SDK.
 - Remote Streamable HTTP MCP transport.
-- Postgres + pgvector.
-- Drizzle or Prisma.
+- In-memory store for local MVP plus Postgres + pgvector SQL migration path.
 - React/Next.js dashboard.
 - Alibaba Cloud deployment.
 - Qwen Cloud API via `QwenMemoryProvider`.
+
+## Current Commands
+
+- Install: `npm install`.
+- Server dev: `npm run dev:server`.
+- Server build: `npm run build:server`.
+- MCP smoke: `npm run smoke`.
+- Memory core tests: `npm run test --workspace @agent-continuity/memory-core`.
+- Dashboard dev: `npm run dashboard:dev`.
+- Dashboard build: `npm run dashboard:build`.
+- Demo narration: `npm run demo:flow`.
+- Demo JSON-RPC: `npm run demo:jsonrpc`.
+
+## Handoff Protocol
+
+- Current session transfer belongs in `docs/handoff.md`.
+- Keep durable architecture, interface, provider, operation, and decision facts in `memory/*.md`.
+- Before handoff, refresh `docs/handoff.md` with completed work, verification, git/remote status, open risks, and a next-session prompt.
 
 ## Validation Expectations
 

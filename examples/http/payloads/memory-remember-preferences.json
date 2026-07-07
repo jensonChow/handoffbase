@@ -1,0 +1,13 @@
+{
+  "source": "explicit_user_request",
+  "content": "User prefers AI Agent or MemoryAgent hackathons that improve credibility, founder network, and founder resources. Before recommending events, verify official deadline, timezone, eligibility, and region rules.",
+  "scopes": {
+    "tenant_id": "demo-tenant",
+    "user_id": "demo-user",
+    "agent_profile_id": "opportunity-scout",
+    "project_id": "ai-opportunity-scout",
+    "host_id": "codex",
+    "session_id": "demo-session-01"
+  },
+  "approval_mode": "pending"
+}

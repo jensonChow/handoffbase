@@ -37,6 +37,56 @@ Every connected agent can:
 - forget or supersede outdated memories,
 - explain which memories influenced an answer.
 
+## Current MVP
+
+This repository now contains a runnable integrated MVP:
+
+- Remote Streamable HTTP MCP server at `/mcp`.
+- Seven MCP tools, nine `memory://` resources, and four reusable prompts.
+- `packages/memory-core` with memory records, lifecycle helpers, event log, traces, sensitive-data rejection, SQL migration, and an in-memory store.
+- Provider adapter boundary with `MemoryReasoningProvider`, `MockMemoryProvider`, and `QwenMemoryProvider`.
+- Next.js Memory Vault dashboard with vault, pending review, edit/delete, trace, and conflict-review views backed by a mock client boundary.
+- AI Opportunity Scout demo fixtures and JSON-RPC examples.
+
+Local development uses the in-memory store and `MockMemoryProvider` by default. Set `QWEN_API_KEY` or `DASHSCOPE_API_KEY` to use Qwen Cloud through `QwenMemoryProvider`.
+
+## Quick Start
+
+```bash
+npm install
+npm run dev:server
+```
+
+The server listens at:
+
+```text
+http://127.0.0.1:3000/mcp
+```
+
+If port 3000 is already in use, choose another port:
+
+```bash
+PORT=3333 npm run dev:server
+```
+
+Useful commands:
+
+```bash
+npm run build:server
+npm run smoke
+npm run test --workspace @agent-continuity/memory-core
+npm run dashboard:dev
+npm run dashboard:build
+npm run demo:flow
+npm run demo:jsonrpc
+```
+
+Call a tool manually:
+
+```bash
+MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+```
+
 ## Why MCP
 
 MCP already gives AI hosts a standard way to discover and call tools, read resources, and use reusable prompts. This project uses MCP as the agent memory interface:
@@ -135,10 +185,13 @@ memory://vault/conflicts
 ```mermaid
 flowchart LR
   Host["MCP Host"] --> Server["Agent Continuity MCP Server"]
-  Server --> Qwen["Qwen Cloud"]
-  Server --> DB["Postgres + pgvector"]
-  Server --> Log["Event Log"]
-  Dashboard["Memory Vault Dashboard"] --> DB
+  Server --> Provider["MemoryReasoningProvider"]
+  Provider --> Qwen["QwenMemoryProvider / Qwen Cloud"]
+  Provider --> Mock["MockMemoryProvider for local demo"]
+  Server --> Store["MemoryStore"]
+  Store --> Local["In-memory MVP store"]
+  Store --> DB["Postgres + pgvector migration path"]
+  Dashboard["Memory Vault Dashboard"] --> API["Dashboard client boundary"]
 ```
 
 ## MVP Demo
@@ -175,9 +228,9 @@ This project maps directly to those requirements:
 - TypeScript MCP server
 - Node.js backend
 - Remote Streamable HTTP MCP transport
-- Postgres + pgvector
+- In-memory MVP store plus Postgres + pgvector schema/migration path
 - Qwen Cloud API through `QwenMemoryProvider`
-- React dashboard
+- Next.js / React dashboard
 - Alibaba Cloud deployment
 
 ## Differentiation

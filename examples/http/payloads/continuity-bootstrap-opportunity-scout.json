@@ -1,0 +1,11 @@
+{
+  "host": "codex",
+  "agent_profile": "opportunity-scout",
+  "user_id": "demo-user",
+  "project": {
+    "name": "AI Opportunity Scout",
+    "root": "demo/opportunity-scout"
+  },
+  "task_hint": "Rank Qwen, TRAE, and CockroachDB opportunities for an AI Opportunity Scout MVP.",
+  "token_budget": 1200
+}

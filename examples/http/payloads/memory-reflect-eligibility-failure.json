@@ -1,0 +1,20 @@
+{
+  "run_id": "demo-run-region-eligibility-failure",
+  "summary": "The agent recommended an opportunity before verifying regional eligibility. The user corrected that China or Hong Kong participants were not eligible.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "This event is not eligible for China or Hong Kong participants. Do not recommend events like this again unless I ask for a watchlist."
+    }
+  ],
+  "tool_calls": [],
+  "outcome": "User corrected an eligibility mistake and asked the agent to avoid repeating it.",
+  "scopes": {
+    "tenant_id": "demo-tenant",
+    "user_id": "demo-user",
+    "agent_profile_id": "opportunity-scout",
+    "project_id": "ai-opportunity-scout",
+    "host_id": "codex",
+    "session_id": "demo-session-03"
+  }
+}

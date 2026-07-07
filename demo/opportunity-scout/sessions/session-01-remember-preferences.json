@@ -1,0 +1,39 @@
+{
+  "session_id": "demo-session-01-remember-preferences",
+  "title": "Session 1: remember user preferences",
+  "host_id": "codex",
+  "agent_profile_id": "opportunity-scout",
+  "goal": "Capture the user's opportunity scouting preferences and verification procedure as durable candidate memories.",
+  "steps": [
+    {
+      "kind": "user_message",
+      "text": "I want to join AI hackathons that help my credibility and founder network. Prefer AI Agent, MemoryAgent, and persistent-memory products. Before recommending anything, check the deadline, timezone, and whether China or Hong Kong participants are eligible."
+    },
+    {
+      "kind": "tool_call",
+      "tool": "memory_remember",
+      "arguments": {
+        "source": "explicit_user_request",
+        "content": "User prefers AI Agent or MemoryAgent hackathons that improve credibility, founder network, and founder resources. Before recommending events, verify official deadline, timezone, eligibility, and region rules.",
+        "scopes": {
+          "tenant_id": "demo-tenant",
+          "user_id": "demo-user",
+          "agent_profile_id": "opportunity-scout",
+          "project_id": "ai-opportunity-scout",
+          "host_id": "codex",
+          "session_id": "demo-session-01"
+        },
+        "approval_mode": "pending"
+      },
+      "expected_memory_ids": [
+        "demo-mem-pref-agent-memory-hackathons",
+        "demo-mem-pref-credential-network-founder",
+        "demo-mem-procedure-verify-deadline-eligibility-timezone"
+      ]
+    },
+    {
+      "kind": "assistant_response",
+      "text": "Got it. I will prioritize AI Agent or MemoryAgent opportunities that build credibility, network, and founder resources, and I will verify deadline, timezone, and eligibility before ranking anything."
+    }
+  ]
+}

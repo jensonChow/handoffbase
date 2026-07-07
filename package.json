@@ -1,0 +1,39 @@
+{
+  "name": "agent-continuity-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present && npm run build:server",
+    "build:server": "tsc -p tsconfig.json",
+    "dev:server": "tsx src/index.ts",
+    "start:server": "node dist/index.js",
+    "smoke": "tsx scripts/smoke-registration.ts",
+    "test": "npm run test --workspace @agent-continuity/memory-core",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run build:server -- --noEmit",
+    "dashboard:dev": "npm run dev --workspace @agent-continuity/dashboard",
+    "dashboard:build": "npm run build --workspace @agent-continuity/dashboard",
+    "demo:flow": "node demo/opportunity-scout/scripts/print-flow.mjs",
+    "demo:jsonrpc": "node demo/opportunity-scout/scripts/print-jsonrpc.mjs",
+    "mcp:call": "node scripts/call-mcp-tool.mjs"
+  },
+  "dependencies": {
+    "@agent-continuity/memory-core": "file:packages/memory-core",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "express": "^5.2.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

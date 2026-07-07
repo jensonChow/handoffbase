@@ -1,0 +1,13 @@
+{
+  "query": "Rank Qwen, TRAE, and CockroachDB opportunities for this user's AI hackathon goals.",
+  "scopes": {
+    "tenant_id": "demo-tenant",
+    "user_id": "demo-user",
+    "project_id": "ai-opportunity-scout",
+    "agent_profile_id": "opportunity-scout",
+    "host_id": "codex"
+  },
+  "types": ["user_preference", "procedure", "failure_memory", "decision_memory"],
+  "limit": 8,
+  "token_budget": 900
+}

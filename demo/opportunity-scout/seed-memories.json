@@ -1,0 +1,151 @@
+{
+  "$schema": "https://agent-continuity-mcp.local/schemas/demo-seed-memories.schema.json",
+  "demo_id": "ai-opportunity-scout-mvp",
+  "version": "0.1.0",
+  "generated_at": "2026-07-07T00:00:00+08:00",
+  "description": "Seed memories for the AI Opportunity Scout demo. These are fixtures for MCP integration and do not claim live opportunity facts.",
+  "default_scope": {
+    "tenant_id": "demo-tenant",
+    "user_id": "demo-user",
+    "agent_profile_id": "opportunity-scout",
+    "project_id": "ai-opportunity-scout",
+    "host_id": "demo-host"
+  },
+  "safety_notes": [
+    "Do not persist secrets, credentials, private keys, cookies, or personal access tokens.",
+    "Live deadlines, eligibility, regions, and timezone claims must be verified from primary sources before final recommendations.",
+    "The ranking memory below captures the demo rubric, not an externally verified live ranking."
+  ],
+  "memories": [
+    {
+      "id": "demo-mem-pref-agent-memory-hackathons",
+      "type": "user_preference",
+      "canonical_text": "User prefers AI hackathons focused on AI Agents, MemoryAgent, agent continuity, persistent context, or agent workflow infrastructure.",
+      "raw_source": "Session 1 demo user statement: I want AI Agent and MemoryAgent hackathons.",
+      "source_kind": "user_statement",
+      "status": "active",
+      "confidence": 0.96,
+      "importance": 0.92,
+      "scope": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": null,
+        "host_id": null
+      },
+      "metadata": {
+        "tags": ["ai-agent", "memoryagent", "hackathon", "preference"],
+        "approval": "preapproved_demo_seed"
+      }
+    },
+    {
+      "id": "demo-mem-pref-credential-network-founder",
+      "type": "user_preference",
+      "canonical_text": "When comparing opportunities, user values credential lift, useful network, founder resources, mentor access, and product credibility over prize money alone.",
+      "raw_source": "Session 1 demo user statement: prioritize credential, network, founder resources, and useful backing.",
+      "source_kind": "user_statement",
+      "status": "active",
+      "confidence": 0.95,
+      "importance": 0.9,
+      "scope": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": null,
+        "host_id": null
+      },
+      "metadata": {
+        "tags": ["credential", "network", "founder-resources", "ranking"],
+        "approval": "preapproved_demo_seed"
+      }
+    },
+    {
+      "id": "demo-mem-procedure-verify-deadline-eligibility-timezone",
+      "type": "procedure",
+      "canonical_text": "Before ranking or recommending a hackathon, verify the official deadline, submission timezone, region and eligibility rules, and track fit from primary sources; mark any unverified field as pending rather than confirmed.",
+      "raw_source": "Session 1 procedure requirement and Session 3 failure reflection.",
+      "source_kind": "user_instruction",
+      "status": "active",
+      "confidence": 0.97,
+      "importance": 0.98,
+      "scope": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": null,
+        "host_id": null
+      },
+      "metadata": {
+        "tags": ["deadline", "eligibility", "timezone", "primary-source", "procedure"],
+        "requires_user_approval_for_updates": true
+      }
+    },
+    {
+      "id": "demo-mem-failure-region-eligibility-mistake",
+      "type": "failure_memory",
+      "canonical_text": "Previous opportunity scouting failed by recommending an event before checking whether China or Hong Kong participants were eligible. Treat region or eligibility mismatch as a hard disqualifier unless the user explicitly asks for a watchlist item.",
+      "raw_source": "Session 3 demo correction: this competition is not eligible for China/Hong Kong; do not recommend these again.",
+      "source_kind": "post_run_reflection",
+      "status": "active",
+      "confidence": 0.93,
+      "importance": 0.96,
+      "scope": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": null,
+        "host_id": null
+      },
+      "metadata": {
+        "tags": ["failure", "eligibility", "region", "china", "hong-kong"],
+        "avoid_repeat": true
+      }
+    },
+    {
+      "id": "demo-mem-decision-qwen-trae-cockroachdb-ranking",
+      "type": "decision_memory",
+      "canonical_text": "For the MVP demo ranking, prioritize Qwen Cloud Track 1 / MemoryAgent as P0 when deadline and eligibility are verified because it directly matches agent continuity and Qwen memory reasoning; consider TRAE P1 when it supports developer-agent workflow and network goals; keep CockroachDB P2 or watchlist unless database/backend resources materially improve the current build. Live facts remain verification gates.",
+      "raw_source": "Session 2 demo decision rubric for comparing Qwen, TRAE, and CockroachDB opportunities.",
+      "source_kind": "decision_record",
+      "status": "active",
+      "confidence": 0.88,
+      "importance": 0.86,
+      "scope": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": "ai-opportunity-scout",
+        "host_id": null
+      },
+      "metadata": {
+        "tags": ["qwen", "trae", "cockroachdb", "ranking", "demo-decision"],
+        "unverified_live_fields": ["deadline", "eligibility", "timezone"],
+        "ranking": [
+          {
+            "name": "Qwen Cloud Track 1 / MemoryAgent",
+            "demo_priority": "P0",
+            "condition": "Only after official deadline and eligibility are verified."
+          },
+          {
+            "name": "TRAE",
+            "demo_priority": "P1",
+            "condition": "If developer-agent workflow fit and user-value signals are verified."
+          },
+          {
+            "name": "CockroachDB",
+            "demo_priority": "P2/watchlist",
+            "condition": "Promote only if database/backend resources directly help the current product."
+          }
+        ]
+      }
+    }
+  ],
+  "audit_events": [
+    {
+      "event_type": "seed_import_ready",
+      "actor_type": "demo_script",
+      "actor_id": "ai-opportunity-scout-fixture",
+      "reason": "Provide deterministic demo memories for MCP integration."
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "session_id": "demo-session-03-reflect-failure",
+  "title": "Session 3: reflect on failure",
+  "host_id": "codex",
+  "agent_profile_id": "opportunity-scout",
+  "goal": "Convert a corrected region or eligibility mistake into a future failure memory and procedure reinforcement.",
+  "steps": [
+    {
+      "kind": "user_message",
+      "text": "This event is not eligible for China or Hong Kong participants. Do not recommend events like this again unless I ask for a watchlist."
+    },
+    {
+      "kind": "tool_call",
+      "tool": "memory_reflect",
+      "arguments": {
+        "run_id": "demo-run-region-eligibility-failure",
+        "summary": "The agent recommended an opportunity before verifying regional eligibility. The user corrected that China or Hong Kong participants were not eligible.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "This event is not eligible for China or Hong Kong participants. Do not recommend events like this again unless I ask for a watchlist."
+          }
+        ],
+        "tool_calls": [],
+        "outcome": "User corrected an eligibility mistake and asked the agent to avoid repeating it.",
+        "scopes": {
+          "tenant_id": "demo-tenant",
+          "user_id": "demo-user",
+          "agent_profile_id": "opportunity-scout",
+          "project_id": "ai-opportunity-scout",
+          "host_id": "codex",
+          "session_id": "demo-session-03"
+        }
+      },
+      "expected_memory_ids": [
+        "demo-mem-failure-region-eligibility-mistake",
+        "demo-mem-procedure-verify-deadline-eligibility-timezone"
+      ]
+    },
+    {
+      "kind": "assistant_response",
+      "text": "I recorded this as a failure lesson: region and eligibility must be checked before recommendation, and an ineligible event should be excluded unless you explicitly ask for a watchlist."
+    }
+  ]
+}

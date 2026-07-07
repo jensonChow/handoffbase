@@ -1,0 +1,185 @@
+@mcpEndpoint = http://localhost:3000/mcp
+@sessionId =
+@authToken =
+
+### Initialize Streamable HTTP MCP session
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "init-1",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "ai-opportunity-scout-demo",
+      "version": "0.1.0"
+    }
+  }
+}
+
+### List tools
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "tools-list-1",
+  "method": "tools/list",
+  "params": {}
+}
+
+### Session 1: remember user preferences
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "remember-1",
+  "method": "tools/call",
+  "params": {
+    "name": "memory_remember",
+    "arguments": {
+      "source": "explicit_user_request",
+      "content": "User prefers AI Agent or MemoryAgent hackathons that improve credibility, founder network, and founder resources. Before recommending events, verify official deadline, timezone, eligibility, and region rules.",
+      "scopes": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": "ai-opportunity-scout",
+        "host_id": "codex",
+        "session_id": "demo-session-01"
+      },
+      "approval_mode": "pending"
+    }
+  }
+}
+
+### Session 2: bootstrap a fresh session
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "bootstrap-1",
+  "method": "tools/call",
+  "params": {
+    "name": "continuity_bootstrap",
+    "arguments": {
+      "host": "codex",
+      "agent_profile": "opportunity-scout",
+      "user_id": "demo-user",
+      "project": {
+        "name": "AI Opportunity Scout",
+        "root": "demo/opportunity-scout"
+      },
+      "task_hint": "Rank Qwen, TRAE, and CockroachDB opportunities for an AI Opportunity Scout MVP.",
+      "token_budget": 1200
+    }
+  }
+}
+
+### Session 2: recall ranking memories
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "recall-1",
+  "method": "tools/call",
+  "params": {
+    "name": "memory_recall",
+    "arguments": {
+      "query": "Rank Qwen, TRAE, and CockroachDB opportunities for this user's AI hackathon goals.",
+      "scopes": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "project_id": "ai-opportunity-scout",
+        "agent_profile_id": "opportunity-scout",
+        "host_id": "codex"
+      },
+      "types": ["user_preference", "procedure", "failure_memory", "decision_memory"],
+      "limit": 8,
+      "token_budget": 900
+    }
+  }
+}
+
+### Session 3: reflect on an eligibility failure
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "reflect-1",
+  "method": "tools/call",
+  "params": {
+    "name": "memory_reflect",
+    "arguments": {
+      "run_id": "demo-run-region-eligibility-failure",
+      "summary": "The agent recommended an opportunity before verifying regional eligibility. The user corrected that China or Hong Kong participants were not eligible.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "This event is not eligible for China or Hong Kong participants. Do not recommend events like this again unless I ask for a watchlist."
+        }
+      ],
+      "tool_calls": [],
+      "outcome": "User corrected an eligibility mistake and asked the agent to avoid repeating it.",
+      "scopes": {
+        "tenant_id": "demo-tenant",
+        "user_id": "demo-user",
+        "agent_profile_id": "opportunity-scout",
+        "project_id": "ai-opportunity-scout",
+        "host_id": "codex",
+        "session_id": "demo-session-03"
+      }
+    }
+  }
+}
+
+### Session 4: simulate another host
+POST {{mcpEndpoint}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+Authorization: Bearer {{authToken}}
+
+{
+  "jsonrpc": "2.0",
+  "id": "cross-host-bootstrap-1",
+  "method": "tools/call",
+  "params": {
+    "name": "continuity_bootstrap",
+    "arguments": {
+      "host": "claude-code",
+      "agent_profile": "opportunity-scout",
+      "user_id": "demo-user",
+      "project": {
+        "name": "AI Opportunity Scout",
+        "root": "demo/opportunity-scout"
+      },
+      "task_hint": "Find another batch of AI opportunities for the same user from a different host.",
+      "token_budget": 1200
+    }
+  }
+}
