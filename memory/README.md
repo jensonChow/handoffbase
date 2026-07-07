@@ -1,6 +1,6 @@
 # Project Memory Index
 
-本目录保存 Agent Continuity MCP Server 的长期项目记忆。根部 `agent.md` 只保存必须/严禁规则；这里保存可展开的背景、要求、决策和实现约束。
+本目录保存 handoffbase 的长期项目记忆。根部 `agent.md` 只保存必须/严禁规则；这里保存可展开的背景、要求、决策和实现约束。
 
 ## Files
 

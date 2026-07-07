@@ -6,12 +6,12 @@ import { registerContinuityMcp } from "./registry.js";
 export function createContinuityMcpServer(service: MemoryService = createDefaultMemoryService()): McpServer {
   const server = new McpServer(
     {
-      name: "agent-continuity-mcp-server",
+      name: "handoffbase-mcp-server",
       version: "0.1.0",
     },
     {
       instructions:
-        "Remote Streamable HTTP MCP server for portable agent continuity memory with governed recall, remember, reflect, forget, and trace tools.",
+        "Remote Streamable HTTP MCP server for portable persistent agent memory with governed recall, remember, reflect, forget, and trace tools.",
     },
   );
 

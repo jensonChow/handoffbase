@@ -31,7 +31,7 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
-      name: "agent-continuity-mcp-server",
+      name: "handoffbase-mcp-server",
       transport: "streamable-http",
       mcpPath,
     });

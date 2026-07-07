@@ -1,6 +1,6 @@
 # Memory Core
 
-`@agent-continuity/memory-core` contains the provider-agnostic memory domain for the MCP layer:
+`@handoffbase/memory-core` contains the provider-agnostic memory domain for the MCP layer:
 
 - TypeScript models for memories, runs, traces, events, embeddings, scopes, and lifecycle status.
 - Structured validation for memory records and memory events.
@@ -20,7 +20,7 @@
 ## Local Usage
 
 ```ts
-import { InMemoryMemoryStore } from "@agent-continuity/memory-core";
+import { InMemoryMemoryStore } from "@handoffbase/memory-core";
 
 const store = new InMemoryMemoryStore();
 

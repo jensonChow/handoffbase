@@ -1,31 +1,13 @@
 import * as z from "zod/v4";
+import { MEMORY_SOURCE_KINDS, MEMORY_STATUSES, MEMORY_TYPES } from "@handoffbase/memory-core";
 
-export const memoryTypes = [
-  "identity",
-  "user_preference",
-  "procedure",
-  "project_fact",
-  "tool_memory",
-  "decision_memory",
-  "failure_memory",
-  "outcome_memory",
-  "negative_preference",
-  "skill",
-] as const;
-
-export const memoryStatuses = [
-  "active",
-  "pending",
-  "rejected",
-  "superseded",
-  "expired",
-  "invalidated",
-  "archived",
-  "deleted",
-] as const;
+export const memoryTypes = MEMORY_TYPES;
+export const memoryStatuses = MEMORY_STATUSES;
+export const memorySourceKinds = MEMORY_SOURCE_KINDS;
 
 export const MemoryTypeSchema = z.enum(memoryTypes);
 export const MemoryStatusSchema = z.enum(memoryStatuses);
+export const MemorySourceKindSchema = z.enum(memorySourceKinds);
 
 export const JsonObjectSchema = z.record(z.string(), z.unknown());
 
@@ -214,6 +196,7 @@ export type MemoryForgetOutput = z.infer<typeof MemoryForgetOutputSchema>;
 export type MemoryTraceInput = z.infer<typeof MemoryTraceInputSchema>;
 export type MemoryTraceOutput = z.infer<typeof MemoryTraceOutputSchema>;
 export type MemoryStatus = z.infer<typeof MemoryStatusSchema>;
+export type MemorySourceKind = z.infer<typeof MemorySourceKindSchema>;
 export type MemoryType = z.infer<typeof MemoryTypeSchema>;
 export type CandidateMemory = z.infer<typeof CandidateMemorySchema>;
 export type MemorySummary = z.infer<typeof MemorySummarySchema>;

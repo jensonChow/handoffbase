@@ -2,7 +2,7 @@
 
 ## 2026-07-06
 
-- Decision: Project direction is Agent Continuity MCP Server.
+- Decision: Project direction is handoffbase.
 - Rationale: The core problem is cross-agent, cross-session, cross-project continuity rather than another standalone agent app.
 - Status: active.
 
@@ -28,4 +28,22 @@
 
 - Decision: The integrated local MVP uses an npm workspace with a root MCP server, `packages/memory-core`, `apps/dashboard`, and deterministic AI Opportunity Scout demo fixtures.
 - Rationale: This lets parallel worktree outputs compile together while preserving provider abstraction, local smoke tests, and dashboard/demo independence before Postgres and live Alibaba deployment are wired.
+- Status: active.
+
+## 2026-07-07
+
+- Decision: Memory ids, run ids, trace ids, event ids, and SQL reference arrays use domain text ids for the MVP contract instead of forcing uuid columns.
+- Rationale: Existing seed/demo ids and MCP trace/resource ids are semantic strings; keeping SQL ids as text avoids schema/runtime mismatch while Postgres persistence is still a scaffold.
+- Status: active.
+
+## 2026-07-07
+
+- Decision: `memory_recall.trace_id` and `continuity_bootstrap.memory_trace_id` identify the final context-pack trace, not the raw retrieval trace.
+- Rationale: `memory_trace` should explain exactly what the host received in the token-budgeted context pack, including provider-selected and provider-ignored memories. The raw retrieval trace remains linked through `metadata.retrieval_trace_id`.
+- Status: active.
+
+## 2026-07-07
+
+- Decision: Qwen provider input must be sanitized before prompt construction, and CI/local validation must not require Qwen credentials.
+- Rationale: Agent/tool payloads may contain tokens, cookies, private keys, or oversized logs. Sanitizing before `buildProviderPrompt` protects provider calls, while mock-default CI keeps checks deterministic and secret-free.
 - Status: active.

@@ -1,5 +1,5 @@
 {
-  "name": "agent-continuity-mcp",
+  "name": "handoffbase",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,19 +10,22 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present && npm run build:server",
     "build:server": "tsc -p tsconfig.json",
+    "check": "npm run typecheck && npm run build && npm run smoke && npm run test:memory-core",
     "dev:server": "tsx src/index.ts",
     "start:server": "node dist/index.js",
     "smoke": "tsx scripts/smoke-registration.ts",
-    "test": "npm run test --workspace @agent-continuity/memory-core",
-    "typecheck": "npm run typecheck --workspaces --if-present && npm run build:server -- --noEmit",
-    "dashboard:dev": "npm run dev --workspace @agent-continuity/dashboard",
-    "dashboard:build": "npm run build --workspace @agent-continuity/dashboard",
+    "test": "npm run test:memory-core",
+    "test:all": "npm run check",
+    "test:memory-core": "npm run test --workspace @handoffbase/memory-core",
+    "typecheck": "npm run build --workspace @handoffbase/memory-core && npm run typecheck --workspaces --if-present && npm run build:server -- --noEmit",
+    "dashboard:dev": "npm run dev --workspace @handoffbase/dashboard",
+    "dashboard:build": "npm run build --workspace @handoffbase/dashboard",
     "demo:flow": "node demo/opportunity-scout/scripts/print-flow.mjs",
     "demo:jsonrpc": "node demo/opportunity-scout/scripts/print-jsonrpc.mjs",
     "mcp:call": "node scripts/call-mcp-tool.mjs"
   },
   "dependencies": {
-    "@agent-continuity/memory-core": "file:packages/memory-core",
+    "@handoffbase/memory-core": "file:packages/memory-core",
     "@modelcontextprotocol/sdk": "1.29.0",
     "express": "^5.2.1",
     "zod": "^4.2.1"

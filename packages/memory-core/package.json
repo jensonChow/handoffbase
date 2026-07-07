@@ -1,7 +1,7 @@
 {
-  "name": "@agent-continuity/memory-core",
+  "name": "@handoffbase/memory-core",
   "version": "0.1.0",
-  "description": "Domain, lifecycle, validation, schema, and local storage foundations for Agent Continuity memories.",
+  "description": "Domain, lifecycle, validation, schema, and local storage foundations for handoffbase memories.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

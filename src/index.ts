@@ -6,7 +6,7 @@ const mcpPath = process.env.MCP_PATH ?? "/mcp";
 
 const { server, url } = await startHttpServer({ host, port, mcpPath });
 
-console.log(`Agent Continuity MCP Server listening at ${url}`);
+console.log(`handoffbase listening at ${url}`);
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`Received ${signal}; shutting down`);

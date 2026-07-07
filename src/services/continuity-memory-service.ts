@@ -15,10 +15,11 @@ import {
   type MemorySourceKind,
   type MemoryStatus,
   type MemoryStore,
+  type MemoryTrace,
   type SourceKind,
   type SourceTrust,
   type StoredMemory,
-} from "@agent-continuity/memory-core";
+} from "@handoffbase/memory-core";
 import type {
   CandidateMemory,
   ContinuityBootstrapInput,
@@ -50,6 +51,15 @@ export interface ContinuityMemoryServiceOptions {
   seedDemoMemories?: boolean;
 }
 
+interface BuiltContextPack {
+  contextBlock: string;
+  selectedMemoryIds: Map<string, string>;
+  selectedMemories: Array<{ memoryId: string; text: string; type: MemoryType; reason: string; score: number }>;
+  ignoredMemories: Array<{ memoryId: string; reason: string }>;
+  tokenBudget: number;
+  estimatedTokens: number;
+}
+
 export class ContinuityMemoryService implements MemoryService {
   private readonly store: MemoryStore;
   private readonly provider: MemoryReasoningProvider;
@@ -79,10 +89,11 @@ export class ContinuityMemoryService implements MemoryService {
       memories: recall.memories.map(toStoredMemory),
       tokenBudget: input.token_budget ?? 1800,
     });
+    const trace = await this.addContextPackTrace(recall.trace, pack);
 
     return {
       context_pack: groupContextPack(pack.selectedMemories.map((memory) => memory.text), recall.memories),
-      memory_trace_id: recall.trace.id,
+      memory_trace_id: trace.id,
       suggested_next_tools: ["memory_recall", "memory_reflect"],
     };
   }
@@ -104,11 +115,12 @@ export class ContinuityMemoryService implements MemoryService {
       memories: recall.memories.map(toStoredMemory),
       tokenBudget: input.token_budget ?? 900,
     });
+    const trace = await this.addContextPackTrace(recall.trace, pack);
 
     return {
       memories: recall.memories.map((memory) => toMemorySummary(memory, pack.selectedMemoryIds.get(memory.id))),
       context_block: pack.contextBlock,
-      trace_id: recall.trace.id,
+      trace_id: trace.id,
     };
   }
 
@@ -392,17 +404,40 @@ export class ContinuityMemoryService implements MemoryService {
     return memories.filter((memory): memory is MemoryRecord => Boolean(memory));
   }
 
-  private async buildContextPack(input: ContextPackInput): Promise<{
-    contextBlock: string;
-    selectedMemoryIds: Map<string, string>;
-    selectedMemories: Array<{ memoryId: string; text: string; type: MemoryType }>;
-  }> {
+  private async buildContextPack(input: ContextPackInput): Promise<BuiltContextPack> {
     const pack = await this.provider.buildContextPack(input);
     return {
       contextBlock: pack.contextBlock,
       selectedMemoryIds: new Map(pack.selectedMemories.map((memory) => [memory.memoryId, memory.reason])),
       selectedMemories: pack.selectedMemories,
+      ignoredMemories: pack.ignoredMemories,
+      tokenBudget: pack.tokenBudget,
+      estimatedTokens: pack.estimatedTokens,
     };
+  }
+
+  private async addContextPackTrace(retrievalTrace: MemoryTrace, pack: BuiltContextPack): Promise<MemoryTrace> {
+    const selectionReasons = Object.fromEntries([
+      ...pack.selectedMemories.map((memory) => [memory.memoryId, memory.reason] as const),
+      ...pack.ignoredMemories.map((memory) => [memory.memoryId, memory.reason] as const),
+    ]);
+
+    return await this.store.addTrace({
+      tenantId: retrievalTrace.tenantId,
+      runId: retrievalTrace.runId,
+      query: retrievalTrace.query,
+      selectedMemoryIds: pack.selectedMemories.map((memory) => memory.memoryId),
+      ignoredMemoryIds: pack.ignoredMemories.map((memory) => memory.memoryId),
+      contextPack: pack.contextBlock,
+      selectionReasons,
+      metadata: {
+        ...retrievalTrace.metadata,
+        stage: "context_pack",
+        retrieval_trace_id: retrievalTrace.id,
+        token_budget: pack.tokenBudget,
+        estimated_tokens: pack.estimatedTokens,
+      },
+    });
   }
 
   private async ensureSeeded(): Promise<void> {
@@ -695,7 +730,7 @@ const DEMO_MEMORIES: CreateMemoryInput[] = [
     id: "demo-mem-pref-agent-memory-hackathons",
     scope: DEMO_SCOPE,
     type: "user_preference",
-    canonicalText: "User prefers AI hackathons focused on AI Agents, MemoryAgent, agent continuity, persistent context, or agent workflow infrastructure.",
+    canonicalText: "User prefers AI hackathons focused on AI Agents, MemoryAgent, persistent agent memory, persistent context, or agent workflow infrastructure.",
     rawSource: "Session 1 demo user statement.",
     sourceKind: "user_statement",
     status: "active",
@@ -746,7 +781,7 @@ const DEMO_MEMORIES: CreateMemoryInput[] = [
       projectId: "ai-opportunity-scout",
     },
     type: "decision_memory",
-    canonicalText: "For the MVP demo ranking, prioritize Qwen Cloud Track 1 / MemoryAgent as P0 when deadline and eligibility are verified because it directly matches agent continuity and Qwen memory reasoning; consider TRAE P1 when it supports developer-agent workflow and network goals; keep CockroachDB P2 or watchlist unless database/backend resources materially improve the current build. Live facts remain verification gates.",
+    canonicalText: "For the MVP demo ranking, prioritize Qwen Cloud Track 1 / MemoryAgent as P0 when deadline and eligibility are verified because it directly matches persistent agent memory and Qwen memory reasoning; consider TRAE P1 when it supports developer-agent workflow and network goals; keep CockroachDB P2 or watchlist unless database/backend resources materially improve the current build. Live facts remain verification gates.",
     rawSource: "Session 2 demo decision rubric.",
     sourceKind: "decision_record",
     status: "active",

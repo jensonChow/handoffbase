@@ -1,5 +1,5 @@
 {
-  "$schema": "https://agent-continuity-mcp.local/schemas/demo-seed-memories.schema.json",
+  "$schema": "https://handoffbase.local/schemas/demo-seed-memories.schema.json",
   "demo_id": "ai-opportunity-scout-mvp",
   "version": "0.1.0",
   "generated_at": "2026-07-07T00:00:00+08:00",
@@ -20,7 +20,7 @@
     {
       "id": "demo-mem-pref-agent-memory-hackathons",
       "type": "user_preference",
-      "canonical_text": "User prefers AI hackathons focused on AI Agents, MemoryAgent, agent continuity, persistent context, or agent workflow infrastructure.",
+      "canonical_text": "User prefers AI hackathons focused on AI Agents, MemoryAgent, persistent agent memory, persistent context, or agent workflow infrastructure.",
       "raw_source": "Session 1 demo user statement: I want AI Agent and MemoryAgent hackathons.",
       "source_kind": "user_statement",
       "status": "active",
@@ -104,7 +104,7 @@
     {
       "id": "demo-mem-decision-qwen-trae-cockroachdb-ranking",
       "type": "decision_memory",
-      "canonical_text": "For the MVP demo ranking, prioritize Qwen Cloud Track 1 / MemoryAgent as P0 when deadline and eligibility are verified because it directly matches agent continuity and Qwen memory reasoning; consider TRAE P1 when it supports developer-agent workflow and network goals; keep CockroachDB P2 or watchlist unless database/backend resources materially improve the current build. Live facts remain verification gates.",
+      "canonical_text": "For the MVP demo ranking, prioritize Qwen Cloud Track 1 / MemoryAgent as P0 when deadline and eligibility are verified because it directly matches persistent agent memory and Qwen memory reasoning; consider TRAE P1 when it supports developer-agent workflow and network goals; keep CockroachDB P2 or watchlist unless database/backend resources materially improve the current build. Live facts remain verification gates.",
       "raw_source": "Session 2 demo decision rubric for comparing Qwen, TRAE, and CockroachDB opportunities.",
       "source_kind": "decision_record",
       "status": "active",

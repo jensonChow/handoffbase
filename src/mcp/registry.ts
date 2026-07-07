@@ -210,7 +210,7 @@ function registerPrompts(server: McpServer): void {
           content: {
             type: "text",
             text: [
-              "Start this session with Agent Continuity memory.",
+              "Start this session with handoffbase memory.",
               "Call continuity_bootstrap before taking task-specific action.",
               `Host: ${args.host ?? "unknown"}`,
               `Agent profile: ${args.agent_profile ?? "unknown"}`,

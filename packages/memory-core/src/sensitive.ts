@@ -74,7 +74,7 @@ const SENSITIVE_PATTERNS: SensitivePattern[] = [
     type: "password",
     name: "credential_assignment",
     pattern:
-      /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|session[_-]?cookie)\s*[:=]\s*["']?[^\s"',;]{8,}/gi
+      /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|session[_-]?cookie)\s*[:=]\s*["']?(?!\[REDACTED_)[^\s"',;]{8,}/gi
   }
 ];
 
@@ -111,6 +111,16 @@ export function rejectSensitiveText(text: string): SensitiveDataCheck {
     ok: findings.length === 0,
     findings
   };
+}
+
+export function redactSensitiveText(text: string): string {
+  let redacted = text;
+
+  for (const sensitivePattern of SENSITIVE_PATTERNS) {
+    redacted = redacted.replace(sensitivePattern.pattern, `[REDACTED_${sensitivePattern.type.toUpperCase()}]`);
+  }
+
+  return redacted;
 }
 
 export function assertNoSensitiveText(text: string): void {

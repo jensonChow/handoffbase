@@ -61,7 +61,7 @@ function stableJson(value: unknown): string {
 
 function systemPrompt(task: string): string {
   return [
-    "You are the memory reasoning provider for Agent Continuity MCP Server.",
+    "You are the memory reasoning provider for handoffbase.",
     "You extract compact, auditable, durable memories for cross-session agents.",
     "Do not preserve full chat logs. Keep only governed durable facts, preferences, procedures, decisions, failures, outcomes, and tool lessons.",
     `Task: ${task}`,

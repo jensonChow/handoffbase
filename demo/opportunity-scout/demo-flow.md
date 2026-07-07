@@ -1,6 +1,6 @@
 # AI Opportunity Scout Demo Flow
 
-This demo shows Agent Continuity MCP Server as a portable memory layer for an opportunity-scouting agent. The flow is intentionally deterministic so the final MCP server can be tested without relying on live external websites during judging.
+This demo shows handoffbase as a portable memory layer for an opportunity-scouting agent. The flow is intentionally deterministic so the final MCP server can be tested without relying on live external websites during judging.
 
 ## Demo Data
 

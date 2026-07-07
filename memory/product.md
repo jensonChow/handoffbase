@@ -2,7 +2,7 @@
 
 ## Positioning
 
-Agent Continuity MCP Server 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP server 为 Codex、Claude Code、Cursor、自研 Agent 等提供可迁移、可审计、可治理的长期记忆。
+handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP server 为 Codex、Claude Code、Cursor、自研 Agent 等提供可迁移、可审计、可治理的长期记忆。
 
 ## Core Problem
 

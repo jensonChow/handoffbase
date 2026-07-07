@@ -1,4 +1,5 @@
 import type { MemoryReasoningProvider } from "../provider.js";
+import { sanitizeProviderInput } from "../input-sanitizer.js";
 import { buildProviderPrompt } from "../prompts.js";
 import {
   StructuredOutputParseError,
@@ -136,7 +137,7 @@ export class QwenMemoryProvider implements MemoryReasoningProvider {
   }
 
   private async completeJson(method: ProviderMethod, input: unknown): Promise<string> {
-    const prompt = buildProviderPrompt(method, input);
+    const prompt = buildProviderPrompt(method, sanitizeProviderInput(input));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 

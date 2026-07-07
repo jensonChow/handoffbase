@@ -1,4 +1,4 @@
-# Agent Continuity MCP Server
+# handoffbase
 
 An MCP-native continuity layer that lets AI agents preserve user preferences, working procedures, tool experience, project context, and failure lessons across sessions, projects, and hosts.
 
@@ -15,14 +15,14 @@ This project addresses the missing persistence layer between agents.
 
 ## Core Idea
 
-Agent Continuity MCP Server does not replace existing agents. It exposes memory as an MCP server:
+handoffbase does not replace existing agents. It exposes memory as an MCP server:
 
 ```text
 Codex / Claude Code / Cursor / Custom Agent
         |
         | Remote MCP Streamable HTTP
         v
-Agent Continuity MCP Server on Alibaba Cloud
+handoffbase on Alibaba Cloud
         |
         v
 Qwen Cloud + Postgres/pgvector + Memory Vault Dashboard
@@ -72,14 +72,23 @@ PORT=3333 npm run dev:server
 Useful commands:
 
 ```bash
+npm run check
 npm run build:server
 npm run smoke
-npm run test --workspace @agent-continuity/memory-core
+npm run test --workspace @handoffbase/memory-core
 npm run dashboard:dev
 npm run dashboard:build
 npm run demo:flow
 npm run demo:jsonrpc
 ```
+
+For local CI parity, run:
+
+```bash
+npm run check
+```
+
+This aggregate validation runs TypeScript typechecks, the full build, the MCP registration smoke test, and the `packages/memory-core` tests. The full build includes the dashboard workspace build. Qwen Cloud credentials are optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the local MVP uses `MockMemoryProvider`.
 
 Call a tool manually:
 
@@ -184,7 +193,7 @@ memory://vault/conflicts
 
 ```mermaid
 flowchart LR
-  Host["MCP Host"] --> Server["Agent Continuity MCP Server"]
+  Host["MCP Host"] --> Server["handoffbase"]
   Server --> Provider["MemoryReasoningProvider"]
   Provider --> Qwen["QwenMemoryProvider / Qwen Cloud"]
   Provider --> Mock["MockMemoryProvider for local demo"]
@@ -237,7 +246,7 @@ This project maps directly to those requirements:
 
 Letta is a memory-first agent runtime.
 
-Agent Continuity MCP Server is a memory infrastructure layer for any agent.
+handoffbase is a memory infrastructure layer for any agent.
 
 It is designed to make different agents behave like the same long-term collaborator without forcing users to migrate to a new runtime.
 

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  createMockMemoryClient,
+  createMemoryClient,
   type ConflictCandidate,
   type DashboardSnapshot,
   type MemoryRecord,
@@ -64,7 +64,7 @@ const statuses: MemoryStatus[] = [
   "superseded"
 ];
 
-const client = createMockMemoryClient();
+const client = createMemoryClient();
 
 export function MemoryVaultDashboard() {
   const [view, setView] = useState<ViewKey>("vault");
@@ -231,7 +231,7 @@ export function MemoryVaultDashboard() {
         <div className="brand-lockup">
           <Database size={24} aria-hidden="true" />
           <div>
-            <p className="eyebrow">Agent Continuity</p>
+            <p className="eyebrow">handoffbase</p>
             <h1>Memory Vault</h1>
           </div>
         </div>

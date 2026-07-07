@@ -1,7 +1,7 @@
 create extension if not exists vector;
 
 create table if not exists memories (
-  id uuid primary key,
+  id text primary key,
   tenant_id text not null,
   user_id text not null,
   agent_profile_id text,
@@ -29,22 +29,39 @@ create table if not exists memories (
     source_kind in (
       'user_assertion',
       'user_correction',
+      'user_instruction',
+      'user_statement',
       'agent_observation',
       'run_reflection',
+      'post_run_reflection',
+      'run_summary',
+      'decision_record',
       'manual_import',
+      'manual_edit',
       'external_content',
+      'external_web',
+      'mcp_tool_description',
       'tool_result'
     )
   ),
   status text not null default 'active' check (
-    status in ('active', 'pending', 'expired', 'superseded', 'deleted')
+    status in (
+      'active',
+      'pending',
+      'rejected',
+      'expired',
+      'superseded',
+      'invalidated',
+      'archived',
+      'deleted'
+    )
   ),
   confidence numeric not null default 0.8 check (confidence >= 0 and confidence <= 1),
   importance numeric not null default 0.5 check (importance >= 0 and importance <= 1),
   valid_from timestamptz,
   valid_until timestamptz,
-  supersedes uuid[] not null default '{}',
-  superseded_by uuid references memories(id) on delete set null,
+  supersedes text[] not null default '{}',
+  superseded_by text references memories(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_used_at timestamptz,
@@ -64,7 +81,7 @@ create index if not exists memories_type_idx
   on memories (type);
 
 create table if not exists memory_embeddings (
-  memory_id uuid primary key references memories(id) on delete cascade,
+  memory_id text primary key references memories(id) on delete cascade,
   embedding vector(1536),
   embedding_model text not null,
   created_at timestamptz not null default now()
@@ -75,11 +92,11 @@ create index if not exists memory_embeddings_vector_idx
   with (lists = 100);
 
 create table if not exists memory_events (
-  id uuid primary key,
+  id text primary key,
   tenant_id text not null,
-  memory_id uuid references memories(id) on delete set null,
-  run_id uuid,
-  trace_id uuid,
+  memory_id text references memories(id) on delete set null,
+  run_id text,
+  trace_id text,
   event_type text not null check (
     event_type in ('add', 'update', 'delete', 'recall', 'supersede', 'expire', 'approve', 'reject')
   ),
@@ -100,7 +117,7 @@ create index if not exists memory_events_memory_idx
   on memory_events (memory_id, created_at desc);
 
 create table if not exists runs (
-  id uuid primary key,
+  id text primary key,
   tenant_id text not null,
   user_id text not null,
   host_id text,
@@ -118,12 +135,12 @@ create index if not exists runs_scope_idx
   on runs (tenant_id, user_id, project_id, agent_profile_id, host_id);
 
 create table if not exists memory_traces (
-  id uuid primary key,
+  id text primary key,
   tenant_id text not null,
-  run_id uuid references runs(id) on delete set null,
+  run_id text references runs(id) on delete set null,
   query text,
-  selected_memory_ids uuid[] not null default '{}',
-  ignored_memory_ids uuid[] not null default '{}',
+  selected_memory_ids text[] not null default '{}',
+  ignored_memory_ids text[] not null default '{}',
   context_pack text,
   selection_reasons jsonb not null default '{}',
   created_at timestamptz not null default now(),

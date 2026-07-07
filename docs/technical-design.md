@@ -1,4 +1,4 @@
-# Agent Continuity MCP Server 技术方案
+# handoffbase 技术方案
 
 版本: 0.1
 日期: 2026-07-06
@@ -6,7 +6,7 @@
 
 ## 1. 一句话定位
 
-Agent Continuity MCP Server 是一个 MCP-native 的 Agent 记忆与连续性层。它不替代 Claude Code、Codex、Cursor 或其他 Agent，而是通过 MCP 为它们提供可迁移、可审计、可治理的长期记忆，让不同 Agent 在不同 session、项目和工具环境中保持一致的工作方式、偏好、经验和判断标准。
+handoffbase 是一个 MCP-native 的 Agent 记忆与连续性层。它不替代 Claude Code、Codex、Cursor 或其他 Agent，而是通过 MCP 为它们提供可迁移、可审计、可治理的长期记忆，让不同 Agent 在不同 session、项目和工具环境中保持一致的工作方式、偏好、经验和判断标准。
 
 英文定位:
 
@@ -55,7 +55,7 @@ Letta / MemGPT 证明了 stateful agent + self-editing memory 是正确方向。
 
 本方案的差异是:
 
-| 维度 | Letta / MemGPT | Agent Continuity MCP Server |
+| 维度 | Letta / MemGPT | handoffbase |
 | --- | --- | --- |
 | 产品形态 | Stateful agent runtime | Agent-agnostic memory infrastructure |
 | 用户是否换 agent | 需要使用 Letta agent | 不需要，接入任意 MCP host |
@@ -78,7 +78,7 @@ flowchart LR
     Custom["Custom Agent"]
   end
 
-  subgraph MCP["Agent Continuity MCP Server"]
+  subgraph MCP["handoffbase"]
     Tools["MCP Tools"]
     Resources["MCP Resources"]
     Prompts["MCP Prompts"]

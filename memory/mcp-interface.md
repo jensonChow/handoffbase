@@ -18,6 +18,13 @@
 
 当前实现已注册以上 7 个 tools，并使用 Zod schemas 定义 input/output。`memory_remember`、`memory_recall`、`memory_reflect`、`memory_update`、`memory_forget` 会写入 in-memory store 的 event/trace 基础记录。
 
+Trace semantics:
+
+- `continuity_bootstrap.memory_trace_id` points to the context-pack trace returned to the host.
+- `memory_recall.trace_id` points to the context-pack trace returned to the host.
+- The underlying retrieval trace remains inspectable through the context-pack trace metadata field `retrieval_trace_id`.
+- `memory_trace` explains used, ignored, and excluded memories from the final context-pack perspective, so tight token budgets can show recalled candidates as provider-ignored rather than used.
+
 ## Resource Scheme
 
 使用 `memory://` URI 暴露可读上下文:
@@ -31,6 +38,8 @@
 - `memory://traces/{trace_id}`
 - `memory://vault/pending`
 - `memory://vault/conflicts`
+
+`memory://traces/{trace_id}` returns raw trace JSON, including context-pack metadata such as token budget, estimated tokens, and retrieval trace linkage when present.
 
 ## Prompt Workflows
 
