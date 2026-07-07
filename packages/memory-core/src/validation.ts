@@ -1,9 +1,14 @@
 import {
   MEMORY_ACTOR_TYPES,
+  MEMORY_CONFLICT_RECOMMENDED_ACTIONS,
+  MEMORY_CONFLICT_SEVERITIES,
+  MEMORY_CONFLICT_STATUSES,
+  MEMORY_CONFLICT_TYPES,
   MEMORY_EVENT_TYPES,
   MEMORY_SOURCE_KINDS,
   MEMORY_STATUSES,
   MEMORY_TYPES,
+  type MemoryConflictRecord,
   type MemoryEvent,
   type MemoryRecord,
   type MemoryScope
@@ -136,6 +141,63 @@ export function validateMemoryEvent(value: unknown): ValidationResult {
   };
 }
 
+export function validateMemoryConflictRecord(value: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isPlainObject(value)) {
+    return issueResult("conflict", "invalid_type", "Memory conflict record must be an object.");
+  }
+
+  requireString(value.id, "id", issues);
+  requireString(value.tenantId, "tenantId", issues);
+  optionalString(value.candidateMemoryId, "candidateMemoryId", issues);
+  optionalString(value.existingMemoryId, "existingMemoryId", issues);
+  requireEnum(value.conflictType, MEMORY_CONFLICT_TYPES, "conflictType", issues);
+  requireEnum(value.severity, MEMORY_CONFLICT_SEVERITIES, "severity", issues);
+  requireEnum(value.recommendedAction, MEMORY_CONFLICT_RECOMMENDED_ACTIONS, "recommendedAction", issues);
+  requireEnum(value.status, MEMORY_CONFLICT_STATUSES, "status", issues);
+  optionalString(value.reason, "reason", issues);
+  if (value.confidence !== undefined) {
+    requireNumberRange(value.confidence, "confidence", 0, 1, issues);
+  }
+  optionalPlainObject(value.resolution, "resolution", issues);
+  requireDate(value.createdAt, "createdAt", issues);
+  optionalDate(value.resolvedAt, "resolvedAt", issues);
+  requirePlainObject(value.metadata, "metadata", issues);
+
+  if (typeof value.candidateMemoryId !== "string" && typeof value.existingMemoryId !== "string") {
+    issues.push({
+      path: "candidateMemoryId",
+      code: "missing_memory_reference",
+      message: "Memory conflicts must reference a candidate or existing memory."
+    });
+  }
+
+  if (
+    isPlainObject(value.resolution) &&
+    (typeof value.resolution.action !== "string" || value.resolution.action.trim().length === 0)
+  ) {
+    issues.push({
+      path: "resolution.action",
+      code: "invalid_string",
+      message: "Conflict resolution must include a non-empty action string."
+    });
+  }
+
+  if (value.status !== "open" && !isValidDate(value.resolvedAt)) {
+    issues.push({
+      path: "resolvedAt",
+      code: "missing_resolved_at",
+      message: "Resolved or dismissed conflicts must have a resolvedAt timestamp."
+    });
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues
+  };
+}
+
 export function assertValidMemoryRecord(value: unknown): asserts value is MemoryRecord {
   const result = validateMemoryRecord(value);
   if (!result.ok) {
@@ -147,6 +209,13 @@ export function assertValidMemoryEvent(value: unknown): asserts value is MemoryE
   const result = validateMemoryEvent(value);
   if (!result.ok) {
     throw new ValidationError("Invalid memory event.", result.issues);
+  }
+}
+
+export function assertValidMemoryConflictRecord(value: unknown): asserts value is MemoryConflictRecord {
+  const result = validateMemoryConflictRecord(value);
+  if (!result.ok) {
+    throw new ValidationError("Invalid memory conflict record.", result.issues);
   }
 }
 

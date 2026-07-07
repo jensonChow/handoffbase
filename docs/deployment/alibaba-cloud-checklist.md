@@ -7,25 +7,35 @@ This is a proof checklist, not a claim that the service is already deployed.
 - Remote Streamable HTTP MCP endpoint, for example `https://<domain>/mcp`.
 - Node.js service running the official MCP TypeScript SDK transport.
 - Qwen Cloud configured through `QwenMemoryProvider`.
-- Postgres with pgvector for structured memory and semantic retrieval.
+- In-memory MVP store for the current deployable demo; Postgres/pgvector store code is available for follow-up runtime wiring.
 - Event log enabled for memory add, update, delete, recall, bootstrap, and reflect operations.
 - Optional dashboard route for Memory Vault and trace review.
 
 ## Environment
 
-Required runtime variables:
+Current container variables:
 
 ```text
-MCP_ENDPOINT=https://<deployed-domain>/mcp
+HOST=0.0.0.0
+PORT=3000
+MCP_PATH=/mcp
+```
+
+Optional Qwen variables:
+
+```text
 QWEN_API_KEY=<configured-in-cloud-secret-manager>
+DASHSCOPE_API_KEY=<configured-in-cloud-secret-manager>
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-plus
-DATABASE_URL=<postgres-connection-string>
+QWEN_TIMEOUT_MS=30000
 ```
+
+Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Future Postgres runtime variables are documented in `docs/deployment.md`.
 
 Security expectations:
 
-- Store `QWEN_API_KEY` and `DATABASE_URL` in Alibaba Cloud secret or environment configuration, not in git.
+- Store `QWEN_API_KEY`, `DASHSCOPE_API_KEY`, API keys, and future database URLs in Alibaba Cloud secret or environment configuration, not in git.
 - Enable HTTPS before sharing the endpoint.
 - Restrict dashboard access before using real user memories.
 - Do not seed private credentials, cookies, tokens, or full conversation logs.

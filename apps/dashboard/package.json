@@ -7,9 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build --workspace @handoffbase/memory-core && tsx --tsconfig tsconfig.json --test test/*.test.ts"
   },
   "dependencies": {
+    "@handoffbase/memory-core": "file:../../packages/memory-core",
     "lucide-react": "^0.561.0",
     "next": "^16.0.10",
     "react": "^19.2.3",

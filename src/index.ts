@@ -1,33 +1,46 @@
+import { ConfigError, loadServerConfig } from "./config.js";
 import { startHttpServer } from "./http.js";
 
-const host = process.env.HOST ?? "127.0.0.1";
-const port = Number.parseInt(process.env.PORT ?? "3000", 10);
-const mcpPath = process.env.MCP_PATH ?? "/mcp";
+void main().catch(handleFatal);
 
-const { server, url } = await startHttpServer({ host, port, mcpPath });
+async function main(): Promise<void> {
+  const config = loadServerConfig();
+  const { server, url } = await startHttpServer(config);
 
-console.log(`handoffbase listening at ${url}`);
+  console.log(`handoffbase listening at ${url}`);
 
-async function shutdown(signal: string): Promise<void> {
-  console.log(`Received ${signal}; shutting down`);
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
+  async function shutdown(signal: string): Promise<void> {
+    console.log(`Received ${signal}; shutting down`);
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
     });
-  });
+  }
+
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      shutdown(signal)
+        .then(() => process.exit(0))
+        .catch((error) => {
+          console.error("Shutdown failed:", error);
+          process.exit(1);
+        });
+    });
+  }
 }
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    shutdown(signal)
-      .then(() => process.exit(0))
-      .catch((error) => {
-        console.error("Shutdown failed:", error);
-        process.exit(1);
-      });
-  });
+function handleFatal(error: unknown): void {
+  if (error instanceof ConfigError) {
+    console.error(error.message);
+  } else if (error instanceof Error) {
+    console.error(error);
+  } else {
+    console.error("Startup failed:", error);
+  }
+  process.exit(1);
 }

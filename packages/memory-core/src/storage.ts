@@ -1,8 +1,13 @@
 import {
+  type AddMemoryConflictInput,
   type CreateMemoryInput,
   type CreateRunInput,
   type CreateTraceInput,
   type MemoryEmbedding,
+  type MemoryConflictListFilter,
+  type MemoryConflictRecord,
+  type MemoryConflictResolution,
+  type MemoryConflictResolutionResult,
   type MemoryEvent,
   type MemoryListFilter,
   type MemoryRecallQuery,
@@ -13,6 +18,7 @@ import {
   type MemoryUpdateResult,
   type MemoryWriteResult,
   type MutationOptions,
+  type ResolveMemoryConflictOptions,
   type RunRecord,
   type SupersedeMemoryResult,
   type UpdateMemoryPatch
@@ -43,6 +49,14 @@ export interface MemoryStore {
   getRun(id: string): Promise<RunRecord | undefined>;
   addTrace(input: CreateTraceInput): Promise<MemoryTrace>;
   getTrace(id: string): Promise<MemoryTrace | undefined>;
+  addConflict(input: AddMemoryConflictInput, options?: MutationOptions): Promise<MemoryConflictRecord>;
+  getConflict(id: string): Promise<MemoryConflictRecord | undefined>;
+  listConflicts(filter?: MemoryConflictListFilter): Promise<MemoryConflictRecord[]>;
+  resolveConflict(
+    id: string,
+    resolution: MemoryConflictResolution,
+    options?: ResolveMemoryConflictOptions
+  ): Promise<MemoryConflictResolutionResult>;
   listEvents(filter?: EventListFilter): Promise<MemoryEvent[]>;
 }
 

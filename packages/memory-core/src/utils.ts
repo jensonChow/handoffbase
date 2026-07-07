@@ -1,4 +1,11 @@
-import type { JsonObject, JsonValue, MemoryRecord, MemoryScope } from "./types.js";
+import type {
+  JsonObject,
+  JsonValue,
+  MemoryConflictRecord,
+  MemoryConflictResolution,
+  MemoryRecord,
+  MemoryScope
+} from "./types.js";
 
 export function generateUuid(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -91,6 +98,28 @@ export function cloneMemoryRecord(memory: MemoryRecord): MemoryRecord {
   setOptionalDate(clone, "validUntil", memory.validUntil);
   setOptionalString(clone, "supersededBy", memory.supersededBy);
   setOptionalDate(clone, "lastUsedAt", memory.lastUsedAt);
+
+  return clone;
+}
+
+export function cloneMemoryConflictRecord(conflict: MemoryConflictRecord): MemoryConflictRecord {
+  const clone: MemoryConflictRecord = {
+    id: conflict.id,
+    tenantId: conflict.tenantId,
+    conflictType: conflict.conflictType,
+    severity: conflict.severity,
+    recommendedAction: conflict.recommendedAction,
+    status: conflict.status,
+    createdAt: new Date(conflict.createdAt.getTime()),
+    metadata: cloneJsonObject(conflict.metadata)
+  };
+
+  setOptionalString(clone, "candidateMemoryId", conflict.candidateMemoryId);
+  setOptionalString(clone, "existingMemoryId", conflict.existingMemoryId);
+  setOptionalString(clone, "reason", conflict.reason);
+  if (conflict.confidence !== undefined) clone.confidence = conflict.confidence;
+  if (conflict.resolution !== undefined) clone.resolution = cloneJsonObject(conflict.resolution) as MemoryConflictResolution;
+  setOptionalDate(clone, "resolvedAt", conflict.resolvedAt);
 
   return clone;
 }

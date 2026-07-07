@@ -41,6 +41,8 @@ Trace semantics:
 
 `memory://traces/{trace_id}` returns raw trace JSON, including context-pack metadata such as token budget, estimated tokens, and retrieval trace linkage when present.
 
+`memory://vault/conflicts` returns open `MemoryConflictRecord` entities, not a filtered pending-memory placeholder. Each item includes the conflict type, severity, recommended action, status, candidate memory summary, and existing memory summary when those linked memories are available.
+
 ## Prompt Workflows
 
 - `memory-aware-start`

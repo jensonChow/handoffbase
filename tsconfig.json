@@ -10,9 +10,9 @@
     "resolveJsonModule": true,
     "declaration": true,
     "sourceMap": true,
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "apps/dashboard"]
 }

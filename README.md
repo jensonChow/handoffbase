@@ -76,6 +76,9 @@ npm run check
 npm run build:server
 npm run smoke
 npm run test --workspace @handoffbase/memory-core
+npm run test:auth
+npm run test:server
+npm run test:dashboard
 npm run dashboard:dev
 npm run dashboard:build
 npm run demo:flow
@@ -88,12 +91,53 @@ For local CI parity, run:
 npm run check
 ```
 
-This aggregate validation runs TypeScript typechecks, the full build, the MCP registration smoke test, and the `packages/memory-core` tests. The full build includes the dashboard workspace build. Qwen Cloud credentials are optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the local MVP uses `MockMemoryProvider`.
+This aggregate validation runs TypeScript typechecks, the full build, the MCP registration smoke test, auth/scope tests, server route tests, the `packages/memory-core` tests, and dashboard API tests. The full build includes the dashboard workspace build. Qwen Cloud credentials are optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the local MVP uses `MockMemoryProvider`.
+
+The dashboard uses the mock client by default. To exercise the live local Next.js API routes, run the dashboard with:
+
+```bash
+NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http npm run dashboard:dev
+```
+
+The HTTP client calls same-origin `/api/dashboard/*` routes unless `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL` is set.
 
 Call a tool manually:
 
 ```bash
 MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+```
+
+## Deployment
+
+The server has a production Docker profile and deployment notes in [`docs/deployment.md`](docs/deployment.md). The image uses Node 22, runs `npm ci`, builds the workspaces, and starts the compiled server with:
+
+```bash
+node dist/index.js
+```
+
+Runtime secrets are provided only through environment variables or cloud secret configuration. Qwen credentials remain optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the server runs with the mock provider. Auth can be enabled with `HANDOFFBASE_AUTH_MODE=api_key`; the default store factory still uses the in-memory MVP store while `PostgresMemoryStore` is available for wiring.
+
+## Remote Auth
+
+Auth is disabled by default for local development and `npm run smoke`.
+
+To require API keys for remote MCP POST requests:
+
+```bash
+HANDOFFBASE_AUTH_MODE=api_key
+HANDOFFBASE_API_KEYS_JSON='{"dev-key":{"tenantId":"demo-tenant","userId":"demo-user","actorId":"local-dev"}}'
+```
+
+Clients may send either `Authorization: Bearer <key>` or `X-Handoffbase-Api-Key: <key>`.
+
+For a single dev key, use:
+
+```bash
+HANDOFFBASE_AUTH_MODE=api_key
+HANDOFFBASE_API_KEY=dev-key
+HANDOFFBASE_TENANT_ID=demo-tenant
+HANDOFFBASE_USER_ID=demo-user
+HANDOFFBASE_ACTOR_ID=local-dev
 ```
 
 ## Why MCP

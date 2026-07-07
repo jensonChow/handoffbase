@@ -149,3 +149,35 @@ create table if not exists memory_traces (
 
 create index if not exists memory_traces_tenant_created_idx
   on memory_traces (tenant_id, created_at desc);
+
+create table if not exists memory_conflicts (
+  id text primary key,
+  tenant_id text not null,
+  candidate_memory_id text references memories(id) on delete set null,
+  existing_memory_id text references memories(id) on delete set null,
+  conflict_type text not null check (
+    conflict_type in ('contradiction', 'supersedes', 'duplicate', 'scope_overlap', 'none')
+  ),
+  severity text not null check (severity in ('low', 'medium', 'high')),
+  recommended_action text not null check (
+    recommended_action in ('accept', 'ignore', 'merge', 'supersede', 'supersede_existing', 'ask_user', 'keep_both', 'reject')
+  ),
+  status text not null default 'open' check (status in ('open', 'resolved', 'dismissed')),
+  reason text,
+  confidence numeric check (confidence is null or (confidence >= 0 and confidence <= 1)),
+  resolution jsonb,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  metadata jsonb not null default '{}',
+  check (candidate_memory_id is not null or existing_memory_id is not null),
+  check (status = 'open' or resolved_at is not null)
+);
+
+create index if not exists memory_conflicts_tenant_status_created_idx
+  on memory_conflicts (tenant_id, status, created_at desc);
+
+create index if not exists memory_conflicts_candidate_idx
+  on memory_conflicts (candidate_memory_id);
+
+create index if not exists memory_conflicts_existing_idx
+  on memory_conflicts (existing_memory_id);

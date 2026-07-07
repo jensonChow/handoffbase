@@ -20,12 +20,27 @@
 - Full build: `npm run build`.
 - Server dev: `npm run dev:server`.
 - Server build: `npm run build:server`.
+- Server production start: `npm run start:server`.
 - MCP smoke: `npm run smoke`.
 - Memory core tests: `npm run test --workspace @handoffbase/memory-core`.
+- Auth tests: `npm run test:auth`.
+- Server route tests: `npm run test:server`.
+- Dashboard API tests: `npm run test:dashboard`.
 - Dashboard dev: `npm run dashboard:dev`.
 - Dashboard build: `npm run dashboard:build`.
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
+- Docker production image: `docker build -t handoffbase .`.
+
+## Deployment Profile
+
+- Production Dockerfile uses Node 22, installs with `npm ci`, builds workspaces, prunes dev dependencies, and starts `node dist/index.js`.
+- Docker runtime defaults are `HOST=0.0.0.0`, `PORT=3000`, and `MCP_PATH=/mcp`.
+- Local server defaults remain `HOST=127.0.0.1`, `PORT=3000`, and `MCP_PATH=/mcp`.
+- Startup validates that `PORT` is numeric and `MCP_PATH` starts with `/`.
+- `/health` reports only non-secret metadata: name, version, transport, MCP path, auth mode, provider mode, and store mode.
+- API key auth is controlled by `HANDOFFBASE_AUTH_MODE` and key mapping env vars; keep API keys in cloud secret configuration.
+- Current production default keeps the in-memory MVP store deployable. `PostgresMemoryStore` supports CRUD, recall, traces, events, embeddings, and conflicts, but env-based runtime selection remains future work.
 
 ## CI
 

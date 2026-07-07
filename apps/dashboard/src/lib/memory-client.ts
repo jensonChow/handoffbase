@@ -228,11 +228,24 @@ async function readErrorMessage(response: Response) {
 }
 
 export function createMemoryClient(options: CreateMemoryClientOptions = {}): MemoryClient {
-  if (options.mode === "http") {
-    return new HttpMemoryClient(options);
+  const mode = options.mode ?? defaultMemoryClientMode();
+
+  if (mode === "http") {
+    return new HttpMemoryClient({
+      ...options,
+      baseUrl: options.baseUrl ?? defaultMemoryClientBaseUrl()
+    });
   }
 
   return createMockMemoryClient();
 }
 
 export { createMockMemoryClient } from "./mock-memory-client";
+
+function defaultMemoryClientMode(): MemoryClientMode {
+  return process.env.NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT === "http" ? "http" : "mock";
+}
+
+function defaultMemoryClientBaseUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL;
+}

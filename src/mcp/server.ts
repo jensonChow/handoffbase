@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SERVER_NAME, SERVER_VERSION } from "../config.js";
 import { createDefaultMemoryService } from "../services/continuity-memory-service.js";
 import type { MemoryService } from "../services/memory-service.js";
 import { registerContinuityMcp } from "./registry.js";
@@ -6,8 +7,8 @@ import { registerContinuityMcp } from "./registry.js";
 export function createContinuityMcpServer(service: MemoryService = createDefaultMemoryService()): McpServer {
   const server = new McpServer(
     {
-      name: "handoffbase-mcp-server",
-      version: "0.1.0",
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
     },
     {
       instructions:

@@ -1,15 +1,20 @@
 import {
+  type AddMemoryConflictInput,
   type CreateMemoryInput,
   type CreateRunInput,
   type JsonObject,
+  type MemoryConflictRecord,
+  type MemoryConflictResolution,
   type MemoryRecord,
   type MemoryScope,
+  type ResolveMemoryConflictOptions,
   type RunRecord,
   type UpdateMemoryPatch
 } from "./types.js";
-import { assertValidMemoryRecord } from "./validation.js";
+import { assertValidMemoryConflictRecord, assertValidMemoryRecord } from "./validation.js";
 import {
   cloneJsonObject,
+  cloneMemoryConflictRecord,
   cloneMemoryRecord,
   generateUuid,
   normalizeDate,
@@ -45,6 +50,51 @@ export function createMemoryRecord(input: CreateMemoryInput, now: Date = new Dat
 
   assertValidMemoryRecord(memory);
   return memory;
+}
+
+export function createMemoryConflictRecord(
+  input: AddMemoryConflictInput,
+  now: Date = new Date()
+): MemoryConflictRecord {
+  const conflict: MemoryConflictRecord = {
+    id: input.id ?? generateUuid(),
+    tenantId: input.tenantId.trim(),
+    conflictType: input.conflictType,
+    severity: input.severity ?? "medium",
+    recommendedAction: input.recommendedAction,
+    status: input.status ?? "open",
+    createdAt: normalizeDate(input.createdAt) ?? new Date(now.getTime()),
+    metadata: cloneJsonObject(input.metadata)
+  };
+
+  setOptionalString(conflict, "candidateMemoryId", input.candidateMemoryId);
+  setOptionalString(conflict, "existingMemoryId", input.existingMemoryId);
+  setOptionalString(conflict, "reason", input.reason);
+  if (input.confidence !== undefined) {
+    conflict.confidence = input.confidence;
+  }
+  if (input.resolution !== undefined) {
+    conflict.resolution = cloneJsonObject(input.resolution) as MemoryConflictResolution;
+  }
+  setOptionalDate(conflict, "resolvedAt", normalizeDate(input.resolvedAt));
+
+  assertValidMemoryConflictRecord(conflict);
+  return conflict;
+}
+
+export function resolveMemoryConflictRecord(
+  conflict: MemoryConflictRecord,
+  resolution: MemoryConflictResolution,
+  options: ResolveMemoryConflictOptions = {}
+): MemoryConflictRecord {
+  const resolved = cloneMemoryConflictRecord(conflict);
+  resolved.status = options.status ?? "resolved";
+  resolved.resolution = cloneJsonObject(resolution) as MemoryConflictResolution;
+  resolved.resolvedAt = options.now ? new Date(options.now.getTime()) : new Date();
+  resolved.metadata = mergeMetadata(resolved.metadata, options.metadata);
+
+  assertValidMemoryConflictRecord(resolved);
+  return resolved;
 }
 
 export function applyMemoryPatch(memory: MemoryRecord, patch: UpdateMemoryPatch, now: Date = new Date()): MemoryRecord {

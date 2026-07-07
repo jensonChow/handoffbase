@@ -13,6 +13,18 @@ const client = new Client({
 const transport = new StreamableHTTPClientTransport(new URL(started.url));
 
 try {
+  const healthResponse = await fetch(new URL("/health", started.url));
+  assert.equal(healthResponse.status, 200, "health endpoint returns HTTP 200");
+  const health = (await healthResponse.json()) as Record<string, unknown>;
+  assert.equal(health.ok, true, "health reports ok");
+  assert.equal(health.name, "handoffbase-mcp-server", "health reports server name");
+  assert.equal(health.version, "0.1.0", "health reports server version");
+  assert.equal(health.transport, "streamable-http", "health reports transport");
+  assert.equal(health.mcpPath, "/mcp", "health reports MCP path");
+  assert.equal(health.authMode, "disabled", "health reports default auth mode");
+  assert.equal(health.providerMode, "mock", "health reports default provider mode");
+  assert.equal(health.storeMode, "in-memory", "health reports default store mode");
+
   await client.connect(transport);
 
   const tools = await client.listTools();

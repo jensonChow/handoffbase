@@ -1,14 +1,18 @@
 import {
   InMemoryMemoryStore,
   MockMemoryProvider,
+  PostgresMemoryStore,
   QwenMemoryProvider,
   QwenProviderError,
   rejectSensitiveText,
+  type ConflictResult,
   type ContextPackInput,
   type CreateMemoryInput,
   type JsonObject,
   type JsonValue,
   type MemoryCandidate,
+  type MemoryConflictRecord,
+  type MemoryListFilter,
   type MemoryReasoningProvider,
   type MemoryRecord,
   type MemoryScope,
@@ -16,10 +20,19 @@ import {
   type MemoryStatus,
   type MemoryStore,
   type MemoryTrace,
+  type RunRecord,
   type SourceKind,
   type SourceTrust,
   type StoredMemory,
 } from "@handoffbase/memory-core";
+import {
+  ScopeGuardError,
+  applyCallerAllowedDefaults,
+  assertScopedRequestNarrowed,
+  callerActor,
+  isAuthEnforced,
+} from "../auth/scope.js";
+import type { CallerContext } from "../auth/types.js";
 import type {
   CandidateMemory,
   ContinuityBootstrapInput,
@@ -39,7 +52,13 @@ import type {
   MemoryUpdateInput,
   MemoryUpdateOutput,
 } from "../schemas.js";
-import type { MemoryResourceRequest, MemoryResourceResult, MemoryService } from "./memory-service.js";
+import type {
+  MemoryResourceRequest,
+  MemoryResourceResult,
+  MemoryService,
+  MemoryServiceContext,
+  MemoryServiceRuntimeInfo,
+} from "./memory-service.js";
 
 const DEFAULT_TENANT_ID = "demo-tenant";
 const DEFAULT_USER_ID = "demo-user";
@@ -63,24 +82,33 @@ interface BuiltContextPack {
 export class ContinuityMemoryService implements MemoryService {
   private readonly store: MemoryStore;
   private readonly provider: MemoryReasoningProvider;
+  private readonly runtimeInfo: MemoryServiceRuntimeInfo;
   private readonly seedDemoMemories: boolean;
   private seedPromise?: Promise<void>;
 
   constructor(options: ContinuityMemoryServiceOptions = {}) {
     this.store = options.store ?? new InMemoryMemoryStore();
     this.provider = options.provider ?? createDefaultReasoningProvider();
+    this.runtimeInfo = {
+      providerMode: providerModeFor(this.provider),
+      storeMode: storeModeFor(this.store),
+    };
     this.seedDemoMemories = options.seedDemoMemories ?? true;
   }
 
-  async continuityBootstrap(input: ContinuityBootstrapInput): Promise<ContinuityBootstrapOutput> {
+  getRuntimeInfo(): MemoryServiceRuntimeInfo {
+    return this.runtimeInfo;
+  }
+
+  async continuityBootstrap(input: ContinuityBootstrapInput, context: MemoryServiceContext = {}): Promise<ContinuityBootstrapOutput> {
     await this.ensureSeeded();
-    const scope = scopeFromBootstrap(input);
+    const scope = scopeFromBootstrap(input, context.caller);
     const recall = await this.store.recallMemories({
       scope,
       query: input.task_hint ?? "session bootstrap continuity context",
       types: ["identity", "user_preference", "procedure", "project_fact", "tool_memory", "failure_memory", "decision_memory"],
       limit: 12,
-      actor: { type: "mcp_host", id: input.host },
+      actor: callerActor(context.caller, { type: "mcp_host", id: input.host }),
       metadata: { stage: "continuity_bootstrap" },
     });
     const pack = await this.buildContextPack({
@@ -98,15 +126,15 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async recall(input: MemoryRecallInput): Promise<MemoryRecallOutput> {
+  async recall(input: MemoryRecallInput, context: MemoryServiceContext = {}): Promise<MemoryRecallOutput> {
     await this.ensureSeeded();
-    const scope = scopeFromTool(input.scopes);
+    const scope = scopeFromTool(input.scopes, context.caller);
     const recall = await this.store.recallMemories({
       scope,
       query: input.query,
       types: input.types,
       limit: input.limit ?? 8,
-      actor: { type: "mcp_host", id: scope.hostId },
+      actor: callerActor(context.caller, { type: "mcp_host", id: scope.hostId }),
       metadata: { stage: "memory_recall" },
     });
     const pack = await this.buildContextPack({
@@ -124,7 +152,7 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async remember(input: MemoryRememberInput): Promise<MemoryRememberOutput> {
+  async remember(input: MemoryRememberInput, context: MemoryServiceContext = {}): Promise<MemoryRememberOutput> {
     await this.ensureSeeded();
     const sensitive = rejectSensitiveText(input.content);
     if (!sensitive.ok) {
@@ -134,7 +162,7 @@ export class ContinuityMemoryService implements MemoryService {
       };
     }
 
-    const scope = scopeFromTool(input.scopes);
+    const scope = scopeFromTool(input.scopes, context.caller);
     const sourceKind = sourceKindFromRemember(input.source);
     const candidates = await this.provider.extractMemories({
       content: input.content,
@@ -155,6 +183,7 @@ export class ContinuityMemoryService implements MemoryService {
       }
 
       const memoryInput = toCreateMemoryInput(candidate, scope, input.approval_mode ?? candidate.status);
+      assertScopedRequestNarrowed(memoryInput.scope, context.caller, "memory_remember");
       const existing = await this.store.listMemories({ scope, types: [memoryInput.type] });
       const conflict = await this.provider.detectConflicts({
         candidate,
@@ -168,14 +197,23 @@ export class ContinuityMemoryService implements MemoryService {
         continue;
       }
 
-      const result = await this.store.addMemory(memoryInput, {
-        actor: { type: "agent", id: "memory_remember" },
-        reason: conflict.reason || "Created from memory_remember.",
-        metadata: {
-          provider_conflicts: conflict.conflicts.length,
-          source: input.source,
+      const needsConflictReview = shouldHoldCandidateForConflictReview(conflict);
+      const result = await this.store.addMemory(
+        {
+          ...memoryInput,
+          status: needsConflictReview ? "pending" : memoryInput.status,
         },
-      });
+        {
+          actor: callerActor(context.caller, { type: "agent", id: "memory_remember" }),
+          reason: conflict.reason || "Created from memory_remember.",
+          metadata: {
+            provider_conflicts: conflict.conflicts.length,
+            provider_recommended_action: conflict.recommendedAction,
+            source: input.source,
+          },
+        },
+      );
+      await persistConflictRecords(this.store, result.memory, conflict, input.source, context.caller);
       stored.push(toCandidateMemory(candidate, result.memory.status, result.memory.id));
     }
 
@@ -185,9 +223,9 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async reflect(input: MemoryReflectInput): Promise<MemoryReflectOutput> {
+  async reflect(input: MemoryReflectInput, context: MemoryServiceContext = {}): Promise<MemoryReflectOutput> {
     await this.ensureSeeded();
-    const scope = scopeFromTool(input.scopes);
+    const scope = scopeFromTool(input.scopes, context.caller);
     const run = await this.store.addRun({
       id: input.run_id,
       tenantId: scope.tenantId,
@@ -220,8 +258,10 @@ export class ContinuityMemoryService implements MemoryService {
         continue;
       }
 
-      const result = await this.store.addMemory(toCreateMemoryInput(candidate, scope, "pending"), {
-        actor: { type: "agent", id: "memory_reflect" },
+      const memoryInput = toCreateMemoryInput(candidate, scope, "pending");
+      assertScopedRequestNarrowed(memoryInput.scope, context.caller, "memory_reflect");
+      const result = await this.store.addMemory(memoryInput, {
+        actor: callerActor(context.caller, { type: "agent", id: "memory_reflect" }),
         reason: reflection.summary,
         runId: run.id,
       });
@@ -231,11 +271,12 @@ export class ContinuityMemoryService implements MemoryService {
     for (const invalidated of reflection.invalidatedMemories) {
       const memory = await this.store.getMemory(invalidated.memoryId);
       if (memory) {
+        assertScopedRequestNarrowed(memory.scope, context.caller, "memory_reflect invalidation");
         await this.store.updateMemory(
           invalidated.memoryId,
           { status: "invalidated", validUntil: new Date().toISOString() },
           {
-            actor: { type: "agent", id: "memory_reflect" },
+            actor: callerActor(context.caller, { type: "agent", id: "memory_reflect" }),
             reason: invalidated.reason,
             runId: run.id,
           },
@@ -259,8 +300,9 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async update(input: MemoryUpdateInput): Promise<MemoryUpdateOutput> {
+  async update(input: MemoryUpdateInput, context: MemoryServiceContext = {}): Promise<MemoryUpdateOutput> {
     await this.ensureSeeded();
+    await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
     const result = await this.store.updateMemory(
       input.memory_id,
       {
@@ -273,7 +315,7 @@ export class ContinuityMemoryService implements MemoryService {
         metadata: toJsonObject(input.patch.metadata),
       },
       {
-        actor: { type: "user", id: "memory_update" },
+        actor: callerActor(context.caller, { type: "user", id: "memory_update" }),
         reason: input.reason ?? "Updated through memory_update.",
       },
     );
@@ -289,8 +331,9 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async forget(input: MemoryForgetInput): Promise<MemoryForgetOutput> {
+  async forget(input: MemoryForgetInput, context: MemoryServiceContext = {}): Promise<MemoryForgetOutput> {
     await this.ensureSeeded();
+    await this.requireMutableMemory(input.memory_id, context.caller, "memory_forget");
     const statusByMode: Record<MemoryForgetInput["mode"], MemoryStatus> = {
       archive: "archived",
       expire: "expired",
@@ -301,7 +344,7 @@ export class ContinuityMemoryService implements MemoryService {
     const result =
       input.mode === "hard_delete"
         ? await this.store.deleteMemory(input.memory_id, {
-            actor: { type: "user", id: "memory_forget" },
+            actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
             reason: input.reason,
           })
         : await this.store.updateMemory(
@@ -311,7 +354,7 @@ export class ContinuityMemoryService implements MemoryService {
               validUntil: status === "expired" || status === "invalidated" ? new Date().toISOString() : undefined,
             },
             {
-              actor: { type: "user", id: "memory_forget" },
+              actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
               reason: input.reason,
             },
           );
@@ -324,7 +367,7 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async trace(input: MemoryTraceInput): Promise<MemoryTraceOutput> {
+  async trace(input: MemoryTraceInput, context: MemoryServiceContext = {}): Promise<MemoryTraceOutput> {
     await this.ensureSeeded();
     const trace = await this.store.getTrace(input.trace_id);
     if (!trace) {
@@ -334,6 +377,7 @@ export class ContinuityMemoryService implements MemoryService {
         excluded_memories: [{ memory_id: input.trace_id, reason: "Trace not found." }],
       };
     }
+    await this.assertTraceReadable(trace, context.caller, "memory_trace");
 
     const selected = await this.memoriesById(trace.selectedMemoryIds);
     const ignored = await this.memoriesById(trace.ignoredMemoryIds);
@@ -369,9 +413,9 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  async readResource(input: MemoryResourceRequest): Promise<MemoryResourceResult> {
+  async readResource(input: MemoryResourceRequest, context: MemoryServiceContext = {}): Promise<MemoryResourceResult> {
     await this.ensureSeeded();
-    const payload = await this.resourcePayload(input);
+    const payload = await this.resourcePayload(input, context.caller);
     return {
       uri: input.uri,
       mimeType: "application/json",
@@ -379,23 +423,64 @@ export class ContinuityMemoryService implements MemoryService {
     };
   }
 
-  private async resourcePayload(input: MemoryResourceRequest): Promise<unknown> {
+  private async resourcePayload(input: MemoryResourceRequest, caller: CallerContext | undefined): Promise<unknown> {
     if (input.name === "memory-trace") {
       const trace = await this.store.getTrace(input.variables.trace_id);
+      if (trace) {
+        await this.assertTraceReadable(trace, caller, "memory-trace resource");
+      }
       return trace ?? { uri: input.uri, status: "not_found" };
     }
 
     if (input.name === "run-summary") {
       const run = await this.store.getRun(input.variables.run_id);
+      if (run) {
+        assertScopedRequestNarrowed(scopeFromRun(run), caller, "run-summary resource");
+      }
       return run ?? { uri: input.uri, status: "not_found" };
     }
 
-    const filter = resourceFilter(input);
+    if (input.name === "vault-conflicts") {
+      return await this.conflictResourcePayload(input, caller);
+    }
+
+    const filter = resourceFilter(input, caller);
     const memories = await this.store.listMemories(filter);
     return {
       uri: input.uri,
       count: memories.length,
       memories: memories.map((memory) => toMemorySummary(memory)),
+    };
+  }
+
+  private async conflictResourcePayload(
+    input: MemoryResourceRequest,
+    caller: CallerContext | undefined,
+  ): Promise<unknown> {
+    const conflicts = await this.store.listConflicts({
+      tenantId: isAuthEnforced(caller) ? caller.tenantId : undefined,
+      statuses: ["open"],
+    });
+    const memoryIds = [
+      ...new Set(
+        conflicts.flatMap((conflict) =>
+          [conflict.candidateMemoryId, conflict.existingMemoryId].filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    ];
+    const memories = await this.memoriesById(memoryIds);
+    const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+
+    if (isAuthEnforced(caller)) {
+      for (const memory of memories) {
+        assertScopedRequestNarrowed(memory.scope, caller, "vault-conflicts resource");
+      }
+    }
+
+    return {
+      uri: input.uri,
+      count: conflicts.length,
+      conflicts: conflicts.map((conflict) => toConflictResourceItem(conflict, memoryById)),
     };
   }
 
@@ -449,6 +534,54 @@ export class ContinuityMemoryService implements MemoryService {
     }
     await this.seedPromise;
   }
+
+  private async requireMutableMemory(
+    memoryId: string,
+    caller: CallerContext | undefined,
+    operation: string,
+  ): Promise<MemoryRecord> {
+    const memory = await this.store.getMemory(memoryId);
+    if (!memory) {
+      throw new Error(`Memory not found: ${memoryId}`);
+    }
+    assertScopedRequestNarrowed(memory.scope, caller, operation);
+    return memory;
+  }
+
+  private async assertTraceReadable(
+    trace: MemoryTrace,
+    caller: CallerContext | undefined,
+    operation: string,
+  ): Promise<void> {
+    if (!isAuthEnforced(caller)) {
+      return;
+    }
+    if (trace.tenantId !== caller.tenantId) {
+      throw new ScopeGuardError(`${operation} is not authorized for tenant ${trace.tenantId}.`);
+    }
+
+    if (trace.runId) {
+      const run = await this.store.getRun(trace.runId);
+      if (run) {
+        assertScopedRequestNarrowed(scopeFromRun(run), caller, operation);
+        return;
+      }
+    }
+
+    const memoryIds = [...trace.selectedMemoryIds, ...trace.ignoredMemoryIds];
+    if (memoryIds.length === 0) {
+      throw new ScopeGuardError(`${operation} cannot verify caller user scope for trace ${trace.id}.`);
+    }
+
+    let verified = 0;
+    for (const memory of await this.memoriesById(memoryIds)) {
+      assertScopedRequestNarrowed(memory.scope, caller, operation);
+      verified += 1;
+    }
+    if (verified === 0) {
+      throw new ScopeGuardError(`${operation} cannot verify caller user scope for trace ${trace.id}.`);
+    }
+  }
 }
 
 export function createDefaultMemoryService(): ContinuityMemoryService {
@@ -468,27 +601,51 @@ function createDefaultReasoningProvider(): MemoryReasoningProvider {
   return new MockMemoryProvider();
 }
 
-function scopeFromBootstrap(input: ContinuityBootstrapInput): MemoryScope {
-  return {
-    tenantId: DEFAULT_TENANT_ID,
+function providerModeFor(provider: MemoryReasoningProvider): MemoryServiceRuntimeInfo["providerMode"] {
+  if (provider instanceof QwenMemoryProvider) {
+    return "qwen";
+  }
+  if (provider instanceof MockMemoryProvider) {
+    return "mock";
+  }
+  return "custom";
+}
+
+function storeModeFor(store: MemoryStore): MemoryServiceRuntimeInfo["storeMode"] {
+  if (store instanceof InMemoryMemoryStore) {
+    return "in-memory";
+  }
+  if (store instanceof PostgresMemoryStore) {
+    return "postgres";
+  }
+  return "custom";
+}
+
+function scopeFromBootstrap(input: ContinuityBootstrapInput, caller: CallerContext | undefined): MemoryScope {
+  const scope = applyCallerAllowedDefaults({
+    tenantId: isAuthEnforced(caller) ? caller.tenantId : DEFAULT_TENANT_ID,
     userId: input.user_id,
     agentProfileId: input.agent_profile,
     hostId: input.host,
     projectId: input.project?.id ?? input.project?.name,
     sessionId: input.session_id,
-  };
+  }, caller);
+  assertScopedRequestNarrowed(scope, caller, "continuity_bootstrap");
+  return scope;
 }
 
-function scopeFromTool(scope: MemoryRecallInput["scopes"]): MemoryScope {
-  return {
-    tenantId: scope?.tenant_id ?? DEFAULT_TENANT_ID,
-    userId: scope?.user_id ?? DEFAULT_USER_ID,
-    agentProfileId: scope?.agent_profile_id ?? DEFAULT_AGENT_PROFILE_ID,
+function scopeFromTool(scope: MemoryRecallInput["scopes"], caller: CallerContext | undefined): MemoryScope {
+  const resolved = applyCallerAllowedDefaults({
+    tenantId: scope?.tenant_id ?? (isAuthEnforced(caller) ? caller.tenantId : DEFAULT_TENANT_ID),
+    userId: scope?.user_id ?? (isAuthEnforced(caller) ? caller.userId : DEFAULT_USER_ID),
+    agentProfileId: scope?.agent_profile_id ?? (isAuthEnforced(caller) ? undefined : DEFAULT_AGENT_PROFILE_ID),
     hostId: scope?.host_id,
     projectId: scope?.project_id,
     sessionId: scope?.session_id,
     toolId: scope?.tool_id,
-  };
+  }, caller);
+  assertScopedRequestNarrowed(resolved, caller, "tool scope");
+  return resolved;
 }
 
 function toProviderScope(scope: MemoryScope): Record<string, string | undefined> {
@@ -567,6 +724,56 @@ function toCandidateMemory(candidate: MemoryCandidate, status: MemoryStatus | "r
   };
 }
 
+function shouldHoldCandidateForConflictReview(conflict: ConflictResult): boolean {
+  if (!conflict.conflicts.some(isRealProviderConflict)) {
+    return false;
+  }
+
+  if (conflict.recommendedAction === "ask_user" || conflict.recommendedAction === "merge" || conflict.recommendedAction === "supersede") {
+    return true;
+  }
+
+  return conflict.conflicts.some(
+    (item) => item.suggestedAction === "ask_user" || item.suggestedAction === "merge" || item.suggestedAction === "supersede_existing",
+  );
+}
+
+async function persistConflictRecords(
+  store: MemoryStore,
+  candidateMemory: MemoryRecord,
+  conflict: ConflictResult,
+  source: MemoryRememberInput["source"],
+  caller: CallerContext | undefined,
+): Promise<void> {
+  for (const item of conflict.conflicts.filter(isRealProviderConflict)) {
+    await store.addConflict(
+      {
+        tenantId: candidateMemory.scope.tenantId,
+        candidateMemoryId: candidateMemory.id,
+        existingMemoryId: item.existingMemoryId,
+        conflictType: item.conflictType,
+        severity: item.severity,
+        recommendedAction: item.suggestedAction,
+        reason: item.reason || conflict.reason,
+        confidence: item.confidence,
+        metadata: toJsonObject({
+          source,
+          provider_recommended_action: conflict.recommendedAction,
+          provider_reason: conflict.reason,
+        }),
+      },
+      {
+        actor: callerActor(caller, { type: "agent", id: "memory_remember" }),
+        reason: item.reason || conflict.reason,
+      },
+    );
+  }
+}
+
+function isRealProviderConflict(item: ConflictResult["conflicts"][number]): boolean {
+  return item.conflictType !== "none";
+}
+
 function toMemorySummary(memory: MemoryRecord, reason?: string): MemorySummary {
   return {
     id: memory.id,
@@ -576,6 +783,28 @@ function toMemorySummary(memory: MemoryRecord, reason?: string): MemorySummary {
     reason: reason ?? `${memory.status} ${memory.type} memory`,
     status: memory.status,
   };
+}
+
+function toConflictResourceItem(conflict: MemoryConflictRecord, memoryById: Map<string, MemoryRecord>): JsonObject {
+  const candidate = conflict.candidateMemoryId ? memoryById.get(conflict.candidateMemoryId) : undefined;
+  const existing = conflict.existingMemoryId ? memoryById.get(conflict.existingMemoryId) : undefined;
+
+  return toJsonObject({
+    id: conflict.id,
+    conflict_type: conflict.conflictType,
+    severity: conflict.severity,
+    recommended_action: conflict.recommendedAction,
+    status: conflict.status,
+    reason: conflict.reason,
+    confidence: conflict.confidence,
+    candidate_memory_id: conflict.candidateMemoryId,
+    existing_memory_id: conflict.existingMemoryId,
+    candidate_memory: candidate ? toMemorySummary(candidate) : null,
+    existing_memory: existing ? toMemorySummary(existing) : null,
+    created_at: conflict.createdAt,
+    resolved_at: conflict.resolvedAt,
+    metadata: conflict.metadata,
+  }) ?? {};
 }
 
 function sourceKindFromRemember(source: MemoryRememberInput["source"]): SourceKind {
@@ -653,12 +882,62 @@ function groupContextPack(selectedTexts: string[], memories: MemoryRecord[]): Co
   return pack;
 }
 
-function resourceFilter(input: MemoryResourceRequest): Parameters<MemoryStore["listMemories"]>[0] {
+function resourceFilter(input: MemoryResourceRequest, caller: CallerContext | undefined): MemoryListFilter {
+  if (isAuthEnforced(caller)) {
+    return guardedResourceFilter(input, caller);
+  }
+  return demoResourceFilter(input);
+}
+
+function guardedResourceFilter(input: MemoryResourceRequest, caller: CallerContext): MemoryListFilter {
+  if (input.name === "vault-pending") {
+    return { scope: scopeForCallerResource(caller, {}, input.name), statuses: ["pending"] };
+  }
+  if (input.name === "agent-procedures") {
+    return {
+      scope: scopeForCallerResource(caller, { agentProfileId: input.variables.agent_profile_id }, input.name),
+      types: ["procedure"],
+    };
+  }
+  if (input.name === "agent-failures") {
+    return {
+      scope: scopeForCallerResource(caller, { agentProfileId: input.variables.agent_profile_id }, input.name),
+      types: ["failure_memory"],
+    };
+  }
+  if (input.name === "project-facts") {
+    return {
+      scope: scopeForCallerResource(caller, { projectId: input.variables.project_id }, input.name),
+      types: ["project_fact", "decision_memory"],
+    };
+  }
+  if (input.name === "project-tool-notes") {
+    return {
+      scope: scopeForCallerResource(caller, { projectId: input.variables.project_id }, input.name),
+      types: ["tool_memory"],
+    };
+  }
+  return { scope: scopeForCallerResource(caller, { userId: input.variables.user_id }, input.name) };
+}
+
+function scopeForCallerResource(
+  caller: CallerContext,
+  requested: Partial<Pick<MemoryScope, "tenantId" | "userId" | "agentProfileId" | "projectId">>,
+  operation: string,
+): MemoryScope {
+  const scope = applyCallerAllowedDefaults({
+    tenantId: requested.tenantId ?? caller.tenantId,
+    userId: requested.userId ?? caller.userId,
+    agentProfileId: requested.agentProfileId,
+    projectId: requested.projectId,
+  }, caller);
+  assertScopedRequestNarrowed(scope, caller, `${operation} resource`);
+  return scope;
+}
+
+function demoResourceFilter(input: MemoryResourceRequest): MemoryListFilter {
   if (input.name === "vault-pending") {
     return { statuses: ["pending"] };
-  }
-  if (input.name === "vault-conflicts") {
-    return { statuses: ["pending"], types: ["user_preference", "procedure", "failure_memory"] };
   }
   if (input.name === "agent-procedures") {
     return { scope: { tenantId: DEFAULT_TENANT_ID, userId: DEFAULT_USER_ID, agentProfileId: input.variables.agent_profile_id }, types: ["procedure"] };
@@ -673,6 +952,16 @@ function resourceFilter(input: MemoryResourceRequest): Parameters<MemoryStore["l
     return { scope: { tenantId: DEFAULT_TENANT_ID, userId: DEFAULT_USER_ID, projectId: input.variables.project_id }, types: ["tool_memory"] };
   }
   return { scope: { tenantId: DEFAULT_TENANT_ID, userId: input.variables.user_id ?? DEFAULT_USER_ID } };
+}
+
+function scopeFromRun(run: RunRecord): MemoryScope {
+  return {
+    tenantId: run.tenantId,
+    userId: run.userId,
+    hostId: run.hostId,
+    agentProfileId: run.agentProfileId,
+    projectId: run.projectId,
+  };
 }
 
 function toJsonObject(value: Record<string, unknown> | undefined): JsonObject | undefined {

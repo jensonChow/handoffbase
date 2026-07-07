@@ -1,8 +1,13 @@
 import {
+  type AddMemoryConflictInput,
   type CreateMemoryInput,
   type CreateRunInput,
   type CreateTraceInput,
   type MemoryEmbedding,
+  type MemoryConflictListFilter,
+  type MemoryConflictRecord,
+  type MemoryConflictResolution,
+  type MemoryConflictResolutionResult,
   type MemoryEvent,
   type MemoryListFilter,
   type MemoryRecallQuery,
@@ -12,17 +17,20 @@ import {
   type MemoryUpdateResult,
   type MemoryWriteResult,
   type MutationOptions,
+  type ResolveMemoryConflictOptions,
   type RunRecord,
   type SupersedeMemoryResult,
   type UpdateMemoryPatch
 } from "./types.js";
 import {
   applyMemoryPatch,
+  createMemoryConflictRecord,
   createMemoryRecord,
   createRunRecord,
   getEffectiveMemoryStatus,
   isRecallableMemory,
   markMemoryDeleted,
+  resolveMemoryConflictRecord,
   scopeMatches,
   supersedeMemoryRecord,
   touchMemoryUsage
@@ -36,7 +44,7 @@ import {
   createUpdateEvent
 } from "./events.js";
 import { type EventListFilter, type MemoryStore } from "./storage.js";
-import { cloneJsonObject, cloneMemoryRecord } from "./utils.js";
+import { cloneJsonObject, cloneMemoryConflictRecord, cloneMemoryRecord } from "./utils.js";
 
 export interface InMemoryMemoryStoreOptions {
   clock?: () => Date;
@@ -49,6 +57,7 @@ export class InMemoryMemoryStore implements MemoryStore {
   private readonly events = new Map<string, MemoryEvent>();
   private readonly runs = new Map<string, RunRecord>();
   private readonly traces = new Map<string, MemoryTrace>();
+  private readonly conflicts = new Map<string, MemoryConflictRecord>();
 
   constructor(options: InMemoryMemoryStoreOptions = {}) {
     this.clock = options.clock ?? (() => new Date());
@@ -270,6 +279,72 @@ export class InMemoryMemoryStore implements MemoryStore {
     return trace ? cloneMemoryTrace(trace) : undefined;
   }
 
+  async addConflict(
+    input: AddMemoryConflictInput,
+    options: MutationOptions = {}
+  ): Promise<MemoryConflictRecord> {
+    const conflict = createMemoryConflictRecord(input, this.optionTime(options));
+
+    if (this.conflicts.has(conflict.id)) {
+      throw new Error(`Memory conflict already exists: ${conflict.id}`);
+    }
+
+    this.conflicts.set(conflict.id, cloneMemoryConflictRecord(conflict));
+    return cloneMemoryConflictRecord(conflict);
+  }
+
+  async getConflict(id: string): Promise<MemoryConflictRecord | undefined> {
+    const conflict = this.conflicts.get(id);
+    return conflict ? cloneMemoryConflictRecord(conflict) : undefined;
+  }
+
+  async listConflicts(filter: MemoryConflictListFilter = {}): Promise<MemoryConflictRecord[]> {
+    return [...this.conflicts.values()]
+      .filter((conflict) => {
+        if (filter.tenantId !== undefined && conflict.tenantId !== filter.tenantId) {
+          return false;
+        }
+
+        if (filter.candidateMemoryId !== undefined && conflict.candidateMemoryId !== filter.candidateMemoryId) {
+          return false;
+        }
+
+        if (filter.existingMemoryId !== undefined && conflict.existingMemoryId !== filter.existingMemoryId) {
+          return false;
+        }
+
+        if (filter.statuses !== undefined && !filter.statuses.includes(conflict.status)) {
+          return false;
+        }
+
+        if (filter.conflictTypes !== undefined && !filter.conflictTypes.includes(conflict.conflictType)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .map((conflict) => cloneMemoryConflictRecord(conflict));
+  }
+
+  async resolveConflict(
+    id: string,
+    resolution: MemoryConflictResolution,
+    options: ResolveMemoryConflictOptions = {}
+  ): Promise<MemoryConflictResolutionResult> {
+    const before = this.requireConflict(id);
+    const conflict = resolveMemoryConflictRecord(before, resolution, {
+      ...options,
+      now: this.optionTime(options)
+    });
+    this.conflicts.set(id, cloneMemoryConflictRecord(conflict));
+
+    return {
+      before,
+      conflict: cloneMemoryConflictRecord(conflict)
+    };
+  }
+
   async listEvents(filter: EventListFilter = {}): Promise<MemoryEvent[]> {
     return [...this.events.values()]
       .filter((event) => {
@@ -301,6 +376,15 @@ export class InMemoryMemoryStore implements MemoryStore {
     }
 
     return cloneMemoryRecord(memory);
+  }
+
+  private requireConflict(id: string): MemoryConflictRecord {
+    const conflict = this.conflicts.get(id);
+    if (conflict === undefined) {
+      throw new Error(`Memory conflict not found: ${id}`);
+    }
+
+    return cloneMemoryConflictRecord(conflict);
   }
 
   private optionTime(options: { now?: Date }): Date {

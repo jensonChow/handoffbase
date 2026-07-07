@@ -30,6 +30,37 @@ export const MEMORY_STATUSES = [
 
 export type MemoryStatus = (typeof MEMORY_STATUSES)[number];
 
+export const MEMORY_CONFLICT_STATUSES = ["open", "resolved", "dismissed"] as const;
+
+export type MemoryConflictStatus = (typeof MEMORY_CONFLICT_STATUSES)[number];
+
+export const MEMORY_CONFLICT_TYPES = [
+  "contradiction",
+  "supersedes",
+  "duplicate",
+  "scope_overlap",
+  "none"
+] as const;
+
+export type MemoryConflictType = (typeof MEMORY_CONFLICT_TYPES)[number];
+
+export const MEMORY_CONFLICT_SEVERITIES = ["low", "medium", "high"] as const;
+
+export type MemoryConflictSeverity = (typeof MEMORY_CONFLICT_SEVERITIES)[number];
+
+export const MEMORY_CONFLICT_RECOMMENDED_ACTIONS = [
+  "accept",
+  "ignore",
+  "merge",
+  "supersede",
+  "supersede_existing",
+  "ask_user",
+  "keep_both",
+  "reject"
+] as const;
+
+export type MemoryConflictRecommendedAction = (typeof MEMORY_CONFLICT_RECOMMENDED_ACTIONS)[number];
+
 export const MEMORY_SOURCE_KINDS = [
   "user_assertion",
   "user_correction",
@@ -162,6 +193,25 @@ export interface MemoryTrace {
   metadata: JsonObject;
 }
 
+export type MemoryConflictResolution = JsonObject & { action: string };
+
+export interface MemoryConflictRecord {
+  id: string;
+  tenantId: string;
+  candidateMemoryId?: string;
+  existingMemoryId?: string;
+  conflictType: MemoryConflictType;
+  severity: MemoryConflictSeverity;
+  recommendedAction: MemoryConflictRecommendedAction;
+  status: MemoryConflictStatus;
+  reason?: string;
+  confidence?: number;
+  resolution?: MemoryConflictResolution;
+  createdAt: Date;
+  resolvedAt?: Date;
+  metadata: JsonObject;
+}
+
 export interface CreateMemoryInput {
   id?: string;
   scope: MemoryScope;
@@ -220,12 +270,41 @@ export interface CreateTraceInput {
   metadata?: JsonObject;
 }
 
+export interface AddMemoryConflictInput {
+  id?: string;
+  tenantId: string;
+  candidateMemoryId?: string;
+  existingMemoryId?: string;
+  conflictType: MemoryConflictType;
+  severity?: MemoryConflictSeverity;
+  recommendedAction: MemoryConflictRecommendedAction;
+  status?: MemoryConflictStatus;
+  reason?: string;
+  confidence?: number;
+  resolution?: MemoryConflictResolution;
+  createdAt?: Date | string;
+  resolvedAt?: Date | string;
+  metadata?: JsonObject;
+}
+
+export interface MemoryConflictListFilter {
+  tenantId?: string;
+  candidateMemoryId?: string;
+  existingMemoryId?: string;
+  statuses?: MemoryConflictStatus[];
+  conflictTypes?: MemoryConflictType[];
+}
+
 export interface MutationOptions {
   actor?: MemoryActor;
   reason?: string;
   now?: Date;
   runId?: string;
   metadata?: JsonObject;
+}
+
+export interface ResolveMemoryConflictOptions extends MutationOptions {
+  status?: Extract<MemoryConflictStatus, "resolved" | "dismissed">;
 }
 
 export interface MemoryListFilter {
@@ -269,4 +348,9 @@ export interface MemoryUpdateResult {
   before: MemoryRecord;
   memory: MemoryRecord;
   event: MemoryEvent;
+}
+
+export interface MemoryConflictResolutionResult {
+  before: MemoryConflictRecord;
+  conflict: MemoryConflictRecord;
 }

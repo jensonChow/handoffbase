@@ -47,3 +47,15 @@
 - Decision: Qwen provider input must be sanitized before prompt construction, and CI/local validation must not require Qwen credentials.
 - Rationale: Agent/tool payloads may contain tokens, cookies, private keys, or oversized logs. Sanitizing before `buildProviderPrompt` protects provider calls, while mock-default CI keeps checks deterministic and secret-free.
 - Status: active.
+
+## 2026-07-07
+
+- Decision: Memory conflicts are first-class governance records instead of a pending-memory filtered view.
+- Rationale: Provider conflict detection needs durable review state for contradictions, duplicates, supersedes, and scope overlaps; candidate memories that require ask_user, merge, or supersede review should remain pending until an explicit resolution.
+- Status: active.
+
+## 2026-07-07
+
+- Decision: The deployable server exposes safe health metadata, optional API key auth, and an in-memory default store while keeping Postgres available behind `PostgresMemoryStore`.
+- Rationale: The hackathon demo needs a Docker-ready Remote Streamable HTTP server that can run without secrets, while auth scope guards and Postgres persistence can be enabled or wired without changing MCP tool/resource contracts.
+- Status: active.

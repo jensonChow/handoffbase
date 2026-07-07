@@ -18,8 +18,8 @@
 当前仓库使用 npm workspace:
 
 - 根目录 `src/`: Remote Streamable HTTP MCP server 和 `ContinuityMemoryService`。
-- `packages/memory-core`: memory records、lifecycle、validation、sensitive-data rejection/redaction、event log、trace、in-memory store、Postgres/pgvector migration contract、Postgres row-mapping scaffold、provider interface、Qwen/mock providers。
-- `apps/dashboard`: Next.js Memory Vault dashboard，当前通过默认 mock client boundary 展示 vault、pending、edit/delete、trace、conflicts；HTTP client scaffold 需要显式 `mode: "http"` 才启用。
+- `packages/memory-core`: memory records、lifecycle、validation、sensitive-data rejection/redaction、event log、trace、in-memory store、Postgres/pgvector migration contract、Postgres CRUD/recall/trace/event/embedding/conflict store implementation、provider interface、Qwen/mock providers。
+- `apps/dashboard`: Next.js Memory Vault dashboard，默认 mock client boundary；设置 `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http` 可调用同源 `/api/dashboard/*` API routes。
 - `demo/opportunity-scout`: AI Opportunity Scout seed memories、session flow 和 JSON-RPC examples。
 
 本地 MVP 默认使用 in-memory store 和 `MockMemoryProvider`。设置 Qwen/DashScope env 后由 `QwenMemoryProvider` 通过统一 provider interface 接管 reasoning。
@@ -29,7 +29,9 @@
 - `packages/memory-core/src/types.ts` 是 memory type、status、source kind 等枚举的 canonical source；MCP schemas 和 SQL migration 必须跟它保持一致。
 - Memory、run、trace、event、embedding ids 当前采用 domain text id，而不是强制数据库 uuid。SQL migration 的引用字段和数组也使用 text。
 - `memory_recall.trace_id` 和 `continuity_bootstrap.memory_trace_id` 返回最终 context-pack trace。原始 retrieval trace 仍保留，并通过 context-pack trace metadata 的 `retrieval_trace_id` 反链。
-- `PostgresMemoryStore` 目前是设计切片：支持 SQL row mapping、read/list query building 和测试；mutation、recall、embedding upsert、run/trace insert 仍显式未实现，不能当成生产持久 store。
+- `PostgresMemoryStore` 支持 core CRUD、supersede、embedding upsert、run/trace insert、structured recall、recall event/trace、memory_conflicts CRUD 和 SQL row mapping；默认 server factory 尚未用 env vars 自动选择 Postgres。
+- Memory conflicts are first-class records. `memory_remember` persists provider conflicts as `MemoryConflictRecord` rows/records and holds ask_user、merge、supersede candidates as pending instead of silently changing active memories.
+- API key auth is enforced at the HTTP MCP boundary when `HANDOFFBASE_AUTH_MODE=api_key`; tool input scopes cannot widen the resolved caller tenant/user/project/agent scope.
 
 ## Provider Abstraction
 
@@ -43,7 +45,7 @@ GitHub Actions 使用 Node 22、`npm ci` 和 `npm run check`。CI 显式清空 `
 
 ## Deployment Boundary
 
-比赛版部署在 Alibaba Cloud。业务层保持标准 HTTP、Postgres/pgvector、Docker/container 形态，避免长期绑定某个云厂商。
+比赛版部署在 Alibaba Cloud。业务层保持标准 HTTP、Postgres/pgvector、Docker/container 形态，避免长期绑定某个云厂商。当前 Docker profile 启动 `node dist/index.js`，`/health` 只暴露 name/version/transport/path/auth/provider/store mode，不暴露密钥或连接串。
 
 ## Data Boundary
 

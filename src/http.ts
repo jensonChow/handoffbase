@@ -2,12 +2,17 @@ import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Express, Response } from "express";
 import type { Server as NodeHttpServer } from "node:http";
+import { authConfigFromEnv } from "./auth/config.js";
+import { resolveCallerContext } from "./auth/request.js";
+import { AuthError, type AuthConfig } from "./auth/types.js";
+import { SERVER_NAME, SERVER_TRANSPORT, SERVER_VERSION } from "./config.js";
 import { createContinuityMcpServer } from "./mcp/server.js";
 import { createDefaultMemoryService } from "./services/continuity-memory-service.js";
-import type { MemoryService } from "./services/memory-service.js";
+import { withCallerContext, type MemoryService, type MemoryServiceRuntimeInfo } from "./services/memory-service.js";
 
 export interface HttpAppOptions {
   allowedHosts?: string[];
+  authConfig?: AuthConfig;
   host?: string;
   mcpPath?: string;
   service?: MemoryService;
@@ -26,19 +31,36 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
   const host = options.host ?? "127.0.0.1";
   const mcpPath = options.mcpPath ?? "/mcp";
   const service = options.service ?? createDefaultMemoryService();
+  const authConfig = options.authConfig ?? authConfigFromEnv();
+  const runtime = runtimeInfoForService(service);
   const app = createMcpExpressApp({ host, allowedHosts: options.allowedHosts });
 
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
-      name: "handoffbase-mcp-server",
-      transport: "streamable-http",
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
+      transport: SERVER_TRANSPORT,
       mcpPath,
+      authMode: authConfig.mode,
+      providerMode: runtime.providerMode,
+      storeMode: runtime.storeMode,
     });
   });
 
   app.post(mcpPath, async (req, res) => {
-    const mcpServer = createContinuityMcpServer(service);
+    let caller;
+    try {
+      caller = resolveCallerContext(req, authConfig);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        writeJsonRpcError(res, error.statusCode, -32001, error.message);
+        return;
+      }
+      throw error;
+    }
+
+    const mcpServer = createContinuityMcpServer(withCallerContext(service, caller));
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
@@ -91,11 +113,15 @@ export async function startHttpServer(options: HttpServerOptions = {}): Promise<
 }
 
 function methodNotAllowed(res: Response): void {
-  res.status(405).json({
+  writeJsonRpcError(res, 405, -32000, "Method not allowed.");
+}
+
+function writeJsonRpcError(res: Response, statusCode: number, code: number, message: string): void {
+  res.status(statusCode).json({
     jsonrpc: "2.0",
     error: {
-      code: -32000,
-      message: "Method not allowed.",
+      code,
+      message,
     },
     id: null,
   });
@@ -112,4 +138,11 @@ function hostForUrl(host: string): string {
     return `[${host}]`;
   }
   return host;
+}
+
+function runtimeInfoForService(service: MemoryService): MemoryServiceRuntimeInfo {
+  return service.getRuntimeInfo?.() ?? {
+    providerMode: "custom",
+    storeMode: "custom",
+  };
 }
