@@ -1,6 +1,6 @@
 # Development Materials Checklist
 
-Last updated: 2026-07-07T13:59:02Z
+Last updated: 2026-07-08T00:30:31Z
 
 This file is the non-secret setup ledger for HandoffBase hackathon development,
 local validation, and deployment readiness. Do not add API keys, database URLs,
@@ -80,7 +80,8 @@ Status: prepared
 - Auth mode: `api_key`
 - Tenant ID: `demo-tenant`
 - User ID: `demo-user`
-- Actor ID: `hackathon-dev`
+- Local actor ID: `hackathon-dev`
+- Cloud actor ID: `hackathon-demo`
 - Secret storage: `.env.hackathon.local`
 - Secret value: not recorded
 
@@ -91,6 +92,9 @@ Status: passed for mock-provider, Qwen-config health, and live Qwen-backed MCP v
 Validation to run:
 
 - `npm run check`: passed on 2026-07-07T13:00:19Z
+- `npm run check`: passed on 2026-07-07T14:36:36Z after adding the remote validation helper and pending proof template
+- `node --check scripts/validate-remote-mcp.mjs`: passed on 2026-07-07T14:36:36Z
+- `npm run mcp:validate-remote`: passed on 2026-07-07T16:26Z against the Alibaba Cloud ECS endpoint
 - Start local server with `.env.hackathon.local`: passed
 - `GET /health`: passed
 - MCP tool call with local auth header: passed
@@ -140,11 +144,25 @@ Live Qwen-backed MCP validation:
 - Secret handling: Qwen key and local auth key were loaded only from
   `.env.hackathon.local`; values were not printed
 
+Remote ECS MCP validation:
+
+- Command path: `npm run mcp:validate-remote`
+- Endpoint: `http://123.56.244.157/mcp`
+- Authentication: auth token supplied only through `MCP_AUTH_TOKEN`
+- `GET /health`: reported `authMode=api_key`, `providerMode=qwen`, and
+  `storeMode=in-memory`
+- `tools/list`: returned 7 tools
+- `memory_recall`: returned 5 memories and a trace id
+- `memory_remember`: returned 2 pending candidate memories through the
+  Qwen-backed provider path
+- Secret handling: HandoffBase auth and Qwen values were not printed or written
+  to tracked files
+
 ## Alibaba Cloud Deployment Readiness
 
-Status: inspected from repo and console service menu; provisioning pending approval
+Status: deployed and validated on Alibaba Cloud ECS
 
-Recommended minimal path: ECS + Docker
+Selected minimal path: ECS + Docker
 
 Reasoning:
 
@@ -153,41 +171,59 @@ Reasoning:
   and `/mcp`.
 - ECS + Docker is the simplest target for a hackathon demo without changing the
   app architecture.
-- Container Registry can be added when pushing images remotely, but it is not
-  required for local Docker validation.
-- ACK adds Kubernetes overhead that is not needed for the current MVP.
-- Function Compute custom container may be viable, but the MCP Streamable HTTP
-  service shape is simpler to operate first on ECS.
-- Local Docker validation is not available in this workstation session because
-  the `docker` command is not installed.
+- Container Registry, ACK, Function Compute, load balancers, domains,
+  certificates, and databases were not added for this minimal proof.
+- Docker validation was completed on the ECS host because Docker is not
+  installed on this workstation.
+- Alibaba Cloud Workbench was used for ECS shell access; no Alibaba CLI config
+  is stored in this repository.
+- `docs/deployment/alibaba-cloud-proof.md` records the redacted live proof.
+- `npm run mcp:validate-remote` validates `/health`, `tools/list`,
+  authenticated `memory_recall`, and Qwen-backed `memory_remember` against a
+  deployed endpoint using `MCP_ENDPOINT` and an auth token supplied only through
+  the shell environment.
 
-Resources to create only after approval:
+Created resources:
 
-- Region: prefer same region as Qwen key, currently `cn-beijing` if the account
-  remains in Beijing.
-- ECS instance suitable for Node 22 Docker runtime.
-- Security group allowing HTTPS ingress through a proxy/load balancer, or a
-  temporary locked-down demo port if explicitly approved.
-- Optional Container Registry namespace/repository: `handoffbase`.
-- Optional domain, certificate, or load balancer for HTTPS.
+- Region: `cn-beijing` / North China 2 (Beijing)
+- ECS instance ID: `i-2ze79rc2xe68zx1xeahu`
+- Instance shape: 2 vCPU / 2 GiB pay-as-you-go ECS
+- OS: Ubuntu 24.04 64-bit security-hardened image
+- Public endpoint: `http://123.56.244.157`
+- MCP endpoint: `http://123.56.244.157/mcp`
+- Docker image tag: `handoffbase:b565210-20260707T160422Z`
+- Security group: HTTP port 80 for the demo endpoint and SSH for Workbench
+  access
 
-Cloud secret/env values required:
+Cloud secret/env values configured:
 
 - `HOST=0.0.0.0`
 - `PORT=3000`
 - `MCP_PATH=/mcp`
 - `HANDOFFBASE_AUTH_MODE=api_key`
-- `HANDOFFBASE_API_KEY` or `HANDOFFBASE_API_KEYS_JSON`
-- `QWEN_API_KEY` or `DASHSCOPE_API_KEY`
-- `QWEN_BASE_URL` or `DASHSCOPE_BASE_URL`
+- `HANDOFFBASE_API_KEY`
+- `HANDOFFBASE_TENANT_ID=demo-tenant`
+- `HANDOFFBASE_USER_ID=demo-user`
+- `HANDOFFBASE_ACTOR_ID=hackathon-demo`
+- `QWEN_API_KEY`
+- `QWEN_BASE_URL`
 - `QWEN_MODEL=qwen-plus`
 - `QWEN_TIMEOUT_MS=30000`
 
-Blocking items:
+Known limits:
 
-- Explicit approval required before creating paid compute, public endpoints,
-  registries with billable storage/egress, load balancers, databases, or paid
-  model API usage.
+- Runtime secrets are stored only in the root-owned ECS env file consumed by
+  Docker `--env-file`; values are not recorded here.
+- The endpoint is plain HTTP on a public IP. No domain, TLS certificate, load
+  balancer, or managed gateway is configured.
+- Docker Hub base-image pull timed out from ECS, so `node:22-slim` was
+  pre-tagged on the ECS host from an alternate registry mirror while keeping
+  the repository Dockerfile unchanged.
+- The pay-as-you-go ECS instance should be stopped or released after the
+  approved hackathon demo window.
+- Do not create additional paid compute, public endpoints, registries with
+  billable storage/egress, load balancers, databases, or paid model API usage
+  outside the explicitly approved ECS + Docker path.
 
 ## Optional Postgres Readiness
 
@@ -216,7 +252,7 @@ Status: local CI setup documented; remote CI should be rechecked before submissi
 
 - Repository: `jensonChow/handoffbase`
 - Current branch: `main`
-- Current commit: `23e7f7a`
+- Deployment image source commit: `b565210`
 - Workflow file: `.github/workflows/ci.yml`
 - GitHub Actions enabled: yes
 - Allowed actions setting: `all`
@@ -227,7 +263,7 @@ Status: local CI setup documented; remote CI should be rechecked before submissi
 - Workflow status: `CI` active
 - Latest run for current commit: check the GitHub Actions tab before submission
 - Latest CI status should be checked from the GitHub Actions tab before submission.
-- Current local check result: `npm run check` passed on 2026-07-07T13:59:02Z
+- Current local check result: `npm run check` passed on 2026-07-07T16:29Z
 
 Possible GitHub Actions secrets needed later:
 
@@ -240,11 +276,15 @@ Do not add GitHub Actions secrets until explicitly approved.
 
 ## Blocking Questions
 
-Status: waiting for user approval
+Status: none for the approved ECS + Docker deployment
 
-- Do you approve any Alibaba Cloud paid provisioning for deployment, such as
-  ECS, public endpoints, Container Registry storage/egress, load balancer,
-  certificate/domain, or Postgres/RDS resources?
+- Re-run the remote validator before demo/submission if the ECS instance has
+  been restarted.
+- Stop or release the pay-as-you-go ECS instance after the approved hackathon
+  demo window.
+- Keep secrets in cloud environment/secret configuration only; do not paste
+  Qwen keys, HandoffBase API keys, cloud access keys, cookies, or auth headers
+  into tracked files, chat, screenshots, or logs.
 
 ## Final Safety Checks
 
@@ -255,9 +295,12 @@ Status: refreshed for public-readiness review
 - `.env.hackathon.local` tracked check: must remain untracked by git.
 - Local server state after validation: stop any temporary server before handoff.
 - Clipboard cleanup: clear any one-time credential copied during local setup.
-- Tracked-file public-readiness scan: passed on 2026-07-07T13:59:02Z.
+- Tracked-file public-readiness scan: passed on 2026-07-07T14:36:36Z.
   Remaining `maas.aliyuncs.com` matches are intentional placeholder host
   patterns, not workspace-specific API hosts.
+- Changed-file secret scan for the proof template and remote validator passed
+  on 2026-07-07T14:36:36Z.
+- Final local verification: `npm run check` passed on 2026-07-07T16:29Z.
 - Scanner notes: existing memory-core tests may intentionally contain
   redacted/fake credential patterns to verify sanitizer behavior; no values from
   `.env.hackathon.local` should be printed or committed.

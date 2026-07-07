@@ -32,6 +32,7 @@
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
+- Remote deployment validation: `MCP_ENDPOINT=<endpoint>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote`.
 
 ## Deployment Profile
 
@@ -43,9 +44,16 @@
 - API key auth is controlled by `HANDOFFBASE_AUTH_MODE` and key mapping env vars; keep API keys in cloud secret configuration.
 - Current production default keeps the in-memory MVP store deployable. `PostgresMemoryStore` supports CRUD, recall, traces, events, embeddings, and conflicts, but env-based runtime selection remains future work.
 - `docs/dev-materials-checklist.md` is the non-secret setup ledger for hackathon development, Qwen/auth readiness, deployment notes, and validation evidence.
+- `docs/deployment/alibaba-cloud-proof.md` is the redacted live deployment proof file for ECS `/health`, MCP discovery, authenticated recall, and Qwen-backed remember validation.
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
 - Recommended first Alibaba Cloud deployment path is ECS + Docker for the long-running Remote Streamable HTTP server. Defer ACK and Function Compute unless operational needs justify the extra shape changes.
-- Do not create paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
+- The approved hackathon deployment is live on Alibaba Cloud ECS in `cn-beijing`, using Docker image `handoffbase:b565210-20260707T160422Z` from commit `b565210`.
+- Public demo endpoint: `http://123.56.244.157`; MCP endpoint: `http://123.56.244.157/mcp`.
+- Live `/health` validation passed with `authMode=api_key`, `providerMode=qwen`, and `storeMode=in-memory`.
+- Live remote MCP validation passed: `tools/list` returned 7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed `memory_remember` returned 2 pending candidate memories.
+- Runtime secrets are configured only in the root-owned ECS env file consumed by Docker `--env-file`; do not record values in docs, logs, shell history, Docker layers, or Git.
+- Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
+- Stop or release the pay-as-you-go ECS instance after the approved hackathon demo window.
 - Postgres provisioning remains prepare-only until the target Alibaba PostgreSQL service/version is verified for pgvector or compatible vector extension support and runtime `STORE_MODE=postgres` wiring is added.
 
 ## CI

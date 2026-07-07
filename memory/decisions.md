@@ -71,3 +71,9 @@
 - Decision: The first Alibaba Cloud deployment target should be ECS + Docker, with paid provisioning and Postgres/pgvector deferred until explicitly approved.
 - Rationale: The current MCP server is a long-running Node.js HTTP service with a production Dockerfile, while ACK adds unnecessary Kubernetes overhead and Postgres still needs runtime store-selection wiring plus target-service pgvector verification.
 - Status: active.
+
+## 2026-07-07
+
+- Decision: The hackathon deployment proof uses a single pay-as-you-go Alibaba Cloud ECS instance running Docker, with API-key auth, Qwen provider mode, and the default in-memory store.
+- Rationale: The user approved the minimal ECS + Docker path for demo proof, and live validation passed without adding ACR, ACK, Function Compute, Postgres/RDS, a load balancer, a domain, or TLS. Extra paid resources remain out of scope until separately approved.
+- Status: active.

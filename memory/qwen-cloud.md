@@ -43,6 +43,10 @@ Manual live validation passed on 2026-07-07: the compiled server started with `.
 
 ## Alibaba Cloud Deployment
 
-Hackathon backend should run on Alibaba Cloud and include visible code-level proof of Alibaba Cloud service/API usage. Storage can be Postgres/pgvector as long as deployment proof is clear.
+Hackathon backend runs on Alibaba Cloud and includes visible proof of Alibaba Cloud service/API usage.
 
-For the first demo deployment, prefer ECS + Docker because the server is a long-running Node.js HTTP service with a production Dockerfile. Keep Postgres/RDS optional until paid provisioning is approved, pgvector support is verified for the selected service/version, and runtime store selection is wired.
+The first demo deployment uses the approved minimal ECS + Docker path in `cn-beijing`: a single pay-as-you-go ECS instance running Docker image `handoffbase:b565210-20260707T160422Z` with public endpoint `http://123.56.244.157` and MCP endpoint `http://123.56.244.157/mcp`.
+
+Runtime secrets are configured only through the ECS Docker env file and are not committed. `/health` reports `providerMode: "qwen"`, `authMode: "api_key"`, and `storeMode: "in-memory"`. Live remote validation passed for `tools/list`, authenticated `memory_recall`, and Qwen-backed `memory_remember`.
+
+Keep Postgres/RDS optional until pgvector support is verified for the selected service/version, runtime store selection is wired, and additional paid provisioning is explicitly approved.
