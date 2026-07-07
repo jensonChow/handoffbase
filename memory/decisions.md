@@ -59,3 +59,15 @@
 - Decision: The deployable server exposes safe health metadata, optional API key auth, and an in-memory default store while keeping Postgres available behind `PostgresMemoryStore`.
 - Rationale: The hackathon demo needs a Docker-ready Remote Streamable HTTP server that can run without secrets, while auth scope guards and Postgres persistence can be enabled or wired without changing MCP tool/resource contracts.
 - Status: active.
+
+## 2026-07-07
+
+- Decision: Hackathon setup evidence lives in a committed non-secret `docs/dev-materials-checklist.md`, while real Qwen and HandoffBase auth values stay only in ignored `.env.*` files.
+- Rationale: The project needs reproducible development/deployment readiness notes without exposing API keys, database URLs, tokens, or one-time Model Studio secrets.
+- Status: active.
+
+## 2026-07-07
+
+- Decision: The first Alibaba Cloud deployment target should be ECS + Docker, with paid provisioning and Postgres/pgvector deferred until explicitly approved.
+- Rationale: The current MCP server is a long-running Node.js HTTP service with a production Dockerfile, while ACK adds unnecessary Kubernetes overhead and Postgres still needs runtime store-selection wiring plus target-service pgvector verification.
+- Status: active.
