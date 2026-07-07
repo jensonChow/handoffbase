@@ -33,6 +33,16 @@ Provider input is sanitized before Qwen prompt construction. The sanitizer redac
 
 CI and local `npm run check` must pass without Qwen credentials. The GitHub Actions workflow clears `QWEN_API_KEY` and `DASHSCOPE_API_KEY`, so any test that exercises provider behavior must use mock responses or `MockMemoryProvider` unless explicitly marked as a manual credentialed check.
 
+## Credentialed Validation State
+
+As of 2026-07-07, a dedicated Model Studio key labeled `handoffbase-hackathon-dev` was created for local hackathon validation and stored only in ignored `.env.hackathon.local` with local HandoffBase API key material. Do not commit or print the key; rotate or delete it after the hackathon.
+
+The local Qwen configuration uses `qwen-plus` and the Beijing OpenAI-compatible base URL for the observed workspace. Exact non-secret setup metadata and validation evidence belong in `docs/dev-materials-checklist.md`.
+
+Manual live validation passed on 2026-07-07: the compiled server started with `.env.hackathon.local`, `/health` reported `providerMode: "qwen"` and `authMode: "api_key"`, and an authenticated `memory_remember` MCP call returned two pending candidate memories from Qwen. Keep CI on the credential-free mock path.
+
 ## Alibaba Cloud Deployment
 
 Hackathon backend should run on Alibaba Cloud and include visible code-level proof of Alibaba Cloud service/API usage. Storage can be Postgres/pgvector as long as deployment proof is clear.
+
+For the first demo deployment, prefer ECS + Docker because the server is a long-running Node.js HTTP service with a production Dockerfile. Keep Postgres/RDS optional until paid provisioning is approved, pgvector support is verified for the selected service/version, and runtime store selection is wired.

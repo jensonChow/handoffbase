@@ -1,93 +1,92 @@
 # Current Handoff
 
-Updated: 2026-07-07
+Updated: 2026-07-07T13:08:22Z
 
 ## Completed This Session
 
-- Integrated the second batch of detached Codex worktree diffs into `main` in the requested order:
-  `codex/auth-tenant-scope-guard`, `codex/postgres-store-crud-events`,
-  `codex/postgres-recall-hybrid`, `codex/conflict-entity-vault`,
-  `codex/dashboard-api-live`, and `codex/deployment-profile`.
-- Added HTTP MCP API key auth with `Authorization: Bearer` and
-  `X-Handoffbase-Api-Key`, disabled-by-default local mode, caller context
-  propagation, and scope guards for recall/write/update/forget/resource reads.
-- Upgraded `PostgresMemoryStore` from scaffold to core CRUD, supersede,
-  embedding upsert, run/trace insert, structured recall, recall trace/event,
-  and memory conflict persistence/query/resolve support.
-- Added first-class `MemoryConflictRecord` domain types, validation, lifecycle,
-  in-memory store support, SQL migration contract, and `memory://vault/conflicts`
-  backed by real conflict records.
-- Kept context-pack trace v2 semantics intact: `memory_recall.trace_id` and
-  `continuity_bootstrap.memory_trace_id` identify final context-pack traces that
-  link retrieval traces through `metadata.retrieval_trace_id`.
-- Added live local dashboard API routes:
-  `GET /api/dashboard/memory`, `PATCH /api/dashboard/memories/:id`,
-  `POST /api/dashboard/memories/:id/approve`,
-  `POST /api/dashboard/memories/:id/invalidate`, and
-  `DELETE /api/dashboard/memories/:id`.
-- Added dashboard API tests, auth tests, server route tests, and expanded
-  memory-core tests for Postgres CRUD/recall/conflicts and migration contracts.
-- Added Docker production profile, `.dockerignore`, `docs/deployment.md`, safe
-  `/health` metadata, config validation, and `dist/index.js` production start
-  layout.
-- Refreshed README, `.env.example`, deployment docs, and project memory docs for
-  the integrated state.
+- Prepared HandoffBase hackathon development materials in
+  `docs/dev-materials-checklist.md` as a non-secret ledger for local env,
+  Qwen/DashScope, API-key auth, validation, Alibaba Cloud readiness, Postgres
+  readiness, GitHub/CI, and final safety checks.
+- Created local-only `.env.hackathon.local` for Qwen and HandoffBase auth
+  material. The file is ignored by `.gitignore` via `.env.*`, uses mode `600`,
+  and must never be committed or printed.
+- Created a dedicated Alibaba Model Studio API key labeled
+  `handoffbase-hackathon-dev`, configured the Beijing OpenAI-compatible base
+  URL locally, and kept the one-time secret value out of committed files.
+- Validated the compiled production server with `.env.hackathon.local`:
+  `/health` reported `authMode: "api_key"`, `providerMode: "qwen"`, and
+  `storeMode: "in-memory"`.
+- Ran authenticated MCP calls against the compiled server. `continuity_bootstrap`
+  returned a context pack, and a live Qwen-backed `memory_remember` call returned
+  two pending candidate memories.
+- Inspected deployment readiness and recorded ECS + Docker as the recommended
+  minimal Alibaba Cloud path for the current long-running Node.js MCP service.
+- Left paid Alibaba Cloud provisioning, public endpoints, registries, load
+  balancers, certificates/domains, Postgres/RDS, and paid model usage gated on
+  explicit approval.
+- Refreshed project memory in `memory/operations.md`, `memory/qwen-cloud.md`,
+  and `memory/decisions.md` so durable notes match the current validation and
+  deployment posture.
 
 ## Verification
 
-- `npm run check` passed.
-- `npm run dashboard:build` passed and produced the dashboard page plus dynamic
-  `/api/dashboard/*` routes.
-- `npm run test:memory-core` passed with 28 tests.
-- `npm run smoke` passed and verifies `/health` plus registered MCP
-  tools/resources/prompts and trace v2 behavior.
-- `npm run test:auth` passed with 5 tests.
-- `npm run test:server` passed with 1 test.
-- `npm run test:dashboard` passed with 2 tests.
-- `npm run start:server` was started from compiled `dist/index.js` with
-  `PORT=0`; `/health` returned safe metadata and the process was stopped.
-- `git diff --check` passed.
+- `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/handoffbase` passed as a read-only memory audit.
+- `npm run check` passed on 2026-07-07T13:00:19Z.
+- GitHub Actions are enabled for `jensonChow/handoffbase`; workflow `CI` is
+  active, and the latest run for commit `1badb71` was successful.
+- `.env.hackathon.local` is ignored by `.gitignore`, is not tracked by git, and
+  has file mode `600`.
+- Exact-value local secret scan found no Qwen or HandoffBase auth values in
+  tracked files or `docs/dev-materials-checklist.md`.
+- Clipboard was cleared after copying the one-time Qwen key.
+- Local validation server was stopped; `127.0.0.1:3333` was not accepting
+  connections after validation.
+- Local Docker validation was not run because the `docker` command is not
+  installed in this workstation session.
 
 ## Git State
 
-- Branch: `main`.
-- This handoff is part of the second-batch integration commit requested at the
-  end of the session. After push, `main` should be aligned with `origin/main`;
-  verify with `git status --short --branch`.
-- The requested source branch refs were not present locally or remotely; their
-  work existed as detached Codex worktree diffs under `/Users/jenson/.codex/worktrees/*/HandoffBase`.
-- Untracked new paths include `Dockerfile`, `.dockerignore`,
-  `docs/deployment.md`, `src/auth/`, `src/config.ts`, root `test/` and
-  `tests/`, dashboard API routes/server helpers/tests.
+- Work branch for this refresh: `codex/memory-refresh-handoffbase-20260707`.
+- Base branch: `main` at `1badb71`.
+- Expected committed files for this refresh:
+  `docs/dev-materials-checklist.md`, `docs/handoff.md`,
+  `memory/operations.md`, `memory/qwen-cloud.md`, and
+  `memory/decisions.md`.
+- No secret env files should be staged. Verify with `git status --short`,
+  `git check-ignore -v .env.hackathon.local`, and a secret scan before any push.
 
 ## Open Risks
 
-- Default runtime store remains in-memory. `PostgresMemoryStore` is implemented
-  and tested, but env-based server wiring for `DATABASE_URL` / `POSTGRES_URL`
-  is still future work.
-- Qwen provider was not exercised with real credentials; local and CI-style
-  validation used mock/default secret-free paths.
-- Alibaba Cloud deployment has not been performed or externally verified.
-- Dashboard API currently uses an in-memory dashboard backend seeded for local
-  operation; real multi-tenant dashboard auth/storage integration remains future
-  work.
-- `npm install` from the previous handoff reported two moderate vulnerabilities;
-  no audit fix was applied in this integration.
+- Default runtime store remains in-memory. `PostgresMemoryStore` exists and is
+  tested, but server runtime selection for `STORE_MODE=postgres` and
+  `DATABASE_URL` / `POSTGRES_URL` is still future work.
+- Postgres/pgvector support was not verified from an official Alibaba target
+  service/version document during this session. Confirm before provisioning.
+- No Alibaba Cloud compute, public endpoint, registry, load balancer, domain,
+  certificate, or database was created.
+- Docker cannot be validated on this workstation until Docker is installed or a
+  remote/container build target is used.
+- The dedicated Model Studio API key should be rotated or deleted after the
+  hackathon.
 
 ## Next Session Prompt
 
 ```text
-Read agent.md, memory/README.md, memory/decisions.md, and docs/handoff.md first.
+Read agent.md, memory/README.md, memory/qwen-cloud.md, memory/operations.md,
+memory/decisions.md, docs/dev-materials-checklist.md, and docs/handoff.md first.
 
-Continue from main with the uncommitted second-batch integration diff.
+Continue from main after the memory-refresh merge.
 
 Priorities:
-1. Review and commit the integrated diff when ready.
-2. Wire `PostgresMemoryStore` into the runtime factory behind `STORE_MODE` and
-   `DATABASE_URL` / `POSTGRES_URL` if persistent deployment is needed.
-3. Add dashboard auth/storage integration before exposing real user memory data.
-4. Configure and smoke-test `QwenMemoryProvider` with real Qwen/DashScope
-   credentials outside CI.
-5. Deploy to Alibaba Cloud, capture `/health`, MCP tools/list, dashboard/API,
-   and redacted Qwen evidence, then update the deployment checklist.
+1. If deployment is approved, deploy the Docker-ready Remote Streamable HTTP
+   server to Alibaba Cloud, preferably ECS + Docker for the first demo.
+2. Keep all Qwen and HandoffBase auth values in cloud secret/env configuration;
+   never commit `.env.*` files or print secret values.
+3. Capture redacted proof for `/health`, MCP initialize/tools-list, an
+   authenticated MCP tool call, and a Qwen-backed memory operation.
+4. Before adding Postgres, verify pgvector support for the selected Alibaba
+   PostgreSQL service/version and wire runtime `STORE_MODE=postgres`.
+5. Rotate or delete the local `handoffbase-hackathon-dev` Model Studio key after
+   the hackathon.
 ```
