@@ -14,7 +14,8 @@
 ## Current Commands
 
 - Install: `npm install`.
-- If npm cache permissions fail under `/Users/jenson/.npm/_cacache`, run install with `npm_config_cache=/tmp/handoffbase-npm-cache npm install`.
+- If npm cache permissions fail in the user-level npm cache directory, run
+  install with `npm_config_cache=/tmp/handoffbase-npm-cache npm install`.
 - Full local validation / CI parity: `npm run check`.
 - Typecheck: `npm run typecheck`.
 - Full build: `npm run build`.

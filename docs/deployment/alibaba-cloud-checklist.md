@@ -24,12 +24,15 @@ MCP_PATH=/mcp
 Optional Qwen variables:
 
 ```text
-QWEN_API_KEY=<configured-in-cloud-secret-manager>
-DASHSCOPE_API_KEY=<configured-in-cloud-secret-manager>
+QWEN_API_KEY=
+DASHSCOPE_API_KEY=
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-plus
 QWEN_TIMEOUT_MS=30000
 ```
+
+Set only one Qwen credential in cloud secret configuration; leave both blank to
+use the mock provider for non-credentialed deployment checks.
 
 Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Future Postgres runtime variables are documented in `docs/deployment.md`.
 

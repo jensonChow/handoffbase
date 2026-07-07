@@ -37,7 +37,7 @@ CI and local `npm run check` must pass without Qwen credentials. The GitHub Acti
 
 As of 2026-07-07, a dedicated Model Studio key labeled `handoffbase-hackathon-dev` was created for local hackathon validation and stored only in ignored `.env.hackathon.local` with local HandoffBase API key material. Do not commit or print the key; rotate or delete it after the hackathon.
 
-The local Qwen configuration uses `qwen-plus` and the Beijing OpenAI-compatible base URL for the observed workspace. Exact non-secret setup metadata and validation evidence belong in `docs/dev-materials-checklist.md`.
+The local Qwen configuration uses `qwen-plus` and a Beijing OpenAI-compatible base URL stored locally only. Workspace-specific IDs and API hosts are intentionally not committed; public docs should use a placeholder pattern such as `https://{WORKSPACE_ID}.{REGION}.maas.aliyuncs.com/compatible-mode/v1`.
 
 Manual live validation passed on 2026-07-07: the compiled server started with `.env.hackathon.local`, `/health` reported `providerMode: "qwen"` and `authMode: "api_key"`, and an authenticated `memory_remember` MCP call returned two pending candidate memories from Qwen. Keep CI on the credential-free mock path.
 

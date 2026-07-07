@@ -1,60 +1,40 @@
 # Current Handoff
 
-Updated: 2026-07-07T13:08:22Z
+Updated: 2026-07-07T13:59:02Z
 
 ## Completed This Session
 
-- Prepared HandoffBase hackathon development materials in
-  `docs/dev-materials-checklist.md` as a non-secret ledger for local env,
-  Qwen/DashScope, API-key auth, validation, Alibaba Cloud readiness, Postgres
-  readiness, GitHub/CI, and final safety checks.
-- Created local-only `.env.hackathon.local` for Qwen and HandoffBase auth
-  material. The file is ignored by `.gitignore` via `.env.*`, uses mode `600`,
-  and must never be committed or printed.
-- Created a dedicated Alibaba Model Studio API key labeled
-  `handoffbase-hackathon-dev`, configured the Beijing OpenAI-compatible base
-  URL locally, and kept the one-time secret value out of committed files.
-- Validated the compiled production server with `.env.hackathon.local`:
-  `/health` reported `authMode: "api_key"`, `providerMode: "qwen"`, and
-  `storeMode: "in-memory"`.
-- Ran authenticated MCP calls against the compiled server. `continuity_bootstrap`
-  returned a context pack, and a live Qwen-backed `memory_remember` call returned
-  two pending candidate memories.
-- Inspected deployment readiness and recorded ECS + Docker as the recommended
-  minimal Alibaba Cloud path for the current long-running Node.js MCP service.
-- Left paid Alibaba Cloud provisioning, public endpoints, registries, load
-  balancers, certificates/domains, Postgres/RDS, and paid model usage gated on
-  explicit approval.
-- Refreshed project memory in `memory/operations.md`, `memory/qwen-cloud.md`,
-  and `memory/decisions.md` so durable notes match the current validation and
-  deployment posture.
+- Refreshed tracked docs for possible public release / hackathon submission.
+- Redacted Alibaba Model Studio workspace-specific identifiers and API host
+  values from tracked docs while preserving the generic OpenAI-compatible base
+  URL pattern.
+- Replaced local absolute path references, stale branch/commit state, and a
+  specific GitHub Actions run URL with public-safe wording.
+- Kept `.env.hackathon.local` documented only as ignored local secret storage;
+  it must never be committed or printed.
+- Left application code and product behavior unchanged.
 
 ## Verification
 
-- `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/handoffbase` passed as a read-only memory audit.
-- `npm run check` passed on 2026-07-07T13:00:19Z.
-- GitHub Actions are enabled for `jensonChow/handoffbase`; workflow `CI` is
-  active, and the latest run for commit `1badb71` was successful.
-- `.env.hackathon.local` is ignored by `.gitignore`, is not tracked by git, and
-  has file mode `600`.
-- Exact-value local secret scan found no Qwen or HandoffBase auth values in
-  tracked files or `docs/dev-materials-checklist.md`.
-- Clipboard was cleared after copying the one-time Qwen key.
-- Local validation server was stopped; `127.0.0.1:3333` was not accepting
-  connections after validation.
-- Local Docker validation was not run because the `docker` command is not
-  installed in this workstation session.
+- Current branch: `main`.
+- Current HEAD: `23e7f7a`.
+- `npm run check`: passed on 2026-07-07T13:59:02Z.
+- Tracked-file public-readiness scan: passed on 2026-07-07T13:59:02Z. The only
+  remaining matches are intentional placeholder `maas.aliyuncs.com` host
+  patterns in public setup docs.
+- Tracked env-like files: only `.env.example`.
+- GitHub Actions workflow `CI` uses Node 22, `npm ci`, and `npm run check`;
+  check the GitHub Actions tab for the latest remote status before submission.
+- `.env.hackathon.local` is covered by `.gitignore` rule `.env.*` and must
+  remain untracked.
 
 ## Git State
 
-- Work branch for this refresh: `codex/memory-refresh-handoffbase-20260707`.
-- Base branch: `main` at `1badb71`.
-- Expected committed files for this refresh:
-  `docs/dev-materials-checklist.md`, `docs/handoff.md`,
-  `memory/operations.md`, `memory/qwen-cloud.md`, and
-  `memory/decisions.md`.
-- No secret env files should be staged. Verify with `git status --short`,
-  `git check-ignore -v .env.hackathon.local`, and a secret scan before any push.
+- Branch: `main`.
+- HEAD: `23e7f7a`.
+- This docs-only public-readiness pass is intentionally uncommitted.
+- No secret env files should be staged. Verify with `git status --short` and a
+  tracked-file public-readiness scan before any push.
 
 ## Open Risks
 
@@ -69,6 +49,8 @@ Updated: 2026-07-07T13:08:22Z
   remote/container build target is used.
 - The dedicated Model Studio API key should be rotated or deleted after the
   hackathon.
+- Workspace-specific Alibaba Model Studio IDs, API hosts, and deployment URLs
+  should stay in ignored local env or cloud secret configuration only.
 
 ## Next Session Prompt
 
@@ -76,7 +58,7 @@ Updated: 2026-07-07T13:08:22Z
 Read agent.md, memory/README.md, memory/qwen-cloud.md, memory/operations.md,
 memory/decisions.md, docs/dev-materials-checklist.md, and docs/handoff.md first.
 
-Continue from main after the memory-refresh merge.
+Continue from main at HEAD 23e7f7a.
 
 Priorities:
 1. If deployment is approved, deploy the Docker-ready Remote Streamable HTTP
@@ -89,4 +71,6 @@ Priorities:
    PostgreSQL service/version and wire runtime `STORE_MODE=postgres`.
 5. Rotate or delete the local `handoffbase-hackathon-dev` Model Studio key after
    the hackathon.
+6. Before public release, recheck GitHub Actions and rerun the tracked-file
+   public-readiness scan.
 ```

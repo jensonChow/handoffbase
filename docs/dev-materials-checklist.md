@@ -1,6 +1,6 @@
 # Development Materials Checklist
 
-Last updated: 2026-07-07T13:00:19Z
+Last updated: 2026-07-07T13:59:02Z
 
 This file is the non-secret setup ledger for HandoffBase hackathon development,
 local validation, and deployment readiness. Do not add API keys, database URLs,
@@ -26,7 +26,7 @@ Status: prepared
 | `PORT` | prepared | Local hackathon file uses `3333` to avoid the default `3000`. |
 | `MCP_PATH` | prepared | `/mcp`. Must start with `/`. |
 | `QWEN_API_KEY` or `DASHSCOPE_API_KEY` | prepared | `QWEN_API_KEY` is stored only in `.env.hackathon.local`. |
-| `QWEN_BASE_URL` or `DASHSCOPE_BASE_URL` | prepared | Workspace-specific Beijing OpenAI-compatible base URL is configured locally. |
+| `QWEN_BASE_URL` or `DASHSCOPE_BASE_URL` | prepared | OpenAI-compatible base URL is configured only in `.env.hackathon.local`; public docs use the generic host pattern. |
 | `QWEN_MODEL` or `DASHSCOPE_MODEL` | prepared | `qwen-plus`. |
 | `QWEN_TIMEOUT_MS` | prepared | `30000`. |
 | `HANDOFFBASE_AUTH_MODE` | prepared | `api_key`. |
@@ -47,10 +47,10 @@ Status: prepared locally; live model-call validation passed
 - Console inspected: Alibaba Cloud Model Studio / Bailian
 - Console URL inspected: `https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key`
 - Region observed in console: `cn-beijing` / North China 2 (Beijing)
-- Login status: authenticated on 2026-07-07T12:47:09Z
-- Workspace/business space: default business space
-- Workspace ID: `ws-63cnyz4i0wtfd0im`
-- API host: `ws-63cnyz4i0wtfd0im.cn-beijing.maas.aliyuncs.com`
+- Console access: authenticated locally when the key was created; account/session details are not committed
+- Workspace/business space: selected locally; exact workspace metadata is not committed
+- Workspace ID: stored locally only / redacted from public docs
+- API host pattern: `https://{WORKSPACE_ID}.{REGION}.maas.aliyuncs.com/compatible-mode/v1`
 - API key label/description: `handoffbase-hackathon-dev`
 - API key status: created and stored locally
 - Model: `qwen-plus`
@@ -58,10 +58,10 @@ Status: prepared locally; live model-call validation passed
 - Official key guidance: API keys should be stored in environment variables and must not be exposed
 - Official one-time-display warning: new Model Studio API keys may only show the full secret once after creation
 - Official OpenAI-compatible base URL guidance:
-  - Beijing: `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
-  - Singapore: `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`
+  - Beijing: `https://{WORKSPACE_ID}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
+  - Singapore: `https://{WORKSPACE_ID}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`
   - US Virginia: `https://dashscope-us.aliyuncs.com/compatible-mode/v1`
-  - Configured local base URL: `https://ws-63cnyz4i0wtfd0im.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
+  - Configured local base URL: stored in `.env.hackathon.local` only
 
 Next manual steps:
 
@@ -212,11 +212,11 @@ No database has been created and no database URL has been stored.
 
 ## GitHub / CI Readiness
 
-Status: local and remote CI status inspected
+Status: local CI setup documented; remote CI should be rechecked before submission
 
 - Repository: `jensonChow/handoffbase`
 - Current branch: `main`
-- Current commit: `1badb71`
+- Current commit: `23e7f7a`
 - Workflow file: `.github/workflows/ci.yml`
 - GitHub Actions enabled: yes
 - Allowed actions setting: `all`
@@ -225,9 +225,9 @@ Status: local and remote CI status inspected
 - Install command: `npm ci`
 - Check command: `npm run check`
 - Workflow status: `CI` active
-- Latest run for current commit: success
-- Latest run URL: `https://github.com/jensonChow/handoffbase/actions/runs/28864020800`
-- Current local check result: `npm run check` passed on 2026-07-07T13:00:19Z
+- Latest run for current commit: check the GitHub Actions tab before submission
+- Latest CI status should be checked from the GitHub Actions tab before submission.
+- Current local check result: `npm run check` passed on 2026-07-07T13:59:02Z
 
 Possible GitHub Actions secrets needed later:
 
@@ -248,14 +248,16 @@ Status: waiting for user approval
 
 ## Final Safety Checks
 
-Status: completed
+Status: refreshed for public-readiness review
 
-- `git status`: only `docs/dev-materials-checklist.md` is untracked from this task.
-- `.env.hackathon.local` ignore check: matched `.gitignore` rule `.env.*`.
-- `.env.hackathon.local` tracked check: not tracked by git.
-- Local server state after validation: stopped; `127.0.0.1:3333` is not accepting connections.
-- Clipboard cleanup: cleared after copying the one-time Qwen API key into `.env.hackathon.local`.
-- Tracked-file secret scan: no generated local secrets found.
-- Scanner notes: existing memory-core tests intentionally contain redacted/fake
-  credential patterns to verify sanitizer behavior; no values from
-  `.env.hackathon.local` were printed or committed.
+- `.env.hackathon.local` ignore check: should match `.gitignore` rule `.env.*`;
+  do not print or commit the file contents.
+- `.env.hackathon.local` tracked check: must remain untracked by git.
+- Local server state after validation: stop any temporary server before handoff.
+- Clipboard cleanup: clear any one-time credential copied during local setup.
+- Tracked-file public-readiness scan: passed on 2026-07-07T13:59:02Z.
+  Remaining `maas.aliyuncs.com` matches are intentional placeholder host
+  patterns, not workspace-specific API hosts.
+- Scanner notes: existing memory-core tests may intentionally contain
+  redacted/fake credential patterns to verify sanitizer behavior; no values from
+  `.env.hackathon.local` should be printed or committed.

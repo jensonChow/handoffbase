@@ -134,11 +134,14 @@ For a single dev key, use:
 
 ```bash
 HANDOFFBASE_AUTH_MODE=api_key
-HANDOFFBASE_API_KEY=dev-key
+HANDOFFBASE_API_KEY=
 HANDOFFBASE_TENANT_ID=demo-tenant
 HANDOFFBASE_USER_ID=demo-user
 HANDOFFBASE_ACTOR_ID=local-dev
 ```
+
+Generate a strong `HANDOFFBASE_API_KEY` value and store it only in local or
+cloud secret configuration.
 
 ## Why MCP
 
