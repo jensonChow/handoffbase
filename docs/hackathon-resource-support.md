@@ -1,6 +1,6 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-08T04:45:39Z
+Last verified: 2026-07-08T05:03:26Z
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
@@ -17,9 +17,10 @@ credentials, auth headers, database URLs, or invoice details here.
   tokens with no approval, no payment method, and no waiting. The authenticated
   Alibaba Model Studio console shows `qwen-plus-2025-07-28` with
   1,000,000 / 1,000,000 free tokens remaining.
-- Coupon/voucher status: not found in the visible Alibaba billing card/coupon
-  page, and no submitted/pending/approved status was visible in the checked
-  public hackathon pages or billing console surfaces.
+- Coupon/voucher status: not submitted yet. A Qwen Cloud voucher application
+  endpoint was found and verified to route through Qwen Cloud SSO:
+  `https://www.qwencloud.com/challenge/hackathon/voucher-application`.
+  Submission is blocked on user-side login and private fields.
 - Alibaba Cloud deployment cost posture: the existing ECS demo is running as
   pay-as-you-go in `cn-beijing`. No additional paid service was intentionally
   created during this check.
@@ -52,15 +53,19 @@ credentials, auth headers, database URLs, or invoice details here.
 
 ## Coupon / Voucher
 
-- Status: unknown / not found in visible console surfaces.
+- Status: not submitted yet.
+- Application URL:
+  `https://www.qwencloud.com/challenge/hackathon/voucher-application`.
 - Deadline: July 9, 2026 at 10:00 AM PST, per the live Devpost deadline update.
 - If pending, support contact: `global.hackathon@alibaba-inc.com`.
 - Next action:
-  - If a voucher request was already submitted and is still pending, contact the
-    support address before the deadline. The user should enter UID and phone
-    number directly in email or the browser, not in chat or tracked files.
-  - If a request was not submitted and the form is still open, submit it before
-    the deadline with the user entering private identifiers directly.
+  - Complete Qwen Cloud SSO login directly in Chrome. The login page offers
+    email verification code, Google, and GitHub options.
+  - After login, complete the voucher application before the deadline with the
+    user entering private identifiers directly in the browser.
+  - If the form reports pending/review status after submission, contact the
+    support address. The user should enter UID and phone number directly in
+    email or the browser, not in chat or tracked files.
   - Do not print, save, or commit any voucher code if one becomes available.
 
 ## Alibaba Cloud Cost Guardrails
@@ -101,11 +106,15 @@ credentials, auth headers, database URLs, or invoice details here.
 - Checked Alibaba billing card/coupon and budget-management surfaces.
 - Checked ECS detail for the existing deployment instance.
 - Ran a read-only sweep of common paid-service consoles named in the objective.
+- Found the Qwen Cloud voucher application endpoint from a Devpost discussion
+  and verified that the URL redirects to Qwen Cloud SSO login.
 
 ## Actions Requiring User Approval
 
 - Entering UID, phone number, or other private participant details for voucher
   support or request submission.
+- Completing Qwen Cloud SSO login, including email verification code, Google, or
+  GitHub account access.
 - Submitting a new voucher/coupon request if the form is still open.
 - Redeeming any approved coupon/voucher code.
 - Enabling Alibaba Resource Center if a full resource inventory or budget alert
@@ -124,6 +133,10 @@ credentials, auth headers, database URLs, or invoice details here.
   `https://qwencloud-hackathon.devpost.com/updates/45184-more-time-to-build-submission-deadline-extended-to-july-20`
 - Devpost Free Tier update:
   `https://qwencloud-hackathon.devpost.com/updates/44970-don-t-wait-on-credits-start-building-now-with-the-free-tier`
+- Devpost voucher discussion:
+  `https://qwencloud-hackathon.devpost.com/forum_topics/44161-has-anyone-received-the-40-voucher-yet-how-long-does-approval-take`
+- Qwen Cloud voucher application endpoint:
+  `https://www.qwencloud.com/challenge/hackathon/voucher-application`
 - Qwen Cloud free-quota docs:
   `https://docs.qwencloud.com/resources/free-quota`
 - Alibaba Model Studio / Bailian console:
