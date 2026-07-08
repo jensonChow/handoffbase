@@ -81,5 +81,5 @@
 ## 2026-07-08
 
 - Decision: Star-readiness integration should add open-source polish as docs/examples/eval/dashboard/README artifacts without changing MCP tool names, resource URIs, prompt names, cloud deployment, or Postgres runtime wiring.
-- Rationale: The requested branch refs were not available locally or on `origin`, so the batch was reconstructed directly from the objective specs while preserving the deployed Qwen-backed in-memory proof and existing hackathon functionality.
+- Rationale: The five source worktree branches were reconciled into `main` by restoring their stronger docs/examples/eval/dashboard/README content, then recording branch ancestry with merge commits. This preserved the deployed Qwen-backed in-memory proof and existing hackathon functionality.
 - Status: active.
