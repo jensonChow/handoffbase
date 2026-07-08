@@ -1,9 +1,18 @@
 # Current Handoff
 
-Updated: 2026-07-08T10:05:41Z
+Updated: 2026-07-08T16:39:10Z
 
 ## Completed This Session
 
+- Added `docs/deployment/relaunch-runbook.md` as the safe restart,
+  validation, recording, availability, and stop/release checklist for the
+  stopped Alibaba Cloud ECS + Docker demo.
+- Linked the relaunch runbook from `docs/cloud-cost-runbook.md`,
+  `docs/deployment/alibaba-cloud-proof.md`, and
+  `docs/hackathon-resource-support.md`.
+- Clarified that the Alibaba Cloud deployment proof is historical live
+  validation from 2026-07-07T16:26:43Z, not a current-online claim while ECS is
+  stopped or before the endpoint is revalidated.
 - Rechecked the Alibaba Cloud cost runway for the deployed HandoffBase ECS demo,
   then stopped the ECS instance after explicit user approval.
 - Confirmed the documented ECS instance is now stopped in `cn-beijing` using
@@ -122,7 +131,8 @@ Updated: 2026-07-08T10:05:41Z
   prior public endpoint may change on restart, so update validation commands and
   public proof material only after rechecking the restarted IP.
 - Restart the ECS instance around July 17-18 if final submission validation needs
-  a live endpoint. Revalidate `/health` and remote MCP after restart.
+  a live endpoint. Use `docs/deployment/relaunch-runbook.md`, recheck the public
+  IP, then revalidate `/health` and remote MCP after restart.
 - Coupon/voucher activation is still pending registration verification. Watch
   for the Qwen Cloud / Alibaba Cloud activation email or check Qwen Cloud
   benefits after the expected 1-2 business day review window.
@@ -151,7 +161,7 @@ Updated: 2026-07-08T10:05:41Z
 Read memory/README.md, memory/product.md, memory/architecture.md,
 memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
 docs/dev-materials-checklist.md, docs/hackathon-resource-support.md,
-and docs/handoff.md first.
+docs/deployment/relaunch-runbook.md, and docs/handoff.md first.
 
 Continue from main after the resource-support and memory-refresh commits.
 Preserve the MCP tool names, resource URIs, prompt names, Alibaba deployment
@@ -163,7 +173,8 @@ Priorities:
    near the deadline, contact global.hackathon@alibaba-inc.com with UID and
    phone entered directly by the user.
 3. ECS is currently stopped in economical stop mode. Restart around July 17-18,
-   recheck the public IP, and revalidate before submission.
+   recheck the public IP, and revalidate before submission using
+   docs/deployment/relaunch-runbook.md.
 4. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
    `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
 5. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and

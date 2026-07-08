@@ -1,8 +1,17 @@
 # Alibaba Cloud Deployment Proof
 
-Status: live validation passed.
+Status: live validation passed on 2026-07-07T16:26:43Z. The ECS instance may be
+stopped for cost control after this proof; revalidate before submission,
+recording, judging, or any claim that the endpoint is currently online.
 
 This file records non-secret proof for the minimal Alibaba Cloud ECS + Docker deployment. It intentionally omits API keys, authorization headers, workspace-specific secret values, database URLs, and cloud access credentials.
+
+## Current Availability Note
+
+This proof records historical live validation at the timestamp below. The ECS
+instance can be stopped later for cost control, and the public IP may change on
+restart. Use `docs/deployment/relaunch-runbook.md` to restart and revalidate the
+deployment before final submission or judging.
 
 ## Deployment
 
