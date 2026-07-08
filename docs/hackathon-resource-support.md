@@ -1,6 +1,6 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-08T05:03:26Z
+Last verified: 2026-07-08T07:11:48Z
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
@@ -17,10 +17,14 @@ credentials, auth headers, database URLs, or invoice details here.
   tokens with no approval, no payment method, and no waiting. The authenticated
   Alibaba Model Studio console shows `qwen-plus-2025-07-28` with
   1,000,000 / 1,000,000 free tokens remaining.
-- Coupon/voucher status: not submitted yet. A Qwen Cloud voucher application
-  endpoint was found and verified to route through Qwen Cloud SSO:
+- Coupon/voucher status: submitted; verification is in progress. A Qwen Cloud
+  voucher application endpoint was found and reached after Qwen Cloud SSO login:
   `https://www.qwencloud.com/challenge/hackathon/voucher-application`.
-  Submission is blocked on user-side login and private fields.
+  Devpost account/profile settings are now reachable. Devpost-confirmed fields
+  have been filled into the Qwen form where available. The remaining required
+  private fields were entered directly in Chrome by the user. Gmail received a
+  Qwen Cloud / Alibaba Cloud confirmation email showing the coupon form was
+  submitted and registration verification is in progress.
 - Alibaba Cloud deployment cost posture: the existing ECS demo is running as
   pay-as-you-go in `cn-beijing`. No additional paid service was intentionally
   created during this check.
@@ -53,19 +57,23 @@ credentials, auth headers, database URLs, or invoice details here.
 
 ## Coupon / Voucher
 
-- Status: not submitted yet.
+- Status: submitted; verification is in progress. Gmail received a Qwen Cloud /
+  Alibaba Cloud confirmation email with subject "Coupon Request Received -
+  Verification in Progress". The email says the coupon form was submitted,
+  registration verification is in progress, and activation typically takes 1-2
+  business days. Private phone and company/institution values were entered
+  directly in Chrome by the user and are not recorded here.
 - Application URL:
   `https://www.qwencloud.com/challenge/hackathon/voucher-application`.
 - Deadline: July 9, 2026 at 10:00 AM PST, per the live Devpost deadline update.
 - If pending, support contact: `global.hackathon@alibaba-inc.com`.
 - Next action:
-  - Complete Qwen Cloud SSO login directly in Chrome. The login page offers
-    email verification code, Google, and GitHub options.
-  - After login, complete the voucher application before the deadline with the
-    user entering private identifiers directly in the browser.
-  - If the form reports pending/review status after submission, contact the
-    support address. The user should enter UID and phone number directly in
-    email or the browser, not in chat or tracked files.
+  - Wait for the Qwen Cloud coupon activation confirmation email.
+  - Check coupon status in Qwen Cloud benefits if activation is not visible
+    after the expected review window.
+  - If the request remains pending and urgent near the deadline, contact
+    `global.hackathon@alibaba-inc.com`; the user should enter UID and phone
+    number directly in email or the browser, not in chat or tracked files.
   - Do not print, save, or commit any voucher code if one becomes available.
 
 ## Alibaba Cloud Cost Guardrails
@@ -108,14 +116,34 @@ credentials, auth headers, database URLs, or invoice details here.
 - Ran a read-only sweep of common paid-service consoles named in the objective.
 - Found the Qwen Cloud voucher application endpoint from a Devpost discussion
   and verified that the URL redirects to Qwen Cloud SSO login.
+- Rechecked the logged-in Qwen Cloud application page and confirmed the form is
+  reachable but not yet filled or submitted.
+- Opened Devpost account settings and confirmed Chrome was redirected to the
+  Devpost login page, so account profile details were not available yet.
+- Rechecked the preserved Devpost tab and confirmed it was still on the
+  Devpost login page, so no account profile fields were available to transfer.
+- Searched non-secret local files and public search results for a Devpost
+  project/profile link; no reliable Devpost account or submission profile was
+  found.
+- After user login, read Devpost account/profile/preference settings and filled
+  the Qwen form with Devpost-confirmed name, registered email, and
+  role/specialty, without recording the private values.
+- Rechecked the completed Qwen form after the user entered the remaining
+  private fields directly in Chrome; all required fields were filled, the
+  confirmation checkbox was checked, and the submit button was enabled.
+- After explicit user confirmation, clicked Submit on the Qwen Cloud form. The
+  request did not reach a confirmed submitted or pending state because the page
+  displayed phone-number validation text.
+- After the user corrected the submission directly in Chrome, Gmail received a
+  Qwen Cloud / Alibaba Cloud confirmation email showing the coupon form was
+  submitted and registration verification is in progress.
 
 ## Actions Requiring User Approval
 
 - Entering UID, phone number, or other private participant details for voucher
   support or request submission.
-- Completing Qwen Cloud SSO login, including email verification code, Google, or
-  GitHub account access.
-- Submitting a new voucher/coupon request if the form is still open.
+- Contacting hackathon support with UID/phone if the coupon request remains
+  pending and urgent.
 - Redeeming any approved coupon/voucher code.
 - Enabling Alibaba Resource Center if a full resource inventory or budget alert
   setup is desired.
