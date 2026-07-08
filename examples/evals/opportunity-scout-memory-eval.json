@@ -1,0 +1,241 @@
+{
+  "name": "AI Opportunity Scout Memory Eval",
+  "version": 1,
+  "description": "Small deterministic eval pack for HandoffBase memory surfaces. This is not an official benchmark score.",
+  "fixedNow": "2026-07-08T00:00:00.000Z",
+  "scope": {
+    "core": {
+      "tenantId": "eval-tenant",
+      "userId": "eval-user",
+      "agentProfileId": "opportunity-scout"
+    },
+    "tool": {
+      "tenant_id": "eval-tenant",
+      "user_id": "eval-user",
+      "agent_profile_id": "opportunity-scout"
+    },
+    "project": {
+      "id": "ai-opportunity-scout",
+      "name": "AI Opportunity Scout"
+    }
+  },
+  "seedMemories": [
+    {
+      "id": "eval-pref-credential-network",
+      "type": "user_preference",
+      "canonicalText": "User values credential lift, founder network access, mentor quality, and product credibility more than prize money when ranking AI agent hackathons.",
+      "sourceKind": "user_statement",
+      "status": "active",
+      "confidence": 0.96,
+      "importance": 0.93,
+      "metadata": {
+        "evalSeed": true,
+        "capability": "long-term conversational memory"
+      }
+    },
+    {
+      "id": "eval-procedure-verify-deadline-eligibility",
+      "type": "procedure",
+      "canonicalText": "Before ranking any hackathon, verify the official deadline, submission timezone, region eligibility, and track fit from primary sources; mark unknown facts as pending.",
+      "sourceKind": "user_instruction",
+      "status": "active",
+      "confidence": 0.97,
+      "importance": 0.98,
+      "metadata": {
+        "evalSeed": true,
+        "capability": "procedure recall"
+      }
+    },
+    {
+      "id": "eval-failure-region-eligibility",
+      "type": "failure_memory",
+      "canonicalText": "A previous opportunity scouting pass failed by recommending an event before checking China or Hong Kong eligibility. Treat region mismatch as a hard disqualifier unless the user asks for a watchlist item.",
+      "sourceKind": "post_run_reflection",
+      "status": "active",
+      "confidence": 0.94,
+      "importance": 0.96,
+      "metadata": {
+        "evalSeed": true,
+        "capability": "failure memory recall"
+      }
+    },
+    {
+      "id": "eval-decision-qwen-track-priority",
+      "type": "decision_memory",
+      "canonicalText": "For the AI Opportunity Scout demo, prioritize Qwen Cloud Track 1 when deadline and eligibility are verified because it directly matches persistent agent memory and memory reasoning.",
+      "sourceKind": "decision_record",
+      "status": "active",
+      "confidence": 0.89,
+      "importance": 0.88,
+      "scope": {
+        "projectId": "ai-opportunity-scout"
+      },
+      "metadata": {
+        "evalSeed": true,
+        "capability": "active memory use"
+      }
+    },
+    {
+      "id": "eval-fact-watchlist-cockroachdb",
+      "type": "project_fact",
+      "canonicalText": "CockroachDB is a lower-priority watchlist opportunity for this demo unless database or backend infrastructure work becomes central to the current build.",
+      "sourceKind": "agent_observation",
+      "status": "active",
+      "confidence": 0.78,
+      "importance": 0.62,
+      "scope": {
+        "projectId": "ai-opportunity-scout"
+      },
+      "metadata": {
+        "evalSeed": true,
+        "capability": "temporal updates"
+      }
+    },
+    {
+      "id": "eval-tool-devpost-timezone",
+      "type": "tool_memory",
+      "canonicalText": "When using Devpost pages for opportunity scouting, normalize displayed deadlines to the user's working timezone before comparing opportunities.",
+      "sourceKind": "agent_observation",
+      "status": "active",
+      "confidence": 0.82,
+      "importance": 0.74,
+      "metadata": {
+        "evalSeed": true,
+        "capability": "tool task memory"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "preference-recall",
+      "name": "Recall opportunity ranking preference",
+      "capability": "long-term conversational memory",
+      "operation": "memory_recall",
+      "input": {
+        "query": "What should matter most when ranking AI agent hackathons for this user?",
+        "types": ["user_preference"],
+        "limit": 5,
+        "tokenBudget": 700
+      },
+      "expected": {
+        "memoryIds": ["eval-pref-credential-network"],
+        "textIncludes": ["founder network", "credential lift"]
+      }
+    },
+    {
+      "id": "procedure-recall",
+      "name": "Recall ranking procedure",
+      "capability": "multi-session procedure recall",
+      "operation": "memory_recall",
+      "input": {
+        "query": "Before recommending a hackathon, what verification procedure should the agent follow?",
+        "types": ["procedure"],
+        "limit": 5,
+        "tokenBudget": 700
+      },
+      "expected": {
+        "memoryIds": ["eval-procedure-verify-deadline-eligibility"],
+        "textIncludes": ["official deadline", "region eligibility"]
+      }
+    },
+    {
+      "id": "failure-recall",
+      "name": "Recall failure memory",
+      "capability": "failure memory recall",
+      "operation": "memory_recall",
+      "input": {
+        "query": "What mistake should be avoided around eligibility?",
+        "types": ["failure_memory"],
+        "limit": 5,
+        "tokenBudget": 700
+      },
+      "expected": {
+        "memoryIds": ["eval-failure-region-eligibility"],
+        "textIncludes": ["China or Hong Kong eligibility", "hard disqualifier"]
+      }
+    },
+    {
+      "id": "bootstrap-trace",
+      "name": "Bootstrap creates inspectable trace",
+      "capability": "traceability and governance",
+      "operation": "continuity_bootstrap",
+      "input": {
+        "host": "codex",
+        "sessionId": "eval-session-bootstrap",
+        "taskHint": "Rank AI Opportunity Scout targets with continuity memory.",
+        "tokenBudget": 700
+      },
+      "expected": {
+        "traceRequired": true,
+        "minUsedMemories": 1
+      }
+    },
+    {
+      "id": "token-budget-ignored",
+      "name": "Tight token budget ignores memories",
+      "capability": "limited context windows",
+      "operation": "memory_recall",
+      "input": {
+        "query": "Bring all Opportunity Scout continuity memories into context.",
+        "limit": 8,
+        "tokenBudget": 10
+      },
+      "expected": {
+        "minIgnoredMemories": 1,
+        "emptyContextBlock": true
+      }
+    },
+    {
+      "id": "remember-candidate",
+      "name": "Remember creates candidate memory",
+      "capability": "memory write path",
+      "operation": "memory_remember",
+      "input": {
+        "source": "explicit_user_request",
+        "content": "Always capture submission timezone and official eligibility source links before ranking a hackathon.",
+        "approvalMode": "pending"
+      },
+      "expected": {
+        "candidateCount": 1,
+        "status": "pending",
+        "type": "procedure"
+      }
+    },
+    {
+      "id": "controlled-conflict",
+      "name": "Conflict path holds candidate for review",
+      "capability": "memory safety and conflict handling",
+      "operation": "memory_remember",
+      "input": {
+        "source": "user_correction",
+        "existingMemoryId": "eval-conflict-existing-prize-money",
+        "existingText": "User prioritizes prize money above founder network when selecting hackathons.",
+        "content": "User now prioritizes founder network above prize money when selecting hackathons.",
+        "approvalMode": "active"
+      },
+      "expected": {
+        "candidateStatus": "pending",
+        "conflictType": "contradiction",
+        "recommendedAction": "ask_user",
+        "openConflictCount": 1
+      }
+    },
+    {
+      "id": "forget-invalidation",
+      "name": "Forget invalidates stale memory",
+      "capability": "temporal updates and forgetting",
+      "operation": "memory_forget",
+      "input": {
+        "memoryId": "eval-fact-watchlist-cockroachdb",
+        "mode": "invalidate",
+        "reason": "Eval invalidates stale watchlist item.",
+        "query": "Should CockroachDB stay in the AI Opportunity Scout watchlist?",
+        "projectId": "ai-opportunity-scout"
+      },
+      "expected": {
+        "status": "invalidated",
+        "notRecalledMemoryId": "eval-fact-watchlist-cockroachdb"
+      }
+    }
+  ]
+}

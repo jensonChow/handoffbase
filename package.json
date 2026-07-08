@@ -25,6 +25,7 @@
     "dashboard:build": "npm run build --workspace @handoffbase/memory-core && npm run build --workspace @handoffbase/dashboard",
     "demo:flow": "node demo/opportunity-scout/scripts/print-flow.mjs",
     "demo:jsonrpc": "node demo/opportunity-scout/scripts/print-jsonrpc.mjs",
+    "eval:memory": "node scripts/run-memory-eval.mjs",
     "mcp:call": "node scripts/call-mcp-tool.mjs",
     "mcp:validate-remote": "node scripts/validate-remote-mcp.mjs"
   },
