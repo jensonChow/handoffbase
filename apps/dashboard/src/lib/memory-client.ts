@@ -94,11 +94,14 @@ export type MemoryTrace = {
   usedMemories: TraceMemoryRef[];
   ignoredMemories: TraceMemoryRef[];
   excludedMemories: TraceMemoryRef[];
+  metadata?: Record<string, string | number | boolean>;
 };
 
 export type ConflictCandidate = {
   id: string;
   status: "needs_review" | "placeholder";
+  conflictType: "supersede" | "merge" | "reject" | "scope_narrowing" | "placeholder";
+  severity: "low" | "medium" | "high";
   incoming: string;
   existing: string;
   recommendation: string;

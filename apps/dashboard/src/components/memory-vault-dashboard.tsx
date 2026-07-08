@@ -232,7 +232,7 @@ export function MemoryVaultDashboard() {
           <Database size={24} aria-hidden="true" />
           <div>
             <p className="eyebrow">handoffbase</p>
-            <h1>Memory Vault</h1>
+            <h1>HandoffBase Memory Vault</h1>
           </div>
         </div>
 
@@ -240,21 +240,21 @@ export function MemoryVaultDashboard() {
           <NavButton
             active={view === "vault"}
             icon={<Database size={18} aria-hidden="true" />}
-            label="Vault"
+            label="Memory Vault"
             count={stats.total}
             onClick={() => setView("vault")}
           />
           <NavButton
             active={view === "pending"}
             icon={<Inbox size={18} aria-hidden="true" />}
-            label="Pending"
+            label="Pending Review"
             count={stats.pending}
             onClick={() => setView("pending")}
           />
           <NavButton
             active={view === "trace"}
             icon={<GitBranch size={18} aria-hidden="true" />}
-            label="Trace"
+            label="Memory Trace"
             count={stats.traces}
             onClick={() => setView("trace")}
           />
@@ -269,14 +269,14 @@ export function MemoryVaultDashboard() {
 
         <div className="side-note">
           <ShieldCheck size={17} aria-hidden="true" />
-          <span>Mock client boundary. No secrets or persisted credentials.</span>
+          <span>Mock/default dashboard. No remote backend, secrets, or persisted credentials.</span>
         </div>
       </aside>
 
       <section className="workspace">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">Governance dashboard</p>
+            <p className="eyebrow">HandoffBase Memory Vault</p>
             <h2>{viewTitle(view)}</h2>
           </div>
           <button className="icon-text-button" type="button" onClick={loadDashboard}>
@@ -289,7 +289,7 @@ export function MemoryVaultDashboard() {
           <Metric label="Total memories" value={stats.total} tone="neutral" />
           <Metric label="Active" value={stats.active} tone="green" />
           <Metric label="Pending review" value={stats.pending} tone="amber" />
-          <Metric label="Inactive" value={stats.invalid} tone="red" />
+          <Metric label="Inactive memories" value={stats.invalid} tone="red" />
           <Metric label="Trace runs" value={stats.traces} tone="violet" />
         </div>
 
@@ -377,14 +377,20 @@ export function MemoryVaultDashboard() {
                 onApprove={(memoryId) =>
                   void runMutation(() => client.approveMemory(memoryId), memoryId)
                 }
-                onReject={(memoryId) =>
+                onInvalidate={(memoryId) =>
                   void runMutation(
                     () =>
                       client.invalidateMemory(
                         memoryId,
-                        "Rejected from Pending Memories review."
+                        "Invalidated from Pending Memories review."
                       ),
                     memoryId
+                  )
+                }
+                onDelete={(memoryId) =>
+                  void runMutation(
+                    () => client.deleteMemory(memoryId, "Deleted from Pending Memories review."),
+                    ""
                   )
                 }
               />
@@ -418,7 +424,7 @@ export function MemoryVaultDashboard() {
             <Clock3 size={24} aria-hidden="true" />
             <div>
               <h2>Loading Memory Vault</h2>
-              <p>Fetching memory records, trace runs, and pending review queue.</p>
+              <p>Fetching HandoffBase memory records, trace runs, and pending review queue.</p>
             </div>
           </div>
         </section>
@@ -638,13 +644,20 @@ function MemoryDetailPanel(props: {
       </div>
 
       <label className="field-block">
-        <span>Canonical memory</span>
+        <span>Canonical memory text</span>
         <textarea
           value={edit.canonicalText}
           onChange={(event) => patchEdit({ canonicalText: event.target.value })}
           rows={6}
         />
       </label>
+
+      {memory.rawSource ? (
+        <div className="source-excerpt">
+          <span>Raw extraction source</span>
+          <p>{memory.rawSource}</p>
+        </div>
+      ) : null}
 
       <div className="field-grid">
         <label className="field-block">
@@ -848,20 +861,22 @@ function PendingView({
   isMutating,
   onSelect,
   onApprove,
-  onReject
+  onInvalidate,
+  onDelete
 }: {
   memories: MemoryRecord[];
   isMutating: boolean;
   onSelect: (memoryId: string) => void;
   onApprove: (memoryId: string) => void;
-  onReject: (memoryId: string) => void;
+  onInvalidate: (memoryId: string) => void;
+  onDelete: (memoryId: string) => void;
 }) {
   return (
-    <section className="single-panel" aria-label="Pending Memories review">
+    <section className="single-panel" aria-label="HandoffBase pending memory review">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Review queue</p>
-          <h3>Pending Memories</h3>
+          <p className="eyebrow">Qwen extraction review</p>
+          <h3>Pending Memory Candidates</h3>
         </div>
         <Token>{memories.length} candidates</Token>
       </div>
@@ -870,16 +885,43 @@ function PendingView({
         <div className="pending-list">
           {memories.map((memory) => (
             <article className="pending-row" key={memory.id}>
-              <div>
+              <div className="pending-copy">
                 <div className="row-title">
                   <Token>{formatToken(memory.type)}</Token>
                   <span>{scopeLabel(memory)}</span>
                 </div>
-                <p>{memory.canonicalText}</p>
-                <small>
-                  {formatToken(memory.source.kind)} / confidence {toPercent(memory.confidence)} /
-                  importance {toPercent(memory.importance)}
-                </small>
+                <h4>Qwen-extracted candidate memory</h4>
+                <p className="candidate-text">{memory.canonicalText}</p>
+                {memory.rawSource ? (
+                  <div className="source-excerpt compact">
+                    <span>Extraction source</span>
+                    <p>{memory.rawSource}</p>
+                  </div>
+                ) : null}
+                <dl className="review-meta">
+                  <div>
+                    <dt>Source</dt>
+                    <dd>
+                      {formatToken(memory.source.kind)} / {memory.source.label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Run</dt>
+                    <dd>{memory.source.runId ?? "manual review"}</dd>
+                  </div>
+                  <div>
+                    <dt>Confidence</dt>
+                    <dd>{toPercent(memory.confidence)}</dd>
+                  </div>
+                  <div>
+                    <dt>Importance</dt>
+                    <dd>{toPercent(memory.importance)}</dd>
+                  </div>
+                  <div>
+                    <dt>Validity reason</dt>
+                    <dd>{memory.validity.reason ?? "Pending reviewer decision."}</dd>
+                  </div>
+                </dl>
               </div>
               <div className="row-actions">
                 <button type="button" className="ghost-button" onClick={() => onSelect(memory.id)}>
@@ -898,11 +940,20 @@ function PendingView({
                 <button
                   type="button"
                   className="warning-button"
-                  onClick={() => onReject(memory.id)}
+                  onClick={() => onInvalidate(memory.id)}
                   disabled={isMutating}
                 >
                   <X size={16} aria-hidden="true" />
-                  Reject
+                  Invalidate
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => onDelete(memory.id)}
+                  disabled={isMutating}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  Delete
                 </button>
               </div>
             </article>
@@ -981,24 +1032,27 @@ function TraceView({
               <Token>{formatDate(selectedTrace.createdAt)}</Token>
             </div>
             <p className="trace-query">{selectedTrace.query}</p>
-            <div className="context-pack">
-              <h4>Context pack</h4>
-              <p>{selectedTrace.contextPack}</p>
-            </div>
+            <TraceMetaGrid trace={selectedTrace} />
+            {selectedTrace.contextPack.trim() ? (
+              <div className="context-pack">
+                <h4>Context pack</h4>
+                <p>{selectedTrace.contextPack}</p>
+              </div>
+            ) : null}
             <TraceMemoryGroup
-              title="Used memories"
+              title={`Used memories (${selectedTrace.usedMemories.length})`}
               items={selectedTrace.usedMemories}
               tone="green"
               onSelectMemory={onSelectMemory}
             />
             <TraceMemoryGroup
-              title="Ignored memories"
+              title={`Ignored memories (${selectedTrace.ignoredMemories.length})`}
               items={selectedTrace.ignoredMemories}
               tone="amber"
               onSelectMemory={onSelectMemory}
             />
             <TraceMemoryGroup
-              title="Excluded memories"
+              title={`Excluded memories (${selectedTrace.excludedMemories.length})`}
               items={selectedTrace.excludedMemories}
               tone="red"
               onSelectMemory={onSelectMemory}
@@ -1013,6 +1067,42 @@ function TraceView({
         )}
       </section>
     </div>
+  );
+}
+
+function TraceMetaGrid({ trace }: { trace: MemoryTrace }) {
+  const metadataEntries = Object.entries(trace.metadata ?? {}).filter(
+    ([key]) => !["hostId", "agentProfileId"].includes(key)
+  );
+
+  return (
+    <dl className="metadata-list trace-metadata">
+      <div>
+        <dt>Host</dt>
+        <dd>{trace.hostId}</dd>
+      </div>
+      <div>
+        <dt>Agent profile</dt>
+        <dd>{trace.agentProfileId}</dd>
+      </div>
+      <div>
+        <dt>Run</dt>
+        <dd>{trace.runId}</dd>
+      </div>
+      <div>
+        <dt>Memory counts</dt>
+        <dd>
+          {trace.usedMemories.length} used / {trace.ignoredMemories.length} ignored /{" "}
+          {trace.excludedMemories.length} excluded
+        </dd>
+      </div>
+      {metadataEntries.map(([key, value]) => (
+        <div key={key}>
+          <dt>{formatToken(key)}</dt>
+          <dd>{formatMetadataValue(value)}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -1033,15 +1123,23 @@ function TraceMemoryGroup({
       {items.length ? (
         items.map((item) => (
           <article className={`trace-memory trace-${tone}`} key={item.memoryId}>
-            <button type="button" onClick={() => onSelectMemory(item.memoryId)}>
-              <Eye size={15} aria-hidden="true" />
-              {item.memoryId}
-            </button>
+            <div className="trace-memory-head">
+              <button type="button" onClick={() => onSelectMemory(item.memoryId)}>
+                <Eye size={15} aria-hidden="true" />
+                {item.memoryId}
+              </button>
+              <Token>{formatToken(item.type)}</Token>
+              <Token>
+                {item.score !== undefined ? `score ${toPercent(item.score)}` : "no score"}
+              </Token>
+            </div>
             <p>{item.text}</p>
-            <small>
-              {formatToken(item.type)} / {item.score ? `score ${toPercent(item.score)}` : "no score"} /{" "}
-              {item.reason}
-            </small>
+            <dl className="reason-list">
+              <div>
+                <dt>Reason</dt>
+                <dd>{item.reason}</dd>
+              </div>
+            </dl>
           </article>
         ))
       ) : (
@@ -1067,21 +1165,26 @@ function ConflictView({ conflicts }: { conflicts: ConflictCandidate[] }) {
           {conflicts.map((conflict) => (
             <article className="conflict-row" key={conflict.id}>
               <div className="conflict-meta">
+                <Token>{formatToken(conflict.conflictType)}</Token>
+                <Token>{formatToken(conflict.severity)} severity</Token>
                 <Token>{formatToken(conflict.memoryType)}</Token>
-                <StatusBadge status={conflict.status === "placeholder" ? "pending" : "active"} />
+                <Token>{formatToken(conflict.status)}</Token>
                 <span>{conflict.scopeLabel}</span>
               </div>
               <div className="comparison-grid">
                 <div>
-                  <h4>Incoming</h4>
+                  <h4>Candidate memory</h4>
                   <p>{conflict.incoming}</p>
                 </div>
                 <div>
-                  <h4>Existing</h4>
+                  <h4>Existing memory</h4>
                   <p>{conflict.existing}</p>
                 </div>
               </div>
-              <p className="recommendation">{conflict.recommendation}</p>
+              <div className="recommendation">
+                <span>Recommended action</span>
+                <p>{conflict.recommendation}</p>
+              </div>
               <div className="row-actions">
                 <button type="button" className="ghost-button" disabled>
                   <Check size={16} aria-hidden="true" />
@@ -1191,10 +1294,10 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 function viewTitle(view: ViewKey) {
   const titles: Record<ViewKey, string> = {
-    vault: "Memory Vault list",
-    pending: "Pending Memories review",
-    trace: "Memory Trace viewer",
-    conflicts: "Conflict review"
+    vault: "Inspect Memories",
+    pending: "Review Pending Memories",
+    trace: "Inspect Memory Traces",
+    conflicts: "Resolve Memory Conflicts"
   };
 
   return titles[view];
@@ -1202,6 +1305,14 @@ function viewTitle(view: ViewKey) {
 
 function formatToken(value: string) {
   return value.replaceAll("_", " ");
+}
+
+function formatMetadataValue(value: string | number | boolean) {
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  return String(value);
 }
 
 function toPercent(value: number) {

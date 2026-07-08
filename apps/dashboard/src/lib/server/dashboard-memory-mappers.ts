@@ -174,7 +174,8 @@ function toDashboardTrace(
     ),
     excludedMemories: excludedMemoryIds.map((memoryId) =>
       toTraceMemoryRef(memoryId, memoryById, trace.selectionReasons[memoryId], scoreByMemoryId)
-    )
+    ),
+    metadata: primitiveMetadata(trace.metadata)
   };
 }
 

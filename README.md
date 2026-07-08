@@ -101,6 +101,8 @@ NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http npm run dashboard:dev
 
 The HTTP client calls same-origin `/api/dashboard/*` routes unless `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL` is set.
 
+For the local hackathon video path, see [`docs/demo-dashboard.md`](docs/demo-dashboard.md).
+
 Call a tool manually:
 
 ```bash

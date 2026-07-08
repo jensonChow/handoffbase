@@ -212,6 +212,10 @@ export class DashboardMemoryBackend {
         metadata: traceMetadata({
           hostId: "codex",
           agentProfileId: "opportunity-scout",
+          project_id: "ai-event-2026",
+          recall_mode: "memory_recall",
+          context_budget_tokens: 640,
+          decision_stage: "opportunity ranking",
           excludedMemoryIds: ["mem_expired_006"],
           scores: {
             mem_user_pref_001: 0.92,
@@ -236,6 +240,10 @@ export class DashboardMemoryBackend {
         metadata: traceMetadata({
           hostId: "claude-code",
           agentProfileId: "opportunity-scout",
+          project_id: "ai-event-2026",
+          recall_mode: "memory_reflect",
+          review_mode: "pending failure memory",
+          context_budget_tokens: 420,
           scores: {
             mem_proc_002: 0.9
           }
@@ -424,27 +432,33 @@ const seedMemories: Array<{
   },
   {
     now: SEED_NOW,
-    reason: "Drafted from implementation notes.",
+    reason: "Candidate ranking procedure requires review.",
+    actorId: "qwen-provider",
     input: {
       id: "mem_pending_005",
-      type: "project_fact",
+      type: "procedure",
       scope: {
         tenantId: DEFAULT_TENANT_ID,
         userId: "user_demo",
-        projectId: "handoffbase",
+        agentProfileId: "opportunity-scout",
+        projectId: "ai-event-2026",
         hostId: "codex"
       },
-      sourceKind: "manual_edit",
+      sourceKind: "run_reflection",
       status: "pending",
-      confidence: 0.74,
-      importance: 0.56,
+      confidence: 0.84,
+      importance: 0.72,
       validFrom: SEED_NOW,
       canonicalText:
-        "The dashboard should expose Memory Vault, pending review, edit/delete actions, memory trace, and conflict review.",
+        "When eligible opportunities compete, rank founder network, credentials, mentor access, and startup resources above cash-only prize size.",
+      rawSource:
+        "Qwen extracted this after the user corrected a prize-first ranking and emphasized credentials, network, and startup resources.",
       metadata: {
+        provider: "qwen",
         approvalMode: "pending",
-        sourceLabel: "Dashboard planning note",
-        validityReason: "Drafted from implementation notes."
+        sourceLabel: "Ranking rule extraction",
+        runId: "run_2026_0706_03",
+        validityReason: "Needs user approval before it changes ranking behavior."
       }
     }
   },
@@ -482,8 +496,10 @@ const seedConflicts: ConflictCandidate[] = [
   {
     id: "conflict_001",
     status: "needs_review",
+    conflictType: "supersede",
+    severity: "high",
     incoming:
-      "User now prioritizes founder network and resource access above prize money.",
+      "User now prioritizes founder network, credentials, and useful startup resources above prize money.",
     existing:
       "User appears to prioritize hackathon prize money when choosing opportunities.",
     recommendation:
@@ -494,6 +510,8 @@ const seedConflicts: ConflictCandidate[] = [
   {
     id: "conflict_placeholder",
     status: "placeholder",
+    conflictType: "placeholder",
+    severity: "low",
     incoming: "Conflict detection endpoint is not wired yet.",
     existing: "Backend will provide candidate pairs from Qwen conflict checks.",
     recommendation:

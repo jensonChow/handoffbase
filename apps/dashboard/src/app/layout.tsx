@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Memory Vault Dashboard",
-  description: "Governance dashboard for handoffbase memories"
+  title: "HandoffBase Memory Vault",
+  description: "Governance dashboard for HandoffBase memories"
 };
 
 export default function RootLayout({
