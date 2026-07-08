@@ -107,6 +107,9 @@ Call a tool manually:
 MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
 ```
 
+Developer examples, MCP host config snippets, HTTP JSON-RPC calls, and
+quickstart walkthroughs are in [`examples/README.md`](examples/README.md).
+
 ## Deployment
 
 The server has a production Docker profile and deployment notes in [`docs/deployment.md`](docs/deployment.md). The image uses Node 22, runs `npm ci`, builds the workspaces, and starts the compiled server with:
