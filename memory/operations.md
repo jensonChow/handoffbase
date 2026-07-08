@@ -48,13 +48,23 @@
 - `docs/deployment/alibaba-cloud-proof.md` is the redacted live deployment proof file for ECS `/health`, MCP discovery, authenticated recall, and Qwen-backed remember validation.
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
 - Recommended first Alibaba Cloud deployment path is ECS + Docker for the long-running Remote Streamable HTTP server. Defer ACK and Function Compute unless operational needs justify the extra shape changes.
-- The approved hackathon deployment is live on Alibaba Cloud ECS in `cn-beijing`, using Docker image `handoffbase:b565210-20260707T160422Z` from commit `b565210`.
-- Public demo endpoint: `http://123.56.244.157`; MCP endpoint: `http://123.56.244.157/mcp`.
-- Live `/health` validation passed with `authMode=api_key`, `providerMode=qwen`, and `storeMode=in-memory`.
-- Live remote MCP validation passed: `tools/list` returned 7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed `memory_remember` returned 2 pending candidate memories.
+- The approved hackathon deployment is currently paused: the Alibaba Cloud ECS
+  instance in `cn-beijing` was stopped in economical stop mode on
+  2026-07-08T10:05:41Z after explicit user approval. The instance was not
+  released.
+- Last running public demo endpoint: `http://123.56.244.157`; last MCP endpoint:
+  `http://123.56.244.157/mcp`. The stopped instance currently shows no public IP,
+  so recheck the IP after restart.
+- Last live `/health` validation before stop passed with `authMode=api_key`,
+  `providerMode=qwen`, and `storeMode=in-memory`.
+- Last live remote MCP validation before stop passed: `tools/list` returned
+  7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed
+  `memory_remember` returned 2 pending candidate memories.
 - Runtime secrets are configured only in the root-owned ECS env file consumed by Docker `--env-file`; do not record values in docs, logs, shell history, Docker layers, or Git.
 - Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
-- Stop or release the pay-as-you-go ECS instance after the approved hackathon demo window.
+- Restart the stopped ECS instance around July 17-18 for final submission
+  validation, then stop or release the pay-as-you-go ECS instance after the
+  approved hackathon demo window.
 - Postgres provisioning remains prepare-only until the target Alibaba PostgreSQL service/version is verified for pgvector or compatible vector extension support and runtime `STORE_MODE=postgres` wiring is added.
 - `docs/hackathon-resource-support.md` is the non-secret ledger for Devpost
   deadlines, Qwen Free Tier status, coupon/voucher request state, and Alibaba
@@ -68,15 +78,13 @@
   Log Service project, or paid Container Registry Enterprise instance. Resource
   Center was not enabled, so a full inventory and budget alerts still require
   user approval for the free Resource Center role/notification setup.
-- As of 2026-07-08T08:35:51Z, the cost-runway check found the ECS demo still
-  running as pay-as-you-go on `ecs.e-c1m1.large` in `cn-beijing`, with 5 Mbps
-  peak public bandwidth billed by traffic and a 40 GiB ESSD Entry system disk.
-  Billing pages did not render exact balance or ECS bill details, so the
-  planning estimate is 4-5 RMB/day. That is likely enough to keep the service
-  online until July 20 from an about-100 RMB balance, but likely tight through
-  August 4 or August 7. If live availability is not needed before submission,
-  ask before stopping ECS and restart around July 17-18 using
-  `docs/cloud-cost-runbook.md`.
+- As of 2026-07-08T10:05:41Z, the cost-runway check and approved stop action
+  found the ECS demo stopped in economical stop mode on `ecs.e-c1m1.large` in
+  `cn-beijing`, with a 40 GiB ESSD Entry system disk retained. Billing pages did
+  not render exact balance or ECS bill details. The pre-stop planning estimate
+  was 4-5 RMB/day while running; after stop, compute/memory billing is paused but
+  disk and any retained attached-resource billing continues. Restart around
+  July 17-18 using `docs/cloud-cost-runbook.md`.
 - The same check confirmed Bailian fee overview showed `¥0` model-platform
   spend, `qwen-plus-2025-07-28` still had 1,000,000 / 1,000,000 free tokens
   remaining with free-quota-only enabled, and the ECS snapshot page showed

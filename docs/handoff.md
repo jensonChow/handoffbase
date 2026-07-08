@@ -1,14 +1,18 @@
 # Current Handoff
 
-Updated: 2026-07-08T08:35:51Z
+Updated: 2026-07-08T10:05:41Z
 
 ## Completed This Session
 
-- Rechecked the Alibaba Cloud cost runway for the deployed HandoffBase ECS demo
-  without changing application code or cloud resources.
-- Confirmed the documented ECS instance is still running in `cn-beijing` as
-  pay-as-you-go on `ecs.e-c1m1.large` with 2 vCPU / 2 GiB, traffic-billed
-  public bandwidth, and a 40 GiB ESSD Entry system disk.
+- Rechecked the Alibaba Cloud cost runway for the deployed HandoffBase ECS demo,
+  then stopped the ECS instance after explicit user approval.
+- Confirmed the documented ECS instance is now stopped in `cn-beijing` using
+  economical stop mode / savings stop mode. It remains pay-as-you-go on
+  `ecs.e-c1m1.large` with 2 vCPU / 2 GiB and a 40 GiB ESSD Entry system disk.
+- Confirmed the instance was not released. The console showed `已停止` and
+  `节省停机模式` after the stop action.
+- The previous public endpoint is no longer available while stopped. The console
+  no longer shows the prior public IP, so recheck the IP after restart.
 - Billing/cost pages did not render account-level balance or ECS bill details
   in Chrome; they stayed on loading skeletons. The current decision therefore
   uses visible ECS resource posture plus a conservative 4-5 RMB/day planning
@@ -24,13 +28,12 @@ Updated: 2026-07-08T08:35:51Z
   WAF, API Gateway, Function Compute workload, or snapshot service was found.
   Some pages only showed Resource Center or product authorization/open-service
   prompts, so this is not a full Resource Center inventory.
-- Created `docs/cloud-cost-runbook.md` and updated
-  `docs/hackathon-resource-support.md` with the runway decision: likely enough
-  to keep ECS running until July 20, but tight for August 4 or August 7; if live
-  availability is not needed before submission, ask before stopping ECS now and
-  restart around July 17-18.
-- No stop, release, resize, paid-service enablement, coupon redemption, payment
-  method, autopay, or cloud-resource mutation was performed.
+- Updated `docs/cloud-cost-runbook.md` and
+  `docs/hackathon-resource-support.md` with the actual stop result: stop now in
+  economical stop mode, keep the instance, restart around July 17-18, then
+  revalidate before final submission.
+- No release, resize, paid-service enablement, coupon redemption, payment method,
+  autopay, or new paid cloud resource was performed.
 
 ## Prior Completed Work
 
@@ -66,6 +69,17 @@ Updated: 2026-07-08T08:35:51Z
 
 ## Verification
 
+- Alibaba Cloud ECS console: instance `i-2ze79rc2xe68zx1xeahu` showed `已停止`
+  and `节省停机模式`; no release action was taken.
+- `git diff --check`: passed for this ECS stop documentation update.
+- `node --check scripts/validate-remote-mcp.mjs`: passed.
+- `npm run check`: passed for this ECS stop documentation update. Smoke
+  registered 7 tools, 9 resources, and 4 prompts; memory-core 28/28, auth 5/5,
+  server 1/1, and dashboard 2/2 passed.
+- Tracked-file scans for Qwen/DashScope/HandoffBase keys and database URLs found
+  no real secret values. The MCP token scan matched only documented
+  `<redacted>` placeholders. Coupon/voucher scans matched public URLs and status
+  wording only, not coupon or voucher codes.
 - `git diff --check`: passed for this cost-runway docs update.
 - `npm run check`: passed for this cost-runway docs update. Smoke registered 7
   tools, 9 resources, and 4 prompts; memory-core 28/28, auth 5/5, server 1/1,
@@ -92,28 +106,23 @@ Updated: 2026-07-08T08:35:51Z
 ## Git State
 
 - Current branch: `main`.
-- Latest committed resource-support state: `34aa863 docs: record hackathon resource support status`.
-- At the start of this memory refresh, `main` was ahead of `origin/main` by 3
-  commits:
-  - `34aa863 docs: record hackathon resource support status`
-  - `c505e08 docs: record qwen voucher application path`
-  - `489fab0 docs: record hackathon resource support status`
-- This handoff refresh should be committed on `main` and pushed to
-  `origin/main`. A separate merge is not needed while the work is already on
-  `main`.
+- Latest committed cost-runway state before this ECS stop update:
+  `163337d docs: record cloud cost runway`.
+- This ECS stop documentation update should be committed on `main`. Do not push
+  unless explicitly instructed.
 
 ## Open Risks
 
 - Account-level balance and exact ECS bill detail were not visible because the
   billing pages stayed on loading skeletons. Recheck Billing/Cost Management
   later or after the next billing update for exact spend.
-- Keeping the current ECS instance online to July 20 is likely affordable from a
-  100 RMB deposit, but keeping it online through August 4 or August 7 is likely
-  tight unless the balance is replenished or the instance is stopped when idle.
-- If cost savings matter and the project is not submitted yet, stop ECS only
-  after explicit user approval and restart around July 17-18. In economical
-  stop mode, compute billing can stop but disk billing continues and the public
-  IP may change on restart.
+- ECS compute is currently paused by economical stop mode, but the system disk
+  and any retained attached resources continue billing.
+- The stopped ECS instance currently has no public IP shown in the console. The
+  prior public endpoint may change on restart, so update validation commands and
+  public proof material only after rechecking the restarted IP.
+- Restart the ECS instance around July 17-18 if final submission validation needs
+  a live endpoint. Revalidate `/health` and remote MCP after restart.
 - Coupon/voucher activation is still pending registration verification. Watch
   for the Qwen Cloud / Alibaba Cloud activation email or check Qwen Cloud
   benefits after the expected 1-2 business day review window.
@@ -153,9 +162,8 @@ Priorities:
 2. Watch for the Qwen Cloud / Alibaba Cloud coupon activation email. If pending
    near the deadline, contact global.hackathon@alibaba-inc.com with UID and
    phone entered directly by the user.
-3. If the user approves cost savings before submission, follow
-   `docs/cloud-cost-runbook.md` to revalidate, then stop ECS safely; restart
-   around July 17-18 and revalidate before submission.
+3. ECS is currently stopped in economical stop mode. Restart around July 17-18,
+   recheck the public IP, and revalidate before submission.
 4. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
    `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
 5. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and

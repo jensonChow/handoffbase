@@ -1,6 +1,6 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-08T08:35:51Z
+Last verified: 2026-07-08T10:05:41Z
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
@@ -25,14 +25,13 @@ credentials, auth headers, database URLs, or invoice details here.
   private fields were entered directly in Chrome by the user. Gmail received a
   Qwen Cloud / Alibaba Cloud confirmation email showing the coupon form was
   submitted and registration verification is in progress.
-- Alibaba Cloud deployment cost posture: the existing ECS demo is running as
-  pay-as-you-go in `cn-beijing`. No additional paid service was intentionally
-  created during this check.
+- Alibaba Cloud deployment cost posture: the existing pay-as-you-go ECS demo in
+  `cn-beijing` is stopped in economical stop mode. No additional paid service was
+  intentionally created during this check.
 - Current recommendation: continue using Qwen free quota with the stop-when-free
   guardrail enabled for the deployed `qwen-plus` path; do not add paid cloud
-  services. If live availability is not needed before submission, ask before
-  stopping the pay-as-you-go ECS instance now and restart it around July 17-18
-  for final submission validation.
+  services. Keep ECS stopped until it is needed for final submission validation,
+  then restart around July 17-18 and revalidate the public endpoint.
 
 ## Qwen Cloud Free Tier
 
@@ -79,12 +78,14 @@ credentials, auth headers, database URLs, or invoice details here.
 
 ## Alibaba Cloud Cost Guardrails
 
-- ECS status: running in `cn-beijing`, matching the existing ECS + Docker demo
-  path documented in `docs/deployment/alibaba-cloud-proof.md`.
+- ECS status: stopped in `cn-beijing` using economical stop mode, matching the
+  existing ECS + Docker demo path documented in
+  `docs/deployment/alibaba-cloud-proof.md`.
 - Pay-as-you-go status: the ECS detail page showed pay-as-you-go billing.
 - Instance shape: 2 vCPU / 2 GiB.
-- Public networking: a public IP and security group are present for the demo;
-  the public endpoint is already documented in the deployment proof.
+- Public networking: the stopped instance currently shows no public IP. The last
+  running public endpoint is documented in the deployment proof, but it must be
+  rechecked after restart because the IP may change.
 - Unexpected paid resources:
   - No RDS/PolarDB, ACK cluster, load balancer, NAT Gateway, OSS bucket, Log
     Service project, or paid Container Registry Enterprise instance was visible
@@ -99,14 +100,14 @@ credentials, auth headers, database URLs, or invoice details here.
   authorization prompt. Create a 70 RMB or 80 RMB alert only after the user
   approves enabling the required free Resource Center role and any notification
   details.
-- Stop/release recommendation: keep the ECS instance running only while needed
-  for demo/submission proof. Revalidate the endpoint before final submission if
-  it is stopped and restarted, then stop or release it after the approved
-  hackathon window to avoid ongoing pay-as-you-go spend.
+- Stop/release recommendation: keep the ECS instance stopped until it is needed
+  for demo/submission proof. Revalidate the endpoint before final submission
+  after restart, then stop or release it after the approved hackathon window to
+  avoid ongoing pay-as-you-go spend.
 
 ## Cost Runway Check
 
-- Checked timestamp: 2026-07-08T08:35:51Z.
+- Checked timestamp: 2026-07-08T10:05:41Z.
 - Billing visibility: account-level balance and ECS bill-detail pages did not
   render in Chrome during this check; they stayed on loading skeletons. The
   estimate below uses the visible ECS resource shape plus conservative planning
@@ -115,18 +116,21 @@ credentials, auth headers, database URLs, or invoice details here.
   visible.
 - Current spend bucket: likely less than 5 RMB since the ECS instance was
   created on 2026-07-07 at 23:24 China time.
-- Estimated burn: about 0.17-0.21 RMB/hour, or about 4-5 RMB/day, for the
-  running 2 vCPU / 2 GiB pay-as-you-go ECS instance plus 40 GiB system disk.
-  Traffic is expected to be negligible for the demo unless the endpoint receives
-  real load.
+- Estimated burn before stop: about 0.17-0.21 RMB/hour, or about 4-5 RMB/day,
+  for the running 2 vCPU / 2 GiB pay-as-you-go ECS instance plus 40 GiB system
+  disk. Traffic was expected to be negligible for the demo unless the endpoint
+  received real load.
+- Estimated burn after stop: lower than the running estimate. Economical stop
+  mode pauses compute and memory billing, while system disk and any retained
+  attached resources continue billing.
 - Runway from the 2026-07-08 check date:
   - July 20 submission date: about 12 days, estimated 48-60 RMB.
   - August 4 judging end: about 27 days, estimated 108-135 RMB.
   - August 7 winner announcement: about 30 days, estimated 120-150 RMB.
-- Recommendation: likely enough to keep the demo online until July 20, but tight
-  for August 4 or August 7 without more budget. If the project is not submitted
-  yet and live availability is not needed now, recommend asking before stopping
-  ECS and restarting around July 17-18.
+- Recommendation: keep ECS stopped until closer to submission, restart around
+  July 17-18, then revalidate before final submission. The previous running
+  estimate was likely enough to keep the demo online until July 20 but tight for
+  August 4 or August 7 without more budget.
 - Qwen guardrail: `qwen-plus-2025-07-28` shows 1,000,000 / 1,000,000 free
   tokens remaining and free-quota-only / stop-when-free-quota-runs-out enabled.
 - Qwen paid usage: Bailian fee overview showed total model-platform spend `¥0`.
@@ -136,8 +140,10 @@ credentials, auth headers, database URLs, or invoice details here.
   workload, or snapshot service was found in the best-effort console sweep.
   Some pages only showed Resource Center or product authorization/open-service
   prompts, so this is still not a full Resource Center inventory.
-- Stop/release action taken: none. ECS was not stopped, released, resized, or
-  modified.
+- Stop/release action taken: after explicit user approval, ECS was stopped in
+  economical stop mode on 2026-07-08T10:05:41Z. The instance was not released,
+  resized, or converted to another paid service. The console showed `已停止` and
+  `节省停机模式`; the previous public IP was no longer shown after stop.
 - Safe runbook: see `docs/cloud-cost-runbook.md`.
 
 ## Actions Taken
@@ -159,6 +165,8 @@ credentials, auth headers, database URLs, or invoice details here.
   snapshot resource was found.
 - Created `docs/cloud-cost-runbook.md` with the safe stop/restart procedure and
   cost-continuation caveats.
+- After explicit user approval, stopped the pay-as-you-go ECS instance in
+  economical stop mode without releasing it.
 - Found the Qwen Cloud voucher application endpoint from a Devpost discussion
   and verified that the URL redirects to Qwen Cloud SSO login.
 - Rechecked the logged-in Qwen Cloud application page and confirmed the form is
