@@ -28,6 +28,9 @@ credentials, auth headers, database URLs, or invoice details here.
 - Alibaba Cloud deployment cost posture: the existing pay-as-you-go ECS demo in
   `cn-beijing` is stopped in economical stop mode. No additional paid service was
   intentionally created during this check.
+- Relaunch runbook: `docs/deployment/relaunch-runbook.md` records the safe
+  restart, validation, recording, availability, and stop/release checklist for
+  the stopped ECS deployment.
 - Current recommendation: continue using Qwen free quota with the stop-when-free
   guardrail enabled for the deployed `qwen-plus` path; do not add paid cloud
   services. Keep ECS stopped until it is needed for final submission validation,

@@ -1,9 +1,39 @@
 # Current Handoff
 
-Updated: 2026-07-08T10:05:41Z
+Updated: 2026-07-08T17:15:27Z
 
 ## Completed This Session
 
+- Integrated the submission-readiness package into `main` as a docs-only
+  working tree update. The objective branch names had three naming differences;
+  the merged refs were `origin/codex/devpost-submission-copy`,
+  `origin/codex/demo-video-scripts`,
+  `origin/codex/architecture-submission-assets`,
+  `origin/codex/deployment-relaunch-runbook`, and
+  `origin/codex/final-public-readiness`.
+- Created the submission docs package:
+  `docs/submission/devpost-copy.md`,
+  `docs/submission/testing-instructions.md`,
+  `docs/submission/submission-checklist.md`,
+  `docs/submission/main-demo-video-script.md`,
+  `docs/submission/alibaba-proof-video-script.md`,
+  `docs/submission/recording-shot-list.md`,
+  `docs/submission/architecture-for-devpost.md`, and
+  `docs/submission/final-public-readiness.md`.
+- Updated README submission links and `memory/operations.md` so public-readiness
+  materials point to the final submission checklist.
+- Kept the integration docs-only. No MCP tool names, resource URIs, prompt
+  names, application behavior, Postgres runtime wiring, cloud resources,
+  repository visibility, or ECS state were changed.
+- Added `docs/deployment/relaunch-runbook.md` as the safe restart,
+  validation, recording, availability, and stop/release checklist for the
+  stopped Alibaba Cloud ECS + Docker demo.
+- Linked the relaunch runbook from `docs/cloud-cost-runbook.md`,
+  `docs/deployment/alibaba-cloud-proof.md`, and
+  `docs/hackathon-resource-support.md`.
+- Clarified that the Alibaba Cloud deployment proof is historical live
+  validation from 2026-07-07T16:26:43Z, not a current-online claim while ECS is
+  stopped or before the endpoint is revalidated.
 - Rechecked the Alibaba Cloud cost runway for the deployed HandoffBase ECS demo,
   then stopped the ECS instance after explicit user approval.
 - Confirmed the documented ECS instance is now stopped in `cn-beijing` using
@@ -69,6 +99,24 @@ Updated: 2026-07-08T10:05:41Z
 
 ## Verification
 
+- `node --check scripts/validate-remote-mcp.mjs`: passed.
+- `npm run test:dashboard`: passed 2/2 dashboard API tests.
+- `npm run dashboard:build`: passed.
+- `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
+- `npm run check`: passed. The check built/typechecked the workspaces/server,
+  built the dashboard, smoke-registered 7 tools, 9 resources, and 4 prompts,
+  and passed memory-core 28/28, auth 5/5, server 1/1, and dashboard 2/2 tests.
+- Markdown relative-link check: passed for 41 Markdown files.
+- Remote live validation: not run in this integration because `MCP_ENDPOINT` and
+  `MCP_AUTH_TOKEN` were absent from the shell environment, and ECS is documented
+  as stopped.
+- Tracked env-like files: only `.env.example`.
+- `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`; do not
+  print or commit its contents.
+- Public-readiness scans found no real Qwen/DashScope/HandoffBase keys,
+  database URLs, local workstation paths, workspace ids, private UID/phone
+  values, or coupon/voucher codes. Matches are documented placeholders, public
+  URLs, status wording, or safety instructions.
 - Alibaba Cloud ECS console: instance `i-2ze79rc2xe68zx1xeahu` showed `已停止`
   and `节省停机模式`; no release action was taken.
 - `git diff --check`: passed for this ECS stop documentation update.
@@ -91,7 +139,8 @@ Updated: 2026-07-08T10:05:41Z
   wording only, not coupon or voucher codes.
 - `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`; only
   `.env.example` is tracked.
-- `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/HandoffBase`: passed/read-only audit.
+- `memory-refresh` project-memory audit: passed/read-only audit in the previous
+  resource-support session.
 - `git diff --check`: passed after this memory refresh.
 - `npm run check`: passed after this memory refresh. Smoke registered 7 tools,
   9 resources, and 4 prompts; memory-core 28/28, auth 5/5, server 1/1, and
@@ -106,13 +155,17 @@ Updated: 2026-07-08T10:05:41Z
 ## Git State
 
 - Current branch: `main`.
-- Latest committed cost-runway state before this ECS stop update:
-  `163337d docs: record cloud cost runway`.
-- This ECS stop documentation update should be committed on `main`. Do not push
-  unless explicitly instructed.
+- Base commit before the submission-readiness integration: `2de72df`.
+- The final integration commit should use message:
+  `docs: integrate submission readiness package`.
+- Do not push unless explicitly instructed.
 
 ## Open Risks
 
+- GitHub repository visibility still needs user action before Devpost can use a
+  public repo URL.
+- Main demo video and Alibaba proof video still need to be recorded/uploaded and
+  linked from Devpost.
 - Account-level balance and exact ECS bill detail were not visible because the
   billing pages stayed on loading skeletons. Recheck Billing/Cost Management
   later or after the next billing update for exact spend.
@@ -122,7 +175,8 @@ Updated: 2026-07-08T10:05:41Z
   prior public endpoint may change on restart, so update validation commands and
   public proof material only after rechecking the restarted IP.
 - Restart the ECS instance around July 17-18 if final submission validation needs
-  a live endpoint. Revalidate `/health` and remote MCP after restart.
+  a live endpoint. Use `docs/deployment/relaunch-runbook.md`, recheck the public
+  IP, then revalidate `/health` and remote MCP after restart.
 - Coupon/voucher activation is still pending registration verification. Watch
   for the Qwen Cloud / Alibaba Cloud activation email or check Qwen Cloud
   benefits after the expected 1-2 business day review window.
@@ -148,29 +202,34 @@ Updated: 2026-07-08T10:05:41Z
 ## Next Session Prompt
 
 ```text
-Read memory/README.md, memory/product.md, memory/architecture.md,
-memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
+Read docs/submission/final-public-readiness.md,
+docs/submission/submission-checklist.md, docs/submission/testing-instructions.md,
+docs/submission/devpost-copy.md, docs/deployment/relaunch-runbook.md,
 docs/dev-materials-checklist.md, docs/hackathon-resource-support.md,
-and docs/handoff.md first.
+memory/operations.md, and docs/handoff.md first.
 
-Continue from main after the resource-support and memory-refresh commits.
+Continue from main after the submission-readiness integration commit.
 Preserve the MCP tool names, resource URIs, prompt names, Alibaba deployment
 proof, current live storeMode=in-memory truth, and secret-handling rules.
 
 Priorities:
-1. Check GitHub Actions after the pushed commits.
-2. Watch for the Qwen Cloud / Alibaba Cloud coupon activation email. If pending
+1. Check GitHub Actions after the integration commit is pushed.
+2. Make the repository public only after explicit user approval, then add the
+   public repo URL to Devpost.
+3. Record/upload the main demo video and Alibaba proof video.
+4. Watch for the Qwen Cloud / Alibaba Cloud coupon activation email. If pending
    near the deadline, contact global.hackathon@alibaba-inc.com with UID and
    phone entered directly by the user.
-3. ECS is currently stopped in economical stop mode. Restart around July 17-18,
-   recheck the public IP, and revalidate before submission.
-4. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
+5. ECS is currently stopped in economical stop mode. Restart around July 17-18,
+   recheck the public IP, and revalidate before submission using
+   docs/deployment/relaunch-runbook.md.
+6. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
    `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
-5. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and
+7. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and
    payment values in ignored local env, cloud secret configuration, or browser
    forms only; never commit `.env.*` files or print secrets.
-6. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
+8. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
    pgvector support and wire `STORE_MODE=postgres` deliberately.
-7. Stop or release the pay-as-you-go ECS instance after the approved demo
+9. Stop or release the pay-as-you-go ECS instance after the approved demo
    window.
 ```

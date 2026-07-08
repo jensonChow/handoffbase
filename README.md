@@ -303,7 +303,14 @@ More detail:
 - [Dashboard demo](docs/demo-dashboard.md)
 - [Deployment notes](docs/deployment.md)
 - [Alibaba Cloud deployment proof](docs/deployment/alibaba-cloud-proof.md)
+- [Alibaba ECS relaunch runbook](docs/deployment/relaunch-runbook.md)
 - [Development and public-readiness checklist](docs/dev-materials-checklist.md)
+- [Devpost submission copy](docs/submission/devpost-copy.md)
+- [Devpost architecture notes](docs/submission/architecture-for-devpost.md)
+- [Submission testing instructions](docs/submission/testing-instructions.md)
+- [Submission checklist](docs/submission/submission-checklist.md)
+- [Video recording shot list](docs/submission/recording-shot-list.md)
+- [Final public-readiness checklist](docs/submission/final-public-readiness.md)
 - [Current handoff](docs/handoff.md)
 
 ## Examples And Demo

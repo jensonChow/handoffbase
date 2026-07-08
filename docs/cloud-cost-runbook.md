@@ -26,6 +26,8 @@ payment details, invoice details, coupon/voucher codes, or `.env.*` contents.
 - Qwen model path: `qwen-plus-2025-07-28` has 1,000,000 / 1,000,000 free
   tokens remaining and free-quota-only / stop-when-free-quota-runs-out enabled.
 - Bailian fee overview: total model-platform spend showed `¥0`.
+- Relaunch procedure: use `docs/deployment/relaunch-runbook.md` before starting
+  the stopped ECS instance for submission or judging validation.
 
 The billing/cost pages did not render account-level balance or ECS bill details
 in Chrome during this check; they stayed on loading skeletons. The runway
@@ -123,6 +125,9 @@ Function Compute workload.
 
 ## Restart Steps
 
+Use `docs/deployment/relaunch-runbook.md` as the detailed restart, validation,
+recording, availability, and teardown checklist. The short version is:
+
 1. Start the ECS instance in `cn-beijing`.
 2. Check the new public IP. The instance is currently stopped without a public IP
    shown, so do not assume `123.56.244.157` still works.
@@ -146,7 +151,8 @@ Function Compute workload.
 ## Timeline
 
 - The ECS instance is currently stopped in economical stop mode for cost savings.
-  Restart around July 17-18, then revalidate before submission.
+  Restart around July 17-18, then revalidate before submission using
+  `docs/deployment/relaunch-runbook.md`.
 - Keep the service online through submission and any required judging window if
   budget allows.
 - If the demo is submitted before July 20, avoid extended downtime during
