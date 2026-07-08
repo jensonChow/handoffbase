@@ -1,10 +1,15 @@
 # HandoffBase Examples
 
-These examples show local development, Qwen-backed mode, remote validation, MCP host snippets, and safe HTTP/JSON-RPC payloads.
+These examples show how to run HandoffBase locally, connect an MCP host, and
+exercise the core continuity tools with safe placeholder values.
 
-All values are placeholders. Do not put real Qwen, DashScope, HandoffBase, database, cookie, or cloud credentials in tracked files.
+The current MVP exposes a Remote Streamable HTTP MCP server. Local development
+still runs that HTTP server on your machine; it does not require local stdio
+transport.
 
-## Local Mock Mode
+## Local Development Mode
+
+Local mock mode works without Qwen or DashScope credentials:
 
 ```bash
 npm install
@@ -13,44 +18,83 @@ npm run dev:server
 npm run smoke
 ```
 
-Local mode works without Qwen credentials. The server uses `MockMemoryProvider` unless `QWEN_API_KEY` or `DASHSCOPE_API_KEY` is set.
+The default MCP endpoint is:
 
-## Qwen-Backed Backend Mode
+```text
+http://127.0.0.1:3000/mcp
+```
+
+If port `3000` is busy, start the server on another port:
+
+```bash
+PORT=3333 npm run dev:server
+```
+
+Then point examples at the matching endpoint:
+
+```bash
+MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+```
+
+## Qwen-Backed Mode
+
+Qwen-backed mode requires a backend key. It is optional for local development;
+without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, HandoffBase uses
+`MockMemoryProvider`.
 
 ```bash
 cp .env.example .env.local
 ```
 
-Set one backend model key in your ignored `.env.local`:
+Edit `.env.local` locally and set one backend provider key. Leave tracked
+examples blank:
 
-```bash
-QWEN_API_KEY=<your-qwen-api-key>
-# or
-DASHSCOPE_API_KEY=<your-dashscope-api-key>
+```text
+QWEN_API_KEY=
 ```
 
-Never commit `.env.*`.
+or:
 
-HandoffBase API keys and Qwen/DashScope keys have different jobs:
+```text
+DASHSCOPE_API_KEY=
+```
 
-- HandoffBase API key: protects the MCP endpoint.
-- Qwen/DashScope key: stays on the backend and powers memory reasoning.
+Never commit `.env.*` files.
 
-## Remote Validation
+HandoffBase API keys and Qwen/DashScope keys are different:
+
+- A HandoffBase API key protects the MCP endpoint.
+- A Qwen or DashScope key stays only on the backend and lets the server call the
+  memory reasoning provider.
+- MCP hosts should never receive the Qwen or DashScope key.
+
+## Remote Validation Mode
+
+Use this only against a deployment that you control:
 
 ```bash
-MCP_ENDPOINT=https://your-handoffbase.example.com/mcp \
-MCP_AUTH_TOKEN=<your-handoffbase-api-key> \
+export MCP_ENDPOINT=https://your-handoffbase.example.com/mcp
+export MCP_AUTH_TOKEN=
 npm run mcp:validate-remote
 ```
 
-The remote validator checks `/health`, `tools/list`, `memory_recall`, and `memory_remember`.
+The validator checks `/health`, `tools/list`, `memory_recall`, and
+`memory_remember`. It reads the HandoffBase auth token from `MCP_AUTH_TOKEN`;
+set that value only in your shell or secret manager, and do not put real tokens
+into tracked files.
 
-## More Examples
+For the redacted live deployment proof, see
+[`docs/deployment/alibaba-cloud-proof.md`](../docs/deployment/alibaba-cloud-proof.md).
 
-- [MCP host config examples](mcp/README.md)
-- [HTTP / JSON-RPC examples](http/README.md)
-- [Bootstrap a session](quickstart/bootstrap-session.md)
-- [Recall memory](quickstart/recall-memory.md)
-- [Remember a preference](quickstart/remember-preference.md)
-- [Trace memory usage](quickstart/trace-memory.md)
+## Example Areas
+
+- [`mcp/`](mcp/) has MCP host config snippets with placeholders.
+- [`http/`](http/) has JSON-RPC and direct HTTP examples.
+- [`quickstart/remember-preference.md`](quickstart/remember-preference.md)
+  stores a durable preference candidate.
+- [`quickstart/recall-memory.md`](quickstart/recall-memory.md) retrieves
+  relevant memories and a trace id.
+- [`quickstart/trace-memory.md`](quickstart/trace-memory.md) explains which
+  memories were used or excluded.
+- [`quickstart/bootstrap-session.md`](quickstart/bootstrap-session.md) builds a
+  compact context pack for a fresh session.

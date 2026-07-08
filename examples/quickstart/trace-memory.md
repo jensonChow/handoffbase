@@ -1,35 +1,48 @@
 # Quickstart: Trace Memory Usage
 
-Use `memory_trace` after `continuity_bootstrap` or `memory_recall` returns a trace id.
+Use `memory_trace` after `continuity_bootstrap` or `memory_recall` returns a
+trace id. It explains which memories were used, ignored, or excluded.
 
-1. Run recall:
+## Get A Trace Id
 
 ```bash
-MCP_ENDPOINT=http://127.0.0.1:3000/mcp \
-npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+MCP_ENDPOINT=http://127.0.0.1:3000/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
 ```
 
-2. Copy the returned `trace_id` into a `memory_trace` request:
+Copy the `trace_id` from the response.
+
+## Call The Tool
+
+```bash
+TRACE_ID=<trace-id-from-memory_recall>
+printf '{ "trace_id": "%s" }\n' "$TRACE_ID" > /tmp/handoffbase-memory-trace.json
+MCP_ENDPOINT=http://127.0.0.1:3000/mcp npm run mcp:call -- memory_trace /tmp/handoffbase-memory-trace.json
+```
+
+For a remote server, use the same HandoffBase API key you used for the recall
+request:
+
+```bash
+TRACE_ID=<trace-id-from-memory_recall>
+printf '{ "trace_id": "%s" }\n' "$TRACE_ID" > /tmp/handoffbase-memory-trace.json
+export MCP_ENDPOINT=https://your-handoffbase.example.com/mcp
+export MCP_AUTH_TOKEN=
+npm run mcp:call -- memory_trace /tmp/handoffbase-memory-trace.json
+```
+
+Set `MCP_AUTH_TOKEN` to your HandoffBase API key only in your shell or secret
+manager.
+
+## Expected Shape
+
+The response should include:
 
 ```json
 {
-  "arguments": {
-    "trace_id": "<trace-id-from-recall>"
-  }
+  "used_memories": [],
+  "ignored_memories": [],
+  "excluded_memories": []
 }
 ```
 
-3. Call:
-
-```bash
-MCP_ENDPOINT=http://127.0.0.1:3000/mcp \
-npm run mcp:call -- memory_trace /path/to/your-local-trace-payload.json
-```
-
-Expected behavior:
-
-- used memories include why they were selected,
-- ignored memories include the exclusion reason,
-- excluded memories surface policy or lifecycle filtering.
-
-Do not commit local trace payloads that contain private user data.
+Use this when an agent answer needs an audit trail for memory influence.

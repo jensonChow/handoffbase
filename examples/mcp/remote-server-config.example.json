@@ -1,6 +1,7 @@
 {
-  "servers": {
-    "handoffbase": {
+  "mcpServers": {
+    "handoffbase-remote": {
+      "type": "streamable-http",
       "url": "https://your-handoffbase.example.com/mcp",
       "headers": {
         "Authorization": "Bearer <your-handoffbase-api-key>"

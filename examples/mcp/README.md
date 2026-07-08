@@ -1,49 +1,60 @@
 # MCP Host Examples
 
-HandoffBase exposes a Remote Streamable HTTP MCP server. The snippets in this folder are placeholders and may need adaptation for a specific MCP host.
+HandoffBase exposes MCP over Streamable HTTP at `/mcp`. The snippets in this
+directory are placeholder configs for MCP hosts that support remote HTTP
+servers.
 
-## Remote Server
+MCP host config formats are not identical. Treat these files as starting points
+and adapt the field names to your host's documentation.
 
-See [remote-server-config.example.json](remote-server-config.example.json).
+## Local Server Config
 
-Use this shape when HandoffBase is already deployed:
-
-```json
-{
-  "servers": {
-    "handoffbase": {
-      "url": "https://your-handoffbase.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-handoffbase-api-key>"
-      }
-    }
-  }
-}
-```
-
-The HandoffBase API key protects the MCP endpoint. Qwen/DashScope keys stay on the backend and should never be configured in MCP host clients.
-
-## Local Server
-
-See [local-server-config.example.json](local-server-config.example.json).
-
-Start the server locally:
+Start the local server:
 
 ```bash
 npm run dev:server
 ```
 
-Then point your MCP host at:
+Then adapt:
+
+```text
+examples/mcp/local-server-config.example.json
+```
+
+The local example points at:
 
 ```text
 http://127.0.0.1:3000/mcp
 ```
 
-If you enable local API-key auth, use a placeholder in docs and load the real value from local secret storage.
+Auth is disabled by default for local development and `npm run smoke`.
+
+## Remote Server Config
+
+For a deployed HandoffBase server, adapt:
+
+```text
+examples/mcp/remote-server-config.example.json
+```
+
+Use placeholders while editing docs or templates:
+
+```text
+https://your-handoffbase.example.com/mcp
+<your-handoffbase-api-key>
+```
+
+The HandoffBase API key protects the MCP endpoint. It is not a Qwen or
+DashScope key. Keep Qwen and DashScope credentials on the backend only.
 
 ## Tools To Try
+
+These examples focus on the core continuity loop:
 
 - `continuity_bootstrap`
 - `memory_recall`
 - `memory_remember`
 - `memory_trace`
+
+The quickstart walkthroughs in [`../quickstart`](../quickstart/) show the
+payloads and expected response fields.

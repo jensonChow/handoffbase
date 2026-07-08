@@ -570,6 +570,30 @@ textarea {
   line-height: 1.45;
 }
 
+.source-excerpt {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #121416;
+  padding: 10px;
+}
+
+.source-excerpt.compact {
+  margin-top: 10px;
+}
+
+.source-excerpt span,
+.recommendation span,
+.review-meta dt,
+.reason-list dt {
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.source-excerpt p,
+.recommendation p {
+  margin: 5px 0 0;
+}
+
 .pending-list,
 .trace-list,
 .conflict-list {
@@ -586,6 +610,43 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
+}
+
+.pending-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pending-copy h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.candidate-text {
+  color: var(--text) !important;
+}
+
+.review-meta,
+.reason-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.review-meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.review-meta div,
+.reason-list div {
+  min-width: 0;
+}
+
+.review-meta dd,
+.reason-list dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .row-title {
@@ -651,12 +712,21 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
+  display: grid;
+  gap: 10px;
 }
 
 .trace-memory button {
   min-height: 30px;
   padding: 0 9px;
   font-size: 12px;
+}
+
+.trace-memory-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .trace-green {
@@ -772,7 +842,8 @@ textarea {
   .field-grid,
   .metadata-list,
   .comparison-grid,
-  .pending-row {
+  .pending-row,
+  .review-meta {
     grid-template-columns: 1fr;
   }
 

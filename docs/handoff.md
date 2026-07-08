@@ -1,46 +1,47 @@
 # Current Handoff
 
-Updated: 2026-07-08T03:26:49Z
+Updated: 2026-07-08T03:59:43Z
 
 ## Completed This Session
 
-- Integrated the HandoffBase open-source/star-readiness batch directly on
-  `main` because the requested branch refs were not present locally or on
-  `origin`.
-- Added MIT `LICENSE`.
-- Rewrote `README.md` around the public tagline:
+- Reconciled the five star-readiness source worktrees into `main`:
+  - `codex/open-source-examples`
+  - `codex/architecture-positioning-docs`
+  - `codex/memory-eval-pack`
+  - `codex/dashboard-memory-governance-demo`
+  - `codex/readme-open-source-readiness`
+- Preserved the stronger worktree content instead of the earlier condensed
+  partial integration on `main`.
+- Kept MIT `LICENSE`.
+- Rewrote and repaired `README.md` around the public tagline:
   `Open memory handoff for AI agents.`
-- Added public architecture, comparison, memory lifecycle, eval, and dashboard
-  demo docs:
+- Restored public architecture, comparison, memory lifecycle, eval, and
+  dashboard demo docs from the source worktrees:
   - `docs/architecture.md`
   - `docs/assets/architecture.mmd`
   - `docs/comparison.md`
   - `docs/memory-lifecycle.md`
   - `docs/evals.md`
   - `docs/demo-dashboard.md`
-- Added practical examples:
+- Restored practical examples from the examples worktree:
   - `examples/README.md`
   - `examples/mcp/*`
   - `examples/http/README.md`
   - `examples/quickstart/*`
   - `examples/evals/opportunity-scout-memory-eval.json`
-- Added deterministic local eval runner `scripts/run-memory-eval.mjs` and
-  exposed it as `npm run eval:memory`.
-- Polished dashboard demo copy and conflict metadata so the local Memory Vault
-  shows HandoffBase branding, Qwen-extracted pending candidates, trace
-  metadata, candidate/existing conflict comparison, severity, conflict type,
-  and recommended action.
-- Refreshed durable memory files for the star-readiness state:
-  `memory/product.md`, `memory/architecture.md`, `memory/operations.md`, and
-  `memory/decisions.md`.
+- Restored the deterministic local eval runner `scripts/run-memory-eval.mjs`;
+  kept the safer root `npm run eval:memory` wrapper that builds memory-core
+  before running the eval.
+- Restored dashboard polish so the local Memory Vault shows HandoffBase
+  branding, Qwen-extracted pending candidates, trace metadata,
+  candidate/existing conflict comparison, severity, conflict type, and
+  recommended action.
 - Preserved the current deployment proof and did not change MCP names,
   resource URIs, prompt names, cloud resources, dashboard remote wiring, or
   Postgres runtime selection.
 
 ## Verification
 
-- Current branch before commit: `main`.
-- Base commit before this star-readiness commit: `d244d3d`.
 - `npm run eval:memory`: passed, 8/8 eval cases.
 - `npm run test:dashboard`: passed, 2/2 tests.
 - `npm run dashboard:build`: passed.
@@ -50,22 +51,21 @@ Updated: 2026-07-08T03:26:49Z
   prompts; memory-core 28/28, auth 5/5, server 1/1, dashboard 2/2.
 - `git diff --check`: passed.
 - Required tracked-file public-readiness scans found only intentional
-  placeholder or redacted values:
-  `<your-qwen-api-key>`, `<your-dashscope-api-key>`,
-  `<your-handoffbase-api-key>`, and `<redacted>`.
-- Additional working-tree scan over untracked new files found only the same
-  placeholders/redacted examples.
+  redacted placeholder values: `MCP_AUTH_TOKEN=<redacted>`.
+  The `/Users/` scan matched only the documentation line naming that scan.
 - `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`.
 - Tracked env-like files remain only `.env.example`.
 
 ## Git State
 
-- This handoff is prepared for a star-readiness commit and push on `main`.
-- No target branches named `codex/license-and-examples`,
-  `codex/architecture-and-comparison-docs`, `codex/memory-eval-pack`,
-  `codex/dashboard-demo-polish`, or `codex/readme-star-polish` were available
-  locally or on `origin`; no real Git merge of those branch refs occurred.
-- After committing, verify exact commit and push state with:
+- Current branch: `main`.
+- The objective branch names mapped to local worktree branches as follows:
+  - `codex/license-and-examples` -> `codex/open-source-examples`
+  - `codex/architecture-and-comparison-docs` -> `codex/architecture-positioning-docs`
+  - `codex/memory-eval-pack` -> `codex/memory-eval-pack`
+  - `codex/dashboard-demo-polish` -> `codex/dashboard-memory-governance-demo`
+  - `codex/readme-star-polish` -> `codex/readme-open-source-readiness`
+- Before pushing, verify exact commit and push state with:
   - `git log -1 --oneline`
   - `git status --short --branch`
 

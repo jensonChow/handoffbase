@@ -2,57 +2,80 @@
 
 Open memory handoff for AI agents.
 
-HandoffBase is an MCP-native memory layer that lets AI agents preserve, inspect, and hand off user preferences, project context, procedures, failures, and traces across sessions, hosts, and projects.
+HandoffBase is an MCP-native memory layer that lets AI agents preserve, inspect,
+and hand off user preferences, project context, procedures, failures, decisions,
+and traces across sessions, hosts, and projects.
 
-It is built for the missing layer between agent runtimes: Codex, Claude Code, Cursor, and custom MCP hosts can all call the same memory interface instead of trapping useful context inside one local session.
+It is built as a Remote Streamable HTTP MCP server, with Qwen-backed memory
+reasoning behind a provider interface, a traceable memory lifecycle, and a
+Memory Vault dashboard prototype for review and governance.
+
+Current status: runnable MVP. The local path uses an in-memory store and
+`MockMemoryProvider` by default. The Alibaba Cloud proof is Qwen-backed and
+authenticated, but still uses `storeMode=in-memory`; it is a deployment proof,
+not a production SaaS service.
 
 ## Why HandoffBase
 
-Modern agents can reason well inside one conversation, but continuity is fragmented:
+Modern AI agents are useful, but continuity is fragmented:
 
-- user preferences and corrections are lost between sessions,
-- project files such as `AGENTS.md` or `CLAUDE.md` only help inside one repo,
-- every host has its own memory shape,
-- users rarely get a clear trace of which memories affected an answer,
-- old or conflicting memories can silently pollute future work.
+- New sessions forget corrections, tool experience, and prior outcomes.
+- Repository files such as `AGENTS.md` or `CLAUDE.md` help inside one project,
+  but do not provide portable cross-host user memory.
+- Codex, Claude Code, Cursor, and custom agents each have their own context
+  surface.
+- Users need a way to inspect, approve, update, forget, and trace the memories
+  that influence agent behavior.
 
-HandoffBase exposes memory as a Remote Streamable HTTP MCP server. Agents can remember, recall, bootstrap, reflect, trace, update, and forget through one portable interface, while users keep a reviewable Memory Vault.
+HandoffBase treats memory as shared infrastructure. Agents connect through MCP,
+call explicit memory tools, read `memory://` resources, and return auditable
+trace ids instead of silently stuffing old chat history into prompts.
 
 ## Core Idea
 
 ```text
-MCP hosts
-  Codex / Claude Code / Cursor / custom agents
+Codex / Claude Code / Cursor / custom MCP host
         |
         | Remote Streamable HTTP MCP
         v
 HandoffBase MCP server
         |
-        +-- MemoryReasoningProvider
-        |     +-- QwenMemoryProvider for hackathon memory reasoning
-        |     +-- MockMemoryProvider for local deterministic development
+        +--> MemoryReasoningProvider
+        |       +--> QwenMemoryProvider
+        |       +--> MockMemoryProvider
         |
-        +-- MemoryStore
-              +-- InMemoryMemoryStore for current live demo/runtime default
-              +-- PostgresMemoryStore implemented as future runtime wiring path
+        +--> MemoryStore
+        |       +--> In-memory MVP store
+        |       +--> Postgres + pgvector migration path
+        |
+        +--> Memory Vault dashboard prototype
 ```
 
-Qwen Cloud powers the reasoning-heavy memory operations in the hackathon path: extraction, classification, conflict detection, context-pack building, reflection, and trace explanations. The memory core remains provider-agnostic behind `MemoryReasoningProvider`.
+Every connected agent can:
 
-## Features
+- bootstrap a new session with the right continuity context,
+- recall relevant long-term memories for a task,
+- remember new durable facts, procedures, preferences, and failures,
+- reflect on completed runs,
+- update, supersede, expire, or forget outdated memories,
+- explain which memories were used, ignored, or excluded.
 
-- MCP-native memory handoff through Remote Streamable HTTP at `/mcp`.
-- Seven MCP tools for bootstrap, recall, remember, reflect, update, forget, and trace.
-- Nine `memory://` resources for user, agent, project, run, trace, pending, and conflict views.
-- Qwen-backed memory reasoning through `QwenMemoryProvider`.
-- Deterministic local mock mode that runs without Qwen credentials.
-- Memory lifecycle status model: pending, active, invalidated, expired, superseded, archived, deleted.
-- Traceable context packs that show used, ignored, and excluded memories.
-- Conflict records so new memories do not silently overwrite older ones.
-- Memory Vault dashboard prototype for local governance demos.
-- Alibaba Cloud ECS deployment proof for the current Qwen-backed live path.
+## What Is Implemented
+
+| Area | Current implementation |
+| --- | --- |
+| MCP transport | Remote Streamable HTTP server at `/mcp` |
+| MCP surface | 7 tools, 9 `memory://` resources, and 4 reusable prompts |
+| Memory core | `@handoffbase/memory-core` with records, scopes, lifecycle, events, traces, validation, and sensitive-data rejection |
+| Providers | `MemoryReasoningProvider`, `QwenMemoryProvider`, and deterministic `MockMemoryProvider` |
+| Store | In-memory runtime store by default; `PostgresMemoryStore` and pgvector SQL migration path exist for future runtime wiring |
+| Dashboard | Next.js Memory Vault prototype with vault, pending review, edit/delete, trace, and conflict review views |
+| Demo | Deterministic AI Opportunity Scout flow and JSON-RPC/HTTP example payloads |
+| Deployment proof | Alibaba Cloud ECS + Docker proof with API-key auth, Qwen provider mode, and in-memory store mode |
 
 ## Quickstart
+
+Requires Node.js 22 or newer.
 
 ```bash
 npm install
@@ -60,168 +83,298 @@ npm run check
 npm run dev:server
 ```
 
-The local server listens on:
+The local MCP server listens at:
 
 ```text
 http://127.0.0.1:3000/mcp
 ```
 
-If port `3000` is already in use:
+If port 3000 is already in use:
 
 ```bash
 PORT=3333 npm run dev:server
 ```
 
-Smoke-test MCP registration:
+Call a local tool with the included Opportunity Scout payload:
 
 ```bash
-npm run smoke
+MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
 ```
 
 Useful commands:
 
 ```bash
-npm run build
-npm run build:server
+npm run smoke
 npm run test
-npm run test:dashboard
-npm run dashboard:build
-npm run eval:memory
+npm run dashboard:dev
 npm run demo:flow
 npm run demo:jsonrpc
 ```
 
-`npm run check` is the local CI-parity command. It typechecks, builds, runs the MCP registration smoke test, auth/scope tests, server route tests, memory-core tests, and dashboard API tests.
+`npm run check` is the CI-parity command. It typechecks, builds the server and
+workspaces, runs the MCP registration smoke test, and runs memory-core, auth,
+server, and dashboard tests. It must pass without Qwen credentials.
 
 ## Qwen Setup
 
-Local development uses `MockMemoryProvider` by default. To run Qwen-backed mode, keep credentials only in an ignored environment file:
+Local development works without cloud credentials by using `MockMemoryProvider`.
+To exercise the Qwen-backed path:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Set one backend model key:
+Then set one of these credentials in your local or cloud environment:
 
-```bash
-QWEN_API_KEY=<your-qwen-api-key>
-# or
-DASHSCOPE_API_KEY=<your-dashscope-api-key>
+- `QWEN_API_KEY`
+- `DASHSCOPE_API_KEY`
+
+Optional Qwen/DashScope settings:
+
+- `QWEN_BASE_URL` or `DASHSCOPE_BASE_URL`
+- `QWEN_MODEL` or `DASHSCOPE_MODEL`
+- `QWEN_TIMEOUT_MS`
+
+Never commit `.env.*` files. Keep Qwen keys, DashScope keys, HandoffBase API
+keys, database URLs, cloud credentials, cookies, and auth headers in local or
+cloud secret configuration only.
+
+Qwen is used for the reasoning-heavy memory work:
+
+- extracting durable memories from conversations, run summaries, and tool notes,
+- classifying type, scope, importance, and validity,
+- detecting conflicts with existing memory,
+- building token-budgeted context packs,
+- reflecting on completed agent runs,
+- explaining memory usage traces.
+
+The memory core remains provider-agnostic. Qwen-specific logic lives behind
+`QwenMemoryProvider`; the default local/test path remains mock-provider
+compatible.
+
+## Connect Via MCP
+
+HandoffBase is remote-first. MCP hosts should connect to the Streamable HTTP
+endpoint exposed by the server:
+
+```text
+http://127.0.0.1:3000/mcp
 ```
 
-Never commit `.env.*` files.
+For deployed environments, put HTTPS and API-key auth in front of the service
+before using it with real data. Remote clients can authenticate with either a
+bearer token or `X-Handoffbase-Api-Key`; keep the key value in the host's secret
+configuration, not in tracked project files.
 
-HandoffBase API keys and Qwen/DashScope keys are separate:
+The MCP server exposes tools for memory actions, resources for readable vault
+views, and prompts for memory-aware workflows. Local stdio is intentionally not
+the MVP path because the product value comes from one shared memory layer across
+hosts and sessions.
 
-- HandoffBase API keys protect the MCP endpoint when `HANDOFFBASE_AUTH_MODE=api_key`.
-- Qwen/DashScope keys stay only on the backend and are never sent to MCP clients.
+## Remote MCP Validation
 
-## Remote Validation
-
-For a deployed backend, use the validator with placeholders:
+The repo includes a remote validator:
 
 ```bash
-MCP_ENDPOINT=https://your-handoffbase.example.com/mcp \
-MCP_AUTH_TOKEN=<your-handoffbase-api-key> \
 npm run mcp:validate-remote
 ```
 
-The current Alibaba Cloud proof is recorded in [docs/deployment/alibaba-cloud-proof.md](docs/deployment/alibaba-cloud-proof.md). It is a temporary deployment proof, not a production SaaS endpoint. The proof shows `authMode=api_key`, `providerMode=qwen`, and `storeMode=in-memory`.
+Before running it, set `MCP_ENDPOINT` to a deployed `/mcp` URL and set
+`MCP_AUTH_TOKEN` in your shell or secret manager. Do not paste token values into
+tracked files or command logs.
+
+The validator checks:
+
+- `GET /health` reports `authMode=api_key`, `providerMode=qwen`, and
+  `storeMode=in-memory`,
+- MCP `tools/list` returns the registered tools,
+- authenticated `memory_recall` returns memories and a trace id,
+- authenticated `memory_remember` exercises the Qwen-backed provider path.
+
+The current deployment evidence is recorded in
+[`docs/deployment/alibaba-cloud-proof.md`](docs/deployment/alibaba-cloud-proof.md).
+It is a temporary Alibaba Cloud ECS proof using public HTTP, not a production
+TLS endpoint or managed SaaS service.
 
 ## MCP Tools
 
 | Tool | Purpose |
 | --- | --- |
-| `continuity_bootstrap` | Build a compact context pack at the start of a session. |
-| `memory_recall` | Retrieve relevant memories for a task, query, and scope. |
-| `memory_remember` | Extract durable memory candidates from corrections, notes, or observations. |
-| `memory_reflect` | Reflect on a completed run and propose durable memories. |
+| `continuity_bootstrap` | Build a compact continuity context pack for a new session. |
+| `memory_recall` | Recall relevant memories for a task, query, and scope. |
+| `memory_remember` | Create durable memory candidates from corrections, notes, or observations. |
+| `memory_reflect` | Reflect on a completed agent run and propose durable memories. |
 | `memory_update` | Edit, merge, or supersede an existing memory record. |
 | `memory_forget` | Invalidate, archive, expire, or delete an existing memory record. |
 | `memory_trace` | Explain which memories were used, ignored, or excluded. |
 
 ## MCP Resources
 
-```text
-memory://users/{user_id}/profile
-memory://agents/{agent_profile_id}/procedures
-memory://agents/{agent_profile_id}/failures
-memory://projects/{project_id}/facts
-memory://projects/{project_id}/tool-notes
-memory://runs/{run_id}/summary
-memory://traces/{trace_id}
-memory://vault/pending
-memory://vault/conflicts
-```
+| Resource | Purpose |
+| --- | --- |
+| `memory://users/{user_id}/profile` | Readable continuity profile for a user. |
+| `memory://agents/{agent_profile_id}/procedures` | Procedure memories scoped to an agent profile. |
+| `memory://agents/{agent_profile_id}/failures` | Failure memories scoped to an agent profile. |
+| `memory://projects/{project_id}/facts` | Project fact memories. |
+| `memory://projects/{project_id}/tool-notes` | Tool memories scoped to a project. |
+| `memory://runs/{run_id}/summary` | Summary for a remembered agent run. |
+| `memory://traces/{trace_id}` | Trace detail for memory selection and exclusion. |
+| `memory://vault/pending` | Pending memory candidates awaiting review. |
+| `memory://vault/conflicts` | Memory conflicts awaiting resolution. |
+
+## MCP Prompts
+
+| Prompt | Purpose |
+| --- | --- |
+| `memory-aware-start` | Start a session by bootstrapping continuity context before acting. |
+| `post-run-reflection` | Review a completed run and identify durable memories. |
+| `memory-review` | Guide pending memory review decisions. |
+| `conflict-resolution` | Resolve conflicts between existing and proposed memories. |
 
 ## Memory Lifecycle
 
-Agents create memory through `memory_remember` and `memory_reflect`. Agents use memory through `continuity_bootstrap` and `memory_recall`. Users and dashboards inspect memory through `memory_trace`, trace resources, pending resources, conflict resources, and the Memory Vault dashboard.
+| Stage | What happens |
+| --- | --- |
+| Remember | `memory_remember` extracts candidate memories from explicit notes, corrections, or observations. |
+| Review | Candidates can remain `pending` for user or dashboard review before activation. |
+| Recall | `memory_recall` retrieves scoped, valid memories and returns a trace id. |
+| Bootstrap | `continuity_bootstrap` builds a token-budgeted context pack for a new host/session. |
+| Reflect | `memory_reflect` turns run outcomes into procedure, decision, tool, failure, or outcome memories. |
+| Trace | `memory_trace` and `memory://traces/{trace_id}` explain selected, ignored, and excluded memories. |
+| Update | `memory_update` edits, merges, or supersedes stale or conflicting memories. |
+| Forget | `memory_forget` invalidates, archives, expires, or deletes memory records. |
 
-Governance is explicit:
+Memory types currently modeled:
 
-- new extraction can stay `pending`,
-- approved memories become `active`,
-- stale memories can become `expired`, `invalidated`, `superseded`, `archived`, or `deleted`,
-- conflict records hold candidate-versus-existing memory decisions for review,
-- trace records show why a memory was used or ignored.
-
-See [docs/memory-lifecycle.md](docs/memory-lifecycle.md).
-
-## Dashboard
-
-The Memory Vault dashboard is a local governance prototype. It runs in mock mode by default and does not depend on the live Alibaba ECS endpoint.
-
-```bash
-npm run dashboard:dev
+```text
+identity
+user_preference
+procedure
+project_fact
+tool_memory
+decision_memory
+failure_memory
+outcome_memory
+negative_preference
+skill
 ```
 
-Build it with:
+## Inspection And Governance
 
-```bash
-npm run dashboard:build
+HandoffBase is designed so users and operators can see how memory affects
+answers:
+
+- `memory_trace` explains which memories were used, ignored, or excluded.
+- `memory://traces/{trace_id}` exposes trace details through MCP resources.
+- `memory://vault/pending` exposes pending memory candidates.
+- `memory://vault/conflicts` exposes open conflict records.
+- The Memory Vault dashboard prototype shows vault, pending review, trace, and
+  conflict-review views through a dashboard client boundary.
+
+This is not only retrieval. The memory lifecycle is meant to be governed:
+pending approval, conflict review, supersession, expiry, deletion, and trace
+inspection are first-class behaviors.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Host["MCP host"] --> Server["HandoffBase MCP server"]
+  Server --> Tools["Memory tools/resources/prompts"]
+  Tools --> Service["Memory service layer"]
+  Service --> Provider["MemoryReasoningProvider"]
+  Provider --> Qwen["QwenMemoryProvider"]
+  Provider --> Mock["MockMemoryProvider"]
+  Service --> Store["MemoryStore"]
+  Store --> Memory["In-memory MVP store"]
+  Store --> Postgres["Postgres + pgvector path"]
+  Dashboard["Memory Vault dashboard"] --> API["Dashboard API/client boundary"]
+  API --> Store
 ```
 
-See [docs/demo-dashboard.md](docs/demo-dashboard.md).
+More detail:
 
-## Examples
+- [Architecture](docs/architecture.md)
+- [Architecture diagram](docs/assets/architecture.mmd)
+- [Memory lifecycle](docs/memory-lifecycle.md)
+- [Technical design](docs/technical-design.md)
+- [Comparison](docs/comparison.md)
+- [Eval pack](docs/evals.md)
+- [Dashboard demo](docs/demo-dashboard.md)
+- [Deployment notes](docs/deployment.md)
+- [Alibaba Cloud deployment proof](docs/deployment/alibaba-cloud-proof.md)
+- [Development and public-readiness checklist](docs/dev-materials-checklist.md)
+- [Current handoff](docs/handoff.md)
 
-- [examples/README.md](examples/README.md): local, Qwen-backed, and remote usage paths.
-- [examples/mcp/README.md](examples/mcp/README.md): MCP host config snippets with placeholders.
-- [examples/http/README.md](examples/http/README.md): safe JSON-RPC examples and payload files.
-- [examples/quickstart/bootstrap-session.md](examples/quickstart/bootstrap-session.md)
-- [examples/quickstart/recall-memory.md](examples/quickstart/recall-memory.md)
-- [examples/quickstart/remember-preference.md](examples/quickstart/remember-preference.md)
-- [examples/quickstart/trace-memory.md](examples/quickstart/trace-memory.md)
+## Examples And Demo
 
-## Architecture And Positioning
+- [Examples overview](examples/README.md)
+- [MCP host config examples](examples/mcp/README.md)
+- [HTTP examples](examples/http/README.md)
+- [Quickstart: remember preference](examples/quickstart/remember-preference.md)
+- [Quickstart: recall memory](examples/quickstart/recall-memory.md)
+- [Quickstart: trace memory](examples/quickstart/trace-memory.md)
+- [Quickstart: bootstrap session](examples/quickstart/bootstrap-session.md)
+- [Memory eval fixture](examples/evals/opportunity-scout-memory-eval.json)
+- [AI Opportunity Scout demo flow](demo/opportunity-scout/demo-flow.md)
+- [HTTP JSON-RPC examples](examples/http/opportunity-scout.http)
+- `examples/http/payloads/*` for direct MCP tool payloads
+- `npm run demo:flow` for an offline narration
+- `npm run demo:jsonrpc` for JSON-RPC request examples
+- `npm run eval:memory` for the deterministic local memory eval pack
+- `npm run dashboard:dev` for the local Memory Vault dashboard prototype
 
-- [docs/architecture.md](docs/architecture.md): current architecture and deployment shape.
-- [docs/assets/architecture.mmd](docs/assets/architecture.mmd): Mermaid architecture diagram.
-- [docs/comparison.md](docs/comparison.md): respectful comparison with Mem0, Zep, Letta, LangMem, repo-local memory files, and generic RAG/vector DBs.
-- [docs/evals.md](docs/evals.md): benchmark-aware eval positioning and local eval pack.
+The demo shows a user teaching an opportunity-scouting agent their hackathon
+preferences, a later session recalling those preferences, a failure reflection
+creating a future guardrail, and another host receiving the same scoped memory
+through MCP.
 
-HandoffBase is not a managed-memory replacement for every use case. It is an open-source, MCP-native memory handoff layer focused on cross-agent continuity, traceable context packs, conflict governance, and user control.
+## Comparison
 
-## Current Status
+HandoffBase is not positioned as universally better than existing memory
+systems. The current goal is narrower: MCP-native, traceable, governed memory
+handoff across agents and hosts.
 
-Implemented now:
+See [docs/comparison.md](docs/comparison.md) for the longer positioning note.
 
-- Remote Streamable HTTP MCP server at `/mcp`.
-- Seven tools, nine resources, and four prompts.
-- `packages/memory-core` with lifecycle, events, traces, conflict records, safety validation, in-memory store, and Postgres store implementation.
-- `QwenMemoryProvider` and `MockMemoryProvider` behind `MemoryReasoningProvider`.
-- Local dashboard prototype with mock/default mode and HTTP API route mode.
-- Remote validator at `scripts/validate-remote-mcp.mjs`, exposed as `npm run mcp:validate-remote`.
-- Alibaba Cloud ECS proof showing Qwen-backed operation with in-memory store.
+| Project | Strong fit | HandoffBase difference |
+| --- | --- | --- |
+| [Mem0](https://docs.mem0.ai/introduction) | Universal memory layer, hosted/open-source memory, agent plugins, framework integrations. | HandoffBase is Remote MCP first: tools, resources, prompts, trace ids, and user-governed memory vault resources are the product surface. |
+| [Zep](https://help.getzep.com/overview) | Enterprise-scale agent memory with temporal graph/context infrastructure. | HandoffBase is a lighter MCP-native handoff layer; the current MVP does not claim graph-scale enterprise retrieval. |
+| [Letta](https://docs.letta.com/) | Memory-first agent runtime with agents, tools, blocks, channels, and app/server surfaces. | HandoffBase does not require migrating to a new agent runtime; it sits beside existing MCP hosts. |
+| [LangMem](https://langchain-ai.github.io/langmem/) | LangGraph/LangChain-oriented memory primitives, background managers, and memory tools. | HandoffBase is host-agnostic infrastructure exposed as a Remote Streamable HTTP MCP service. |
 
-Limitations:
+## Eval Awareness
 
-- The live deployment currently uses `InMemoryMemoryStore`.
-- `PostgresMemoryStore` exists, but runtime `STORE_MODE=postgres` wiring is future work.
-- The public ECS demo proof uses an HTTP IP endpoint, not production TLS.
-- The dashboard is a governance prototype, not a hosted production control plane.
-- The eval pack is a small deterministic local suite, not an official benchmark score.
+The repo currently includes deterministic checks and demo fixtures rather than
+published benchmark claims:
+
+- MCP registration smoke test,
+- memory-core lifecycle, validation, sanitizer, and Postgres contract tests,
+- auth and server route tests,
+- dashboard API tests,
+- deterministic Opportunity Scout session fixtures.
+- a local eval pack at [docs/evals.md](docs/evals.md) and
+  [examples/evals/opportunity-scout-memory-eval.json](examples/evals/opportunity-scout-memory-eval.json).
+
+Future eval work should measure cross-session recall quality, conflict
+detection precision, trace completeness, forgetting behavior, token-budget
+packing, and whether remembered procedures improve agent decisions without
+over-recalling irrelevant context.
+
+## Current Limitations
+
+- The live Alibaba Cloud proof is Qwen-backed but uses `storeMode=in-memory`.
+- `PostgresMemoryStore` and the SQL migration path exist, but runtime
+  `STORE_MODE=postgres` wiring is future work.
+- The public ECS proof uses HTTP on a demo endpoint; production use should add
+  TLS, domain routing, hardened auth, durable storage, monitoring, and a managed
+  deployment path.
+- The Memory Vault dashboard is a governance prototype, not a full production
+  admin console.
+- The eval pack is deterministic and local; it is not an official benchmark
+  score.
+- No benchmark results are claimed here.
 
 ## License
 

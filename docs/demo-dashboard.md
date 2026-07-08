@@ -1,48 +1,63 @@
-# Dashboard Demo
+# HandoffBase Memory Vault Demo
 
-The Memory Vault dashboard is a local governance prototype for the HandoffBase hackathon video. It makes the memory layer visible without connecting to the deployed Alibaba ECS backend.
+This guide is for recording the local dashboard demo. It uses the mock/default dashboard mode and does not require Qwen credentials, API keys, the Alibaba ECS endpoint, auth, or a database.
 
-## Run
+## Run Locally
+
+Install dependencies if needed:
+
+```bash
+npm install
+```
+
+Start the dashboard:
 
 ```bash
 npm run dashboard:dev
 ```
 
-The dashboard uses the mock client by default:
+Open the local URL printed by Next.js, usually:
 
 ```text
-NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=mock
-```
-
-To exercise the local Next.js API routes instead of the in-browser mock client:
-
-```bash
-NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http npm run dashboard:dev
+http://localhost:3000
 ```
 
 Build verification:
 
 ```bash
-npm run dashboard:build
 npm run test:dashboard
+npm run dashboard:build
 ```
 
-## Demo Story
+Run the aggregate check when there is enough time:
 
-The seeded data follows the AI Opportunity Scout story:
+```bash
+npm run check
+```
 
-- the user prioritizes credentials, founder network, and startup resources over prize money alone;
-- the agent must verify deadline, timezone, eligibility region, and official rules before recommending a hackathon;
-- a failure memory prevents recommending events whose official rules exclude the user's region;
-- a conflict shows older prize-money prioritization versus newer network/credentials preference.
+## Recording Path
 
-## Views To Record
+1. Open **HandoffBase Memory Vault** and show the status strip.
+2. In **Memory Vault**, search for `opportunity` and select the user preference memory.
+3. Show the canonical memory text, scope, source, validity reason, and audit events.
+4. Open **Memory Trace** and select the opportunity-ranking trace.
+5. Show the context pack, used memories, ignored memory, excluded superseded memory, and reasons.
+6. Open **Pending Review** and show the Qwen-extracted candidate memories.
+7. Approve one candidate, then invalidate or delete another if the recording needs a governance action.
+8. Open **Resolve Memory Conflicts** and show the candidate memory versus existing prize-money memory, conflict type, severity, and recommended action.
 
-- Vault: active and pending memories with scope, type, confidence, importance, and lifecycle status.
-- Pending: Qwen/agent-extracted candidate memories awaiting user approval.
-- Trace: used, ignored, and excluded memories plus the compact context pack.
-- Conflicts: candidate versus existing memory, conflict type, severity, and recommended action.
+## Demo Data Story
+
+The seeded dashboard data follows the AI Opportunity Scout scenario:
+
+- User preference: prioritize credentials, founder network, and startup resources over prize money alone.
+- Procedure: verify deadline, timezone, eligibility region, and official rules before recommending an event.
+- Failure memory: avoid recommending events when official rules exclude the user's region.
+- Conflict: supersede an older prize-money preference with the newer founder-network and credentials preference.
 
 ## Safety Notes
 
-The dashboard should not hardcode remote endpoints, auth tokens, Qwen keys, database URLs, or cloud credentials. It is safe to record in mock/default mode.
+- The dashboard uses the mock client by default.
+- Do not connect this demo to the deployed ECS backend.
+- Do not add auth, database wiring, or remote endpoint configuration for this recording.
+- Keep secrets only in ignored local or cloud secret configuration.

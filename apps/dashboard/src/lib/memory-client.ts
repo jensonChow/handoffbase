@@ -94,24 +94,16 @@ export type MemoryTrace = {
   usedMemories: TraceMemoryRef[];
   ignoredMemories: TraceMemoryRef[];
   excludedMemories: TraceMemoryRef[];
+  metadata?: Record<string, string | number | boolean>;
 };
 
 export type ConflictCandidate = {
   id: string;
   status: "needs_review" | "placeholder";
+  conflictType: "supersede" | "merge" | "reject" | "scope_narrowing" | "placeholder";
+  severity: "low" | "medium" | "high";
   incoming: string;
   existing: string;
-  conflictType: "contradiction" | "supersedes" | "duplicate" | "scope_overlap" | "none";
-  severity: "low" | "medium" | "high";
-  recommendedAction:
-    | "accept"
-    | "ignore"
-    | "merge"
-    | "supersede"
-    | "supersede_existing"
-    | "ask_user"
-    | "keep_both"
-    | "reject";
   recommendation: string;
   memoryType: MemoryType;
   scopeLabel: string;

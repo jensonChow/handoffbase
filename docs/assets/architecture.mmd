@@ -1,30 +1,29 @@
 flowchart LR
-  subgraph Hosts["MCP hosts"]
+  subgraph Hosts["MCP Hosts"]
     Codex["Codex"]
     Claude["Claude Code"]
     Cursor["Cursor"]
-    Custom["Custom MCP host"]
+    Custom["Custom MCP hosts"]
   end
 
-  Hosts --> Transport["Remote Streamable HTTP MCP"]
-  Transport --> Server["HandoffBase MCP server\n/mcp"]
+  Hosts -->|Remote Streamable HTTP /mcp| Server["HandoffBase MCP Server"]
+  ECS["Alibaba Cloud ECS"] -. "live Docker deployment proof" .- Server
 
-  Server --> Tools["MCP tools\nbootstrap / recall / remember / reflect / update / forget / trace"]
-  Server --> Resources["memory:// resources\nprofiles / traces / pending / conflicts"]
-  Server --> Prompts["Memory workflow prompts"]
-
+  Server --> Tools["MCP tools, resources, prompts"]
   Server --> Core["Memory Core"]
-  Core --> Lifecycle["Lifecycle + events"]
-  Core --> Trace["Memory trace records"]
-  Core --> Conflict["Conflict records"]
-
-  Core --> Store["MemoryStore boundary"]
-  Store --> InMemory["InMemoryMemoryStore\ncurrent live demo store"]
-  Store --> Postgres["PostgresMemoryStore\nimplemented future runtime path"]
-
   Server --> ProviderBoundary["MemoryReasoningProvider boundary"]
-  ProviderBoundary --> Qwen["QwenMemoryProvider\nQwen Cloud"]
-  ProviderBoundary --> Mock["MockMemoryProvider\nlocal and CI"]
 
-  Dashboard["Memory Vault dashboard\nmock/default mode"] --> Core
-  ECS["Alibaba Cloud ECS proof"] --> Server
+  ProviderBoundary --> QwenProvider["QwenMemoryProvider"]
+  QwenProvider --> QwenCloud["Qwen Cloud"]
+
+  Core --> Store["MemoryStore interface"]
+  Store --> InMemory["InMemoryMemoryStore current demo store"]
+  Store -. "implemented path, not default runtime" .-> Postgres["PostgresMemoryStore plus pgvector schema"]
+
+  Core --> Trace["Memory Trace records"]
+  Core --> Conflicts["Conflict Records"]
+
+  Dashboard["Memory Vault dashboard prototype"] -->|inspect and govern| Server
+  Dashboard --> Pending["Pending memory review"]
+  Dashboard --> ConflictReview["Conflict review"]
+  Dashboard --> TraceView["Trace view"]
