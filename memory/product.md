@@ -22,3 +22,11 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 ## Hackathon Demo Focus
 
 首个 demo agent 是 AI Opportunity Scout，用于展示 agent 如何跨 session 记住用户参加 AI hackathon 的目标、筛选偏好、工具经验和失败教训。
+
+## Open Source Readiness
+
+2026-07-08 起，项目进入 open-source/star-readiness 阶段。README、LICENSE、examples、architecture/comparison/lifecycle/eval/dashboard docs 的目标是让 HandoffBase 看起来像高质量开源基础设施项目，而不是只像一次 hackathon 实现记录。
+
+公开定位必须保持克制：HandoffBase 是 MCP-native memory handoff layer，不声称全面替代 Mem0、Zep、Letta、LangMem 或成熟 managed memory 平台。比较文档应强调不同定位：跨 host MCP handoff、可追踪 context pack、冲突治理、用户可审计控制。
+
+当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实说明 live proof 是 Qwen-backed、storeMode 仍为 in-memory，Postgres runtime wiring 是 future work。

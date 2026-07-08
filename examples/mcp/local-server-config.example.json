@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "handoffbase-local": {
+      "url": "http://127.0.0.1:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer <optional-local-handoffbase-api-key>"
+      }
+    }
+  }
+}

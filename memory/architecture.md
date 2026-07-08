@@ -10,7 +10,7 @@
 - Scope Resolver: 解析 user、agent profile、host、project、session、tool scope。
 - Memory Orchestrator: 调度抽取、分类、冲突判断、召回、写入和 trace。
 - Qwen Cloud Reasoning Layer: hackathon 版本的核心记忆推理 provider。
-- Storage Layer: Postgres + pgvector + event log。
+- Storage Layer: 当前 runtime 默认 in-memory store，Postgres + pgvector schema/store path 已实现但 runtime env wiring 仍是 future work。
 - Dashboard: Memory Vault、pending review、trace、edit/delete/export。
 
 ## Current MVP Implementation
@@ -21,8 +21,13 @@
 - `packages/memory-core`: memory records、lifecycle、validation、sensitive-data rejection/redaction、event log、trace、in-memory store、Postgres/pgvector migration contract、Postgres CRUD/recall/trace/event/embedding/conflict store implementation、provider interface、Qwen/mock providers。
 - `apps/dashboard`: Next.js Memory Vault dashboard，默认 mock client boundary；设置 `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http` 可调用同源 `/api/dashboard/*` API routes。
 - `demo/opportunity-scout`: AI Opportunity Scout seed memories、session flow 和 JSON-RPC examples。
+- `examples/`: local/Qwen/remote quickstarts、MCP host config placeholders、HTTP payload walkthroughs、local eval dataset。
+- `docs/architecture.md`、`docs/comparison.md`、`docs/memory-lifecycle.md`、`docs/evals.md`、`docs/demo-dashboard.md`: public-facing architecture, positioning, lifecycle, eval, and dashboard demo docs。
+- `scripts/run-memory-eval.mjs`: credential-free deterministic memory eval pack runner，exposed as `npm run eval:memory`。
 
 本地 MVP 默认使用 in-memory store 和 `MockMemoryProvider`。设置 Qwen/DashScope env 后由 `QwenMemoryProvider` 通过统一 provider interface 接管 reasoning。
+
+Open-source readiness docs must not change the MCP surface, cloud deployment, or runtime store selection. The public architecture narrative should continue to show Qwen behind `MemoryReasoningProvider`, `InMemoryMemoryStore` as current live/runtime default, and `PostgresMemoryStore` as implemented future persistence path.
 
 ## Contract Boundaries
 

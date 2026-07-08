@@ -77,3 +77,9 @@
 - Decision: The hackathon deployment proof uses a single pay-as-you-go Alibaba Cloud ECS instance running Docker, with API-key auth, Qwen provider mode, and the default in-memory store.
 - Rationale: The user approved the minimal ECS + Docker path for demo proof, and live validation passed without adding ACR, ACK, Function Compute, Postgres/RDS, a load balancer, a domain, or TLS. Extra paid resources remain out of scope until separately approved.
 - Status: active.
+
+## 2026-07-08
+
+- Decision: Star-readiness integration should add open-source polish as docs/examples/eval/dashboard/README artifacts without changing MCP tool names, resource URIs, prompt names, cloud deployment, or Postgres runtime wiring.
+- Rationale: The requested branch refs were not available locally or on `origin`, so the batch was reconstructed directly from the objective specs while preserving the deployed Qwen-backed in-memory proof and existing hackathon functionality.
+- Status: active.

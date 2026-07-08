@@ -101,6 +101,17 @@ export type ConflictCandidate = {
   status: "needs_review" | "placeholder";
   incoming: string;
   existing: string;
+  conflictType: "contradiction" | "supersedes" | "duplicate" | "scope_overlap" | "none";
+  severity: "low" | "medium" | "high";
+  recommendedAction:
+    | "accept"
+    | "ignore"
+    | "merge"
+    | "supersede"
+    | "supersede_existing"
+    | "ask_user"
+    | "keep_both"
+    | "reject";
   recommendation: string;
   memoryType: MemoryType;
   scopeLabel: string;

@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "handoffbase": {
+      "url": "https://your-handoffbase.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-handoffbase-api-key>"
+      }
+    }
+  }
+}

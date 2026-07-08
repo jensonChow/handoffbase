@@ -1,117 +1,108 @@
 # Current Handoff
 
-Updated: 2026-07-08T00:30:31Z
+Updated: 2026-07-08T03:26:49Z
 
 ## Completed This Session
 
-- Refreshed tracked docs for possible public release / hackathon submission.
-- Redacted Alibaba Model Studio workspace-specific identifiers and API host
-  values from tracked docs while preserving the generic OpenAI-compatible base
-  URL pattern.
-- Replaced local absolute path references, stale branch/commit state, and a
-  specific GitHub Actions run URL with public-safe wording.
-- Kept `.env.hackathon.local` documented only as ignored local secret storage;
-  it must never be committed or printed.
-- Added `docs/deployment/alibaba-cloud-proof.md` as a pending, redacted proof
-  template. It explicitly does not claim deployment until live ECS validation
-  passes.
-- Added `npm run mcp:validate-remote` for live endpoint proof. It checks
-  `/health`, MCP `tools/list`, authenticated `memory_recall`, and Qwen-backed
-  `memory_remember` while taking the auth token only from the shell environment.
-- Provisioned the approved minimal Alibaba Cloud ECS + Docker deployment in
-  `cn-beijing` without adding Postgres, load balancers, domains, certificates,
-  container registries, or other paid resources beyond the ECS path.
-- Built and ran Docker image `handoffbase:b565210-20260707T160422Z` on ECS
-  instance `i-2ze79rc2xe68zx1xeahu`.
-- Configured runtime secrets only through the root-owned ECS env file consumed
-  by Docker `--env-file`; no secret values are recorded in tracked files.
-- Validated the public endpoint `http://123.56.244.157`, including `/health`,
-  MCP `tools/list`, authenticated `memory_recall`, and Qwen-backed
-  `memory_remember`.
-- Updated `docs/deployment/alibaba-cloud-proof.md` with redacted live proof.
-- Refreshed memory files for the deployed ECS + Docker state and prepared this
-  update for commit/push on `main`.
-- Left application product behavior unchanged.
+- Integrated the HandoffBase open-source/star-readiness batch directly on
+  `main` because the requested branch refs were not present locally or on
+  `origin`.
+- Added MIT `LICENSE`.
+- Rewrote `README.md` around the public tagline:
+  `Open memory handoff for AI agents.`
+- Added public architecture, comparison, memory lifecycle, eval, and dashboard
+  demo docs:
+  - `docs/architecture.md`
+  - `docs/assets/architecture.mmd`
+  - `docs/comparison.md`
+  - `docs/memory-lifecycle.md`
+  - `docs/evals.md`
+  - `docs/demo-dashboard.md`
+- Added practical examples:
+  - `examples/README.md`
+  - `examples/mcp/*`
+  - `examples/http/README.md`
+  - `examples/quickstart/*`
+  - `examples/evals/opportunity-scout-memory-eval.json`
+- Added deterministic local eval runner `scripts/run-memory-eval.mjs` and
+  exposed it as `npm run eval:memory`.
+- Polished dashboard demo copy and conflict metadata so the local Memory Vault
+  shows HandoffBase branding, Qwen-extracted pending candidates, trace
+  metadata, candidate/existing conflict comparison, severity, conflict type,
+  and recommended action.
+- Refreshed durable memory files for the star-readiness state:
+  `memory/product.md`, `memory/architecture.md`, `memory/operations.md`, and
+  `memory/decisions.md`.
+- Preserved the current deployment proof and did not change MCP names,
+  resource URIs, prompt names, cloud resources, dashboard remote wiring, or
+  Postgres runtime selection.
 
 ## Verification
 
-- Current branch: `main`.
-- Deployment image source commit: `b565210`.
-- `node --check scripts/validate-remote-mcp.mjs`: passed on 2026-07-07T14:36:36Z.
-- `npm run check`: passed on 2026-07-07T14:36:36Z after adding the remote validator and proof template.
-- `npm run check`: passed on 2026-07-07T16:29Z after live proof and handoff documentation updates.
-- `memory-refresh` audit: passed on 2026-07-08T00:30Z; repo uses `agent.md`
-  plus `memory/*.md` and `docs/handoff.md`.
-- `GET http://123.56.244.157/health`: passed on 2026-07-07T16:25:23Z and
-  reported `authMode: "api_key"`, `providerMode: "qwen"`, and
-  `storeMode: "in-memory"`.
-- `npm run mcp:validate-remote`: passed against
-  `http://123.56.244.157/mcp` on 2026-07-07T16:26Z with the auth token supplied
-  only from the shell environment.
-- Remote MCP validation returned 7 tools, `memory_recall` returned 5 memories
-  and a trace id, and `memory_remember` returned 2 pending candidate memories.
-- Tracked-file public-readiness scan: passed on 2026-07-07T14:36:36Z. The only
-  remaining matches are intentional placeholder `maas.aliyuncs.com` host
-  patterns in public setup docs.
-- Changed-file secret scan for the proof template and remote validator passed on
-  2026-07-07T14:36:36Z.
-- Tracked env-like files: only `.env.example`.
-- GitHub Actions workflow `CI` uses Node 22, `npm ci`, and `npm run check`;
-  check the GitHub Actions tab for the latest remote status before submission.
-- `.env.hackathon.local` is covered by `.gitignore` rule `.env.*` and must
-  remain untracked.
+- Current branch before commit: `main`.
+- Base commit before this star-readiness commit: `d244d3d`.
+- `npm run eval:memory`: passed, 8/8 eval cases.
+- `npm run test:dashboard`: passed, 2/2 tests.
+- `npm run dashboard:build`: passed.
+- `node --check scripts/validate-remote-mcp.mjs`: passed.
+- `node --check scripts/run-memory-eval.mjs`: passed.
+- `npm run check`: passed. Smoke registered 7 tools, 9 resources, and 4
+  prompts; memory-core 28/28, auth 5/5, server 1/1, dashboard 2/2.
+- `git diff --check`: passed.
+- Required tracked-file public-readiness scans found only intentional
+  placeholder or redacted values:
+  `<your-qwen-api-key>`, `<your-dashscope-api-key>`,
+  `<your-handoffbase-api-key>`, and `<redacted>`.
+- Additional working-tree scan over untracked new files found only the same
+  placeholders/redacted examples.
+- `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`.
+- Tracked env-like files remain only `.env.example`.
 
 ## Git State
 
-- Branch: `main`.
-- Deployment image source: `b565210`.
-- This handoff is part of the deployment proof commit on `main`; verify the
-  exact commit with `git log -1 --oneline`.
-- No secret env files should be staged. Verify with `git status --short` and a
-  tracked-file public-readiness scan before any push.
+- This handoff is prepared for a star-readiness commit and push on `main`.
+- No target branches named `codex/license-and-examples`,
+  `codex/architecture-and-comparison-docs`, `codex/memory-eval-pack`,
+  `codex/dashboard-demo-polish`, or `codex/readme-star-polish` were available
+  locally or on `origin`; no real Git merge of those branch refs occurred.
+- After committing, verify exact commit and push state with:
+  - `git log -1 --oneline`
+  - `git status --short --branch`
 
 ## Open Risks
 
-- Default runtime store remains in-memory. `PostgresMemoryStore` exists and is
-  tested, but server runtime selection for `STORE_MODE=postgres` and
+- Default live/runtime store remains in-memory. `PostgresMemoryStore` exists
+  and is tested, but server runtime selection for `STORE_MODE=postgres` and
   `DATABASE_URL` / `POSTGRES_URL` is still future work.
-- Postgres/pgvector support was not verified from an official Alibaba target
-  service/version document during this session. Confirm before provisioning.
-- The live endpoint is plain HTTP on the ECS public IP. No domain, TLS
+- The live endpoint remains plain HTTP on the ECS public IP. No domain, TLS
   certificate, load balancer, or managed gateway is configured.
-- The ECS instance is pay-as-you-go and should be stopped or released after the
-  hackathon demo window.
-- Direct workstation SSH to the public IP did not provide a usable interactive
-  path during deployment; Alibaba Cloud Workbench was used for shell access.
-- Docker Hub base-image pull timed out from ECS, so the `node:22-slim` base
-  image was pre-tagged on the ECS host from an alternate registry mirror while
-  keeping the repository Dockerfile unchanged.
-- The dedicated Model Studio API key should be rotated or deleted after the
-  hackathon.
-- Workspace-specific Alibaba Model Studio IDs, API hosts, and deployment URLs
-  should stay in ignored local env or cloud secret configuration only.
+- The dashboard remains a local governance prototype; it is not wired to the
+  Alibaba ECS endpoint and should not hardcode remote tokens/endpoints.
+- The eval pack is deterministic and local. It is not an official LoCoMo,
+  LongMemEval, Mem2ActBench, MemBench, MemEvoBench, or LifeBench score.
+- GitHub Actions should be checked from the GitHub UI after push.
+- Alibaba ECS should be revalidated before demo/submission if restarted, then
+  stopped or released after the approved hackathon demo window.
 
 ## Next Session Prompt
 
 ```text
-Read agent.md, memory/README.md, memory/qwen-cloud.md, memory/operations.md,
-memory/decisions.md, docs/dev-materials-checklist.md, and docs/handoff.md first.
+Read agent.md, memory/README.md, memory/product.md, memory/architecture.md,
+memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
+docs/dev-materials-checklist.md, and docs/handoff.md first.
 
-Continue from `main` after the Alibaba Cloud deployment proof commit. The
-running ECS image was built from source commit `b565210`.
+Continue from main after the star-readiness commit. Preserve the MCP tool names,
+resource URIs, prompt names, Alibaba deployment proof, and current live
+storeMode=in-memory truth.
 
 Priorities:
-1. Keep all Qwen and HandoffBase auth values in cloud secret/env configuration;
-   never commit `.env.*` files or print secret values.
-2. Re-run `GET http://123.56.244.157/health` and
-   `npm run mcp:validate-remote` before demo/submission if the ECS instance has
-   been restarted.
-3. Monitor ECS pay-as-you-go usage and stop/release the instance after the
-   approved hackathon demo window.
-4. Before adding Postgres, verify pgvector support for the selected Alibaba
-   PostgreSQL service/version and wire runtime `STORE_MODE=postgres`.
-5. Rotate or delete the local `handoffbase-hackathon-dev` Model Studio key after
-   the hackathon.
-6. Before public release, recheck GitHub Actions and rerun the tracked-file
-   public-readiness scan.
+1. Check GitHub Actions after the pushed commit.
+2. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
+   `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
+3. Keep all Qwen and HandoffBase auth values in ignored local env or cloud
+   secret configuration; never commit `.env.*` files or print secrets.
+4. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
+   pgvector support and wire `STORE_MODE=postgres` deliberately.
+5. Stop or release the pay-as-you-go ECS instance after the approved demo
+   window.
 ```

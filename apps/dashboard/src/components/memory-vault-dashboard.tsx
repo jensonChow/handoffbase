@@ -232,7 +232,7 @@ export function MemoryVaultDashboard() {
           <Database size={24} aria-hidden="true" />
           <div>
             <p className="eyebrow">handoffbase</p>
-            <h1>Memory Vault</h1>
+            <h1>HandoffBase Memory Vault</h1>
           </div>
         </div>
 
@@ -269,7 +269,7 @@ export function MemoryVaultDashboard() {
 
         <div className="side-note">
           <ShieldCheck size={17} aria-hidden="true" />
-          <span>Mock client boundary. No secrets or persisted credentials.</span>
+          <span>Mock/default demo. No remote endpoint, token, or model key.</span>
         </div>
       </aside>
 
@@ -861,7 +861,7 @@ function PendingView({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Review queue</p>
-          <h3>Pending Memories</h3>
+          <h3>Qwen-extracted candidates</h3>
         </div>
         <Token>{memories.length} candidates</Token>
       </div>
@@ -876,6 +876,7 @@ function PendingView({
                   <span>{scopeLabel(memory)}</span>
                 </div>
                 <p>{memory.canonicalText}</p>
+                {memory.rawSource ? <p className="quiet-line">Evidence: {memory.rawSource}</p> : null}
                 <small>
                   {formatToken(memory.source.kind)} / confidence {toPercent(memory.confidence)} /
                   importance {toPercent(memory.importance)}
@@ -980,6 +981,24 @@ function TraceView({
               </div>
               <Token>{formatDate(selectedTrace.createdAt)}</Token>
             </div>
+            <dl className="metadata-list">
+              <div>
+                <dt>Host</dt>
+                <dd>{selectedTrace.hostId}</dd>
+              </div>
+              <div>
+                <dt>Agent</dt>
+                <dd>{selectedTrace.agentProfileId}</dd>
+              </div>
+              <div>
+                <dt>Used</dt>
+                <dd>{selectedTrace.usedMemories.length}</dd>
+              </div>
+              <div>
+                <dt>Ignored / excluded</dt>
+                <dd>{selectedTrace.ignoredMemories.length + selectedTrace.excludedMemories.length}</dd>
+              </div>
+            </dl>
             <p className="trace-query">{selectedTrace.query}</p>
             <div className="context-pack">
               <h4>Context pack</h4>
@@ -1070,18 +1089,22 @@ function ConflictView({ conflicts }: { conflicts: ConflictCandidate[] }) {
                 <Token>{formatToken(conflict.memoryType)}</Token>
                 <StatusBadge status={conflict.status === "placeholder" ? "pending" : "active"} />
                 <span>{conflict.scopeLabel}</span>
+                <Token>{formatToken(conflict.conflictType)}</Token>
+                <Token>{formatToken(conflict.severity)} severity</Token>
               </div>
               <div className="comparison-grid">
                 <div>
-                  <h4>Incoming</h4>
+                  <h4>Candidate memory</h4>
                   <p>{conflict.incoming}</p>
                 </div>
                 <div>
-                  <h4>Existing</h4>
+                  <h4>Existing memory</h4>
                   <p>{conflict.existing}</p>
                 </div>
               </div>
-              <p className="recommendation">{conflict.recommendation}</p>
+              <p className="recommendation">
+                Recommended action: {formatToken(conflict.recommendedAction)}. {conflict.recommendation}
+              </p>
               <div className="row-actions">
                 <button type="button" className="ghost-button" disabled>
                   <Check size={16} aria-hidden="true" />

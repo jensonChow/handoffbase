@@ -483,9 +483,12 @@ const seedConflicts: ConflictCandidate[] = [
     id: "conflict_001",
     status: "needs_review",
     incoming:
-      "User now prioritizes founder network and resource access above prize money.",
+      "User prioritizes founder network, credentials, and startup resources above prize money.",
     existing:
       "User appears to prioritize hackathon prize money when choosing opportunities.",
+    conflictType: "contradiction",
+    severity: "medium",
+    recommendedAction: "supersede_existing",
     recommendation:
       "Supersede the older decision memory and keep the new user preference active.",
     memoryType: "user_preference",
@@ -496,6 +499,9 @@ const seedConflicts: ConflictCandidate[] = [
     status: "placeholder",
     incoming: "Conflict detection endpoint is not wired yet.",
     existing: "Backend will provide candidate pairs from Qwen conflict checks.",
+    conflictType: "none",
+    severity: "low",
+    recommendedAction: "ask_user",
     recommendation:
       "This panel is ready for the future conflict review API response.",
     memoryType: "procedure",

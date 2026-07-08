@@ -1,0 +1,46 @@
+{
+  "name": "opportunity-scout-memory-eval",
+  "description": "Deterministic local eval pack for HandoffBase AI Opportunity Scout memory behavior.",
+  "requiresNetwork": false,
+  "requiresQwenCredentials": false,
+  "scope": {
+    "tenantId": "eval-tenant",
+    "userId": "eval-user",
+    "agentProfileId": "opportunity-scout",
+    "projectId": "ai-event-2026"
+  },
+  "cases": [
+    {
+      "id": "preference-recall",
+      "description": "Recall user preference for credentials, founder network, and startup resources."
+    },
+    {
+      "id": "procedure-recall",
+      "description": "Recall procedure to verify deadlines, timezone, eligibility region, and official rules."
+    },
+    {
+      "id": "failure-recall",
+      "description": "Recall failure memory about not recommending excluded-region events."
+    },
+    {
+      "id": "trace-created",
+      "description": "Recall creates a trace id with selected memories."
+    },
+    {
+      "id": "token-budget-ignore",
+      "description": "A tight token budget causes at least one memory to be ignored by context-pack building."
+    },
+    {
+      "id": "remember-candidate",
+      "description": "Mock provider extracts a pending candidate memory from a user correction."
+    },
+    {
+      "id": "conflict-record",
+      "description": "Candidate preference conflicts with older prize-money prioritization."
+    },
+    {
+      "id": "forget-invalidation",
+      "description": "Invalidating an outdated memory moves it out of active recall."
+    }
+  ]
+}

@@ -1,226 +1,144 @@
-# handoffbase
+# HandoffBase
 
-An MCP-native continuity layer that lets AI agents preserve user preferences, working procedures, tool experience, project context, and failure lessons across sessions, projects, and hosts.
+Open memory handoff for AI agents.
 
-## Problem
+HandoffBase is an MCP-native memory layer that lets AI agents preserve, inspect, and hand off user preferences, project context, procedures, failures, and traces across sessions, hosts, and projects.
 
-Modern AI agents are powerful, but their memory is fragmented:
+It is built for the missing layer between agent runtimes: Codex, Claude Code, Cursor, and custom MCP hosts can all call the same memory interface instead of trapping useful context inside one local session.
 
-- A new session often loses corrections, tool experience, and task history.
-- Project-level files like `AGENTS.md` or `CLAUDE.md` help inside one repository, but do not fully solve cross-project user continuity.
-- Codex, Claude Code, Cursor, and custom agents each maintain their own context systems.
-- Users cannot easily inspect, approve, delete, or port memories across agents.
+## Why HandoffBase
 
-This project addresses the missing persistence layer between agents.
+Modern agents can reason well inside one conversation, but continuity is fragmented:
+
+- user preferences and corrections are lost between sessions,
+- project files such as `AGENTS.md` or `CLAUDE.md` only help inside one repo,
+- every host has its own memory shape,
+- users rarely get a clear trace of which memories affected an answer,
+- old or conflicting memories can silently pollute future work.
+
+HandoffBase exposes memory as a Remote Streamable HTTP MCP server. Agents can remember, recall, bootstrap, reflect, trace, update, and forget through one portable interface, while users keep a reviewable Memory Vault.
 
 ## Core Idea
 
-handoffbase does not replace existing agents. It exposes memory as an MCP server:
-
 ```text
-Codex / Claude Code / Cursor / Custom Agent
+MCP hosts
+  Codex / Claude Code / Cursor / custom agents
         |
-        | Remote MCP Streamable HTTP
+        | Remote Streamable HTTP MCP
         v
-handoffbase on Alibaba Cloud
+HandoffBase MCP server
         |
-        v
-Qwen Cloud + Postgres/pgvector + Memory Vault Dashboard
+        +-- MemoryReasoningProvider
+        |     +-- QwenMemoryProvider for hackathon memory reasoning
+        |     +-- MockMemoryProvider for local deterministic development
+        |
+        +-- MemoryStore
+              +-- InMemoryMemoryStore for current live demo/runtime default
+              +-- PostgresMemoryStore implemented as future runtime wiring path
 ```
 
-Every connected agent can:
+Qwen Cloud powers the reasoning-heavy memory operations in the hackathon path: extraction, classification, conflict detection, context-pack building, reflection, and trace explanations. The memory core remains provider-agnostic behind `MemoryReasoningProvider`.
 
-- bootstrap a new session with the right continuity context,
-- recall relevant long-term memories,
-- write new durable memories,
-- reflect on a completed run,
-- forget or supersede outdated memories,
-- explain which memories influenced an answer.
+## Features
 
-## Current MVP
+- MCP-native memory handoff through Remote Streamable HTTP at `/mcp`.
+- Seven MCP tools for bootstrap, recall, remember, reflect, update, forget, and trace.
+- Nine `memory://` resources for user, agent, project, run, trace, pending, and conflict views.
+- Qwen-backed memory reasoning through `QwenMemoryProvider`.
+- Deterministic local mock mode that runs without Qwen credentials.
+- Memory lifecycle status model: pending, active, invalidated, expired, superseded, archived, deleted.
+- Traceable context packs that show used, ignored, and excluded memories.
+- Conflict records so new memories do not silently overwrite older ones.
+- Memory Vault dashboard prototype for local governance demos.
+- Alibaba Cloud ECS deployment proof for the current Qwen-backed live path.
 
-This repository now contains a runnable integrated MVP:
-
-- Remote Streamable HTTP MCP server at `/mcp`.
-- Seven MCP tools, nine `memory://` resources, and four reusable prompts.
-- `packages/memory-core` with memory records, lifecycle helpers, event log, traces, sensitive-data rejection, SQL migration, and an in-memory store.
-- Provider adapter boundary with `MemoryReasoningProvider`, `MockMemoryProvider`, and `QwenMemoryProvider`.
-- Next.js Memory Vault dashboard with vault, pending review, edit/delete, trace, and conflict-review views backed by a mock client boundary.
-- AI Opportunity Scout demo fixtures and JSON-RPC examples.
-
-Local development uses the in-memory store and `MockMemoryProvider` by default. Set `QWEN_API_KEY` or `DASHSCOPE_API_KEY` to use Qwen Cloud through `QwenMemoryProvider`.
-
-## Quick Start
+## Quickstart
 
 ```bash
 npm install
+npm run check
 npm run dev:server
 ```
 
-The server listens at:
+The local server listens on:
 
 ```text
 http://127.0.0.1:3000/mcp
 ```
 
-If port 3000 is already in use, choose another port:
+If port `3000` is already in use:
 
 ```bash
 PORT=3333 npm run dev:server
 ```
 
+Smoke-test MCP registration:
+
+```bash
+npm run smoke
+```
+
 Useful commands:
 
 ```bash
-npm run check
+npm run build
 npm run build:server
-npm run smoke
-npm run test --workspace @handoffbase/memory-core
-npm run test:auth
-npm run test:server
+npm run test
 npm run test:dashboard
-npm run dashboard:dev
 npm run dashboard:build
+npm run eval:memory
 npm run demo:flow
 npm run demo:jsonrpc
 ```
 
-For local CI parity, run:
+`npm run check` is the local CI-parity command. It typechecks, builds, runs the MCP registration smoke test, auth/scope tests, server route tests, memory-core tests, and dashboard API tests.
+
+## Qwen Setup
+
+Local development uses `MockMemoryProvider` by default. To run Qwen-backed mode, keep credentials only in an ignored environment file:
 
 ```bash
-npm run check
+cp .env.example .env.local
 ```
 
-This aggregate validation runs TypeScript typechecks, the full build, the MCP registration smoke test, auth/scope tests, server route tests, the `packages/memory-core` tests, and dashboard API tests. The full build includes the dashboard workspace build. Qwen Cloud credentials are optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the local MVP uses `MockMemoryProvider`.
-
-The dashboard uses the mock client by default. To exercise the live local Next.js API routes, run the dashboard with:
+Set one backend model key:
 
 ```bash
-NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http npm run dashboard:dev
+QWEN_API_KEY=<your-qwen-api-key>
+# or
+DASHSCOPE_API_KEY=<your-dashscope-api-key>
 ```
 
-The HTTP client calls same-origin `/api/dashboard/*` routes unless `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL` is set.
+Never commit `.env.*` files.
 
-Call a tool manually:
+HandoffBase API keys and Qwen/DashScope keys are separate:
+
+- HandoffBase API keys protect the MCP endpoint when `HANDOFFBASE_AUTH_MODE=api_key`.
+- Qwen/DashScope keys stay only on the backend and are never sent to MCP clients.
+
+## Remote Validation
+
+For a deployed backend, use the validator with placeholders:
 
 ```bash
-MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+MCP_ENDPOINT=https://your-handoffbase.example.com/mcp \
+MCP_AUTH_TOKEN=<your-handoffbase-api-key> \
+npm run mcp:validate-remote
 ```
 
-## Deployment
-
-The server has a production Docker profile and deployment notes in [`docs/deployment.md`](docs/deployment.md). The image uses Node 22, runs `npm ci`, builds the workspaces, and starts the compiled server with:
-
-```bash
-node dist/index.js
-```
-
-Runtime secrets are provided only through environment variables or cloud secret configuration. Qwen credentials remain optional; without `QWEN_API_KEY` or `DASHSCOPE_API_KEY`, the server runs with the mock provider. Auth can be enabled with `HANDOFFBASE_AUTH_MODE=api_key`; the default store factory still uses the in-memory MVP store while `PostgresMemoryStore` is available for wiring.
-
-## Remote Auth
-
-Auth is disabled by default for local development and `npm run smoke`.
-
-To require API keys for remote MCP POST requests:
-
-```bash
-HANDOFFBASE_AUTH_MODE=api_key
-HANDOFFBASE_API_KEYS_JSON='{"dev-key":{"tenantId":"demo-tenant","userId":"demo-user","actorId":"local-dev"}}'
-```
-
-Clients may send either `Authorization: Bearer <key>` or `X-Handoffbase-Api-Key: <key>`.
-
-For a single dev key, use:
-
-```bash
-HANDOFFBASE_AUTH_MODE=api_key
-HANDOFFBASE_API_KEY=
-HANDOFFBASE_TENANT_ID=demo-tenant
-HANDOFFBASE_USER_ID=demo-user
-HANDOFFBASE_ACTOR_ID=local-dev
-```
-
-Generate a strong `HANDOFFBASE_API_KEY` value and store it only in local or
-cloud secret configuration.
-
-## Why MCP
-
-MCP already gives AI hosts a standard way to discover and call tools, read resources, and use reusable prompts. This project uses MCP as the agent memory interface:
-
-- Tools: executable memory operations.
-- Resources: readable memory vault views.
-- Prompts: reusable memory-aware workflows.
-
-The result is a memory system that is host-agnostic instead of tied to one agent runtime.
-
-The MVP is remote-only. Local stdio is intentionally out of scope for the first version because the product value depends on one cloud memory layer shared across agents, sessions, projects, and devices.
-
-## Why Qwen Cloud
-
-Qwen Cloud powers the reasoning-heavy parts of memory:
-
-- extracting durable memories from conversations and agent runs,
-- classifying memories by type and scope,
-- detecting conflicts between old and new memories,
-- building token-budgeted context packs,
-- reflecting on task outcomes,
-- explaining why specific memories were used.
-
-This makes Qwen Cloud the core memory reasoning engine, not a side integration.
-
-The architecture is Qwen-first for the hackathon, but provider-agnostic long term. Qwen is implemented behind a `MemoryReasoningProvider` interface so future versions can add other providers without changing the memory core.
-
-## Memory Types
-
-```text
-identity
-user_preference
-procedure
-project_fact
-tool_memory
-decision_memory
-failure_memory
-outcome_memory
-negative_preference
-skill
-```
-
-Examples:
-
-- User prefers AI agent hackathons that improve credentials and network.
-- Before recommending an event, verify deadline, eligibility, and timezone.
-- Devpost deadlines are usually shown in Pacific Time.
-- Do not recommend competitions whose official rules exclude the user's region.
+The current Alibaba Cloud proof is recorded in [docs/deployment/alibaba-cloud-proof.md](docs/deployment/alibaba-cloud-proof.md). It is a temporary deployment proof, not a production SaaS endpoint. The proof shows `authMode=api_key`, `providerMode=qwen`, and `storeMode=in-memory`.
 
 ## MCP Tools
 
-### `continuity_bootstrap`
-
-Called at the start of a session. Returns a compact context pack for the current user, project, agent profile, host, and task.
-
-### `memory_recall`
-
-Retrieves relevant memories for a specific task or question.
-
-### `memory_remember`
-
-Extracts and stores durable memories from user corrections, task notes, or agent observations.
-
-### `memory_reflect`
-
-Reviews a completed agent run and creates procedure, tool, failure, decision, or outcome memories.
-
-### `memory_update`
-
-Edits, merges, or supersedes an existing memory.
-
-### `memory_forget`
-
-Deletes, invalidates, or expires an outdated memory.
-
-### `memory_trace`
-
-Shows which memories were used, ignored, or excluded from a context pack.
+| Tool | Purpose |
+| --- | --- |
+| `continuity_bootstrap` | Build a compact context pack at the start of a session. |
+| `memory_recall` | Retrieve relevant memories for a task, query, and scope. |
+| `memory_remember` | Extract durable memory candidates from corrections, notes, or observations. |
+| `memory_reflect` | Reflect on a completed run and propose durable memories. |
+| `memory_update` | Edit, merge, or supersede an existing memory record. |
+| `memory_forget` | Invalidate, archive, expire, or delete an existing memory record. |
+| `memory_trace` | Explain which memories were used, ignored, or excluded. |
 
 ## MCP Resources
 
@@ -236,71 +154,75 @@ memory://vault/pending
 memory://vault/conflicts
 ```
 
-## Architecture
+## Memory Lifecycle
 
-```mermaid
-flowchart LR
-  Host["MCP Host"] --> Server["handoffbase"]
-  Server --> Provider["MemoryReasoningProvider"]
-  Provider --> Qwen["QwenMemoryProvider / Qwen Cloud"]
-  Provider --> Mock["MockMemoryProvider for local demo"]
-  Server --> Store["MemoryStore"]
-  Store --> Local["In-memory MVP store"]
-  Store --> DB["Postgres + pgvector migration path"]
-  Dashboard["Memory Vault Dashboard"] --> API["Dashboard client boundary"]
+Agents create memory through `memory_remember` and `memory_reflect`. Agents use memory through `continuity_bootstrap` and `memory_recall`. Users and dashboards inspect memory through `memory_trace`, trace resources, pending resources, conflict resources, and the Memory Vault dashboard.
+
+Governance is explicit:
+
+- new extraction can stay `pending`,
+- approved memories become `active`,
+- stale memories can become `expired`, `invalidated`, `superseded`, `archived`, or `deleted`,
+- conflict records hold candidate-versus-existing memory decisions for review,
+- trace records show why a memory was used or ignored.
+
+See [docs/memory-lifecycle.md](docs/memory-lifecycle.md).
+
+## Dashboard
+
+The Memory Vault dashboard is a local governance prototype. It runs in mock mode by default and does not depend on the live Alibaba ECS endpoint.
+
+```bash
+npm run dashboard:dev
 ```
 
-## MVP Demo
+Build it with:
 
-Demo agent: AI Opportunity Scout.
+```bash
+npm run dashboard:build
+```
 
-Scenario:
+See [docs/demo-dashboard.md](docs/demo-dashboard.md).
 
-1. In session one, the user teaches the agent their AI hackathon goals and preferences.
-2. The MCP server stores user preference and procedure memories.
-3. In a new session, the agent calls `continuity_bootstrap` and remembers the same priorities.
-4. The agent ranks Qwen, TRAE, and CockroachDB opportunities consistently.
-5. After a mistake, `memory_reflect` stores a failure memory so future sessions avoid the same error.
-6. The dashboard shows which memories were used and lets the user approve, edit, or delete them.
+## Examples
 
-## Hackathon Fit
+- [examples/README.md](examples/README.md): local, Qwen-backed, and remote usage paths.
+- [examples/mcp/README.md](examples/mcp/README.md): MCP host config snippets with placeholders.
+- [examples/http/README.md](examples/http/README.md): safe JSON-RPC examples and payload files.
+- [examples/quickstart/bootstrap-session.md](examples/quickstart/bootstrap-session.md)
+- [examples/quickstart/recall-memory.md](examples/quickstart/recall-memory.md)
+- [examples/quickstart/remember-preference.md](examples/quickstart/remember-preference.md)
+- [examples/quickstart/trace-memory.md](examples/quickstart/trace-memory.md)
 
-Qwen Track 1 asks for persistent memory, cross-session interactions, user preferences, efficient retrieval, timely forgetting, and recall under limited context windows.
+## Architecture And Positioning
 
-This project maps directly to those requirements:
+- [docs/architecture.md](docs/architecture.md): current architecture and deployment shape.
+- [docs/assets/architecture.mmd](docs/assets/architecture.mmd): Mermaid architecture diagram.
+- [docs/comparison.md](docs/comparison.md): respectful comparison with Mem0, Zep, Letta, LangMem, repo-local memory files, and generic RAG/vector DBs.
+- [docs/evals.md](docs/evals.md): benchmark-aware eval positioning and local eval pack.
 
-| Track 1 requirement | Implementation |
-| --- | --- |
-| Persistent memory | Postgres + pgvector + event log |
-| User preferences | `user_preference` memories |
-| Cross-session interactions | `continuity_bootstrap` |
-| Efficient retrieval | structured filters + vector search + Qwen reranking |
-| Timely forgetting | expiry, superseding, invalidation |
-| Limited context windows | token-budgeted context packs |
-| Better decisions over time | `memory_reflect` + outcome/failure memories |
+HandoffBase is not a managed-memory replacement for every use case. It is an open-source, MCP-native memory handoff layer focused on cross-agent continuity, traceable context packs, conflict governance, and user control.
 
-## MVP Stack
+## Current Status
 
-- TypeScript MCP server
-- Node.js backend
-- Remote Streamable HTTP MCP transport
-- In-memory MVP store plus Postgres + pgvector schema/migration path
-- Qwen Cloud API through `QwenMemoryProvider`
-- Next.js / React dashboard
-- Alibaba Cloud deployment
+Implemented now:
 
-## Differentiation
+- Remote Streamable HTTP MCP server at `/mcp`.
+- Seven tools, nine resources, and four prompts.
+- `packages/memory-core` with lifecycle, events, traces, conflict records, safety validation, in-memory store, and Postgres store implementation.
+- `QwenMemoryProvider` and `MockMemoryProvider` behind `MemoryReasoningProvider`.
+- Local dashboard prototype with mock/default mode and HTTP API route mode.
+- Remote validator at `scripts/validate-remote-mcp.mjs`, exposed as `npm run mcp:validate-remote`.
+- Alibaba Cloud ECS proof showing Qwen-backed operation with in-memory store.
 
-Letta is a memory-first agent runtime.
+Limitations:
 
-handoffbase is a memory infrastructure layer for any agent.
+- The live deployment currently uses `InMemoryMemoryStore`.
+- `PostgresMemoryStore` exists, but runtime `STORE_MODE=postgres` wiring is future work.
+- The public ECS demo proof uses an HTTP IP endpoint, not production TLS.
+- The dashboard is a governance prototype, not a hosted production control plane.
+- The eval pack is a small deterministic local suite, not an official benchmark score.
 
-It is designed to make different agents behave like the same long-term collaborator without forcing users to migrate to a new runtime.
+## License
 
-## References
-
-- Qwen Cloud Hackathon: https://qwencloud-hackathon.devpost.com/
-- MCP architecture: https://modelcontextprotocol.io/docs/learn/architecture
-- MCP tools: https://modelcontextprotocol.io/specification/2025-06-18/server/tools
-- Claude Code memory: https://code.claude.com/docs/en/memory
-- Letta memory: https://docs.letta.com/letta-agent/memory
+MIT. See [LICENSE](LICENSE).
