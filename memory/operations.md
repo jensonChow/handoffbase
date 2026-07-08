@@ -56,6 +56,18 @@
 - Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
 - Stop or release the pay-as-you-go ECS instance after the approved hackathon demo window.
 - Postgres provisioning remains prepare-only until the target Alibaba PostgreSQL service/version is verified for pgvector or compatible vector extension support and runtime `STORE_MODE=postgres` wiring is added.
+- `docs/hackathon-resource-support.md` is the non-secret ledger for Devpost
+  deadlines, Qwen Free Tier status, coupon/voucher request state, and Alibaba
+  Cloud cost guardrails.
+- As of 2026-07-08, the Qwen coupon/voucher request is submitted and pending
+  registration verification; activation is expected by email after review. Keep
+  UID, phone, Gmail address, voucher/coupon code, and account identifiers out of
+  tracked files.
+- The best-effort cost sweep found the approved pay-as-you-go ECS demo and no
+  visible unexpected RDS/PolarDB, ACK, load balancer, NAT Gateway, OSS bucket,
+  Log Service project, or paid Container Registry Enterprise instance. Resource
+  Center was not enabled, so a full inventory and budget alerts still require
+  user approval for the free Resource Center role/notification setup.
 
 ## CI
 

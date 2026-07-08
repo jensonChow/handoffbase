@@ -41,6 +41,25 @@ The local Qwen configuration uses `qwen-plus` and a Beijing OpenAI-compatible ba
 
 Manual live validation passed on 2026-07-07: the compiled server started with `.env.hackathon.local`, `/health` reported `providerMode: "qwen"` and `authMode: "api_key"`, and an authenticated `memory_remember` MCP call returned two pending candidate memories from Qwen. Keep CI on the credential-free mock path.
 
+## Hackathon Resource Support
+
+As of 2026-07-08, Qwen Free Tier is active/available for the deployment's
+Alibaba Model Studio / Bailian path. The console showed
+`qwen-plus-2025-07-28` with 1,000,000 / 1,000,000 free tokens remaining,
+expiration 2026/10/06, and free-quota-only / stop-when-free-quota-runs-out
+enabled for that model row.
+
+The Qwen Cloud / Alibaba Cloud coupon request has been submitted and is pending
+registration verification. Gmail received the confirmation email with subject
+"Coupon Request Received - Verification in Progress"; it says activation
+typically takes 1-2 business days. Do not record UID, phone number, Gmail
+address, coupon/voucher code, or account identifiers in this repository.
+
+If the request remains pending and urgent near the coupon deadline, contact
+`global.hackathon@alibaba-inc.com`; the user should enter UID and phone number
+directly in email or the browser. If an approved voucher or coupon code becomes
+available, ask before redeeming it and do not print, save, or commit the code.
+
 ## Alibaba Cloud Deployment
 
 Hackathon backend runs on Alibaba Cloud and includes visible proof of Alibaba Cloud service/API usage.

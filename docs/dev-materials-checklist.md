@@ -1,6 +1,6 @@
 # Development Materials Checklist
 
-Last updated: 2026-07-08T04:45:39Z
+Last updated: 2026-07-08T07:18:18Z
 
 This file is the non-secret setup ledger for HandoffBase hackathon development,
 local validation, and deployment readiness. Do not add API keys, database URLs,
@@ -180,7 +180,7 @@ Reasoning:
 - `docs/deployment/alibaba-cloud-proof.md` records the redacted live proof.
 - `docs/hackathon-resource-support.md` records non-secret hackathon resource
   status, including Devpost deadlines, Qwen free-quota status, coupon/voucher
-  uncertainty, and Alibaba Cloud cost guardrails.
+  submission and verification state, and Alibaba Cloud cost guardrails.
 - `npm run mcp:validate-remote` validates `/health`, `tools/list`,
   authenticated `memory_recall`, and Qwen-backed `memory_remember` against a
   deployed endpoint using `MCP_ENDPOINT` and an auth token supplied only through

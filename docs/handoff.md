@@ -1,118 +1,114 @@
 # Current Handoff
 
-Updated: 2026-07-08T04:23:45Z
+Updated: 2026-07-08T07:18:18Z
 
 ## Completed This Session
 
-- Ran the `memory-refresh` audit script and reviewed the repo memory contract:
-  `memory/README.md`, `memory/product.md`, `memory/architecture.md`,
-  `memory/operations.md`, `memory/decisions.md`, `memory/mcp-interface.md`,
-  and this handoff file.
-- Reconciled the five star-readiness source worktrees into `main`:
-  - `codex/open-source-examples`
-  - `codex/architecture-positioning-docs`
-  - `codex/memory-eval-pack`
-  - `codex/dashboard-memory-governance-demo`
-  - `codex/readme-open-source-readiness`
-- Preserved the stronger worktree content instead of the earlier condensed
-  partial integration on `main`.
-- Kept MIT `LICENSE`.
-- Rewrote and repaired `README.md` around the public tagline:
-  `Open memory handoff for AI agents.`
-- Restored public architecture, comparison, memory lifecycle, eval, and
-  dashboard demo docs from the source worktrees:
-  - `docs/architecture.md`
-  - `docs/assets/architecture.mmd`
-  - `docs/comparison.md`
-  - `docs/memory-lifecycle.md`
-  - `docs/evals.md`
-  - `docs/demo-dashboard.md`
-- Restored practical examples from the examples worktree:
-  - `examples/README.md`
-  - `examples/mcp/*`
-  - `examples/http/README.md`
-  - `examples/quickstart/*`
-  - `examples/evals/opportunity-scout-memory-eval.json`
-- Restored the deterministic local eval runner `scripts/run-memory-eval.mjs`;
-  kept the safer root `npm run eval:memory` wrapper that builds memory-core
-  before running the eval.
-- Restored dashboard polish so the local Memory Vault shows HandoffBase
-  branding, Qwen-extracted pending candidates, trace metadata,
-  candidate/existing conflict comparison, severity, conflict type, and
-  recommended action.
-- Preserved the current deployment proof and did not change MCP names,
-  resource URIs, prompt names, cloud resources, dashboard remote wiring, or
-  Postgres runtime selection.
-- Refreshed `memory/decisions.md` so the star-readiness decision correctly
-  records that the five source worktrees were reconciled and merged, rather
-  than reconstructed from unavailable branch refs.
+- Completed the resource-support objective for the Global AI Hackathon Series
+  with Qwen Cloud without touching application code.
+- Confirmed the live Devpost submission deadline remains July 20, 2026 at
+  2:00 PM PST, while the coupon/voucher request deadline remains July 9, 2026
+  at 10:00 AM PST.
+- Confirmed Qwen Free Tier availability from public Qwen Cloud docs and the
+  authenticated Alibaba Model Studio / Bailian console.
+- Confirmed `qwen-plus-2025-07-28` had 1,000,000 / 1,000,000 free tokens
+  remaining and enabled free-quota-only / stop-when-free-quota-runs-out for
+  that model row.
+- Found the Qwen Cloud voucher application path, used Devpost-confirmed
+  profile fields where available, and had the user enter required private
+  participant fields directly in Chrome.
+- After explicit user confirmation, submitted the Qwen Cloud voucher form. The
+  first attempt showed phone validation; the user corrected and submitted the
+  form directly in Chrome.
+- Checked Gmail read-only after submission and found the Qwen Cloud / Alibaba
+  Cloud confirmation email with subject "Coupon Request Received - Verification
+  in Progress". The email says the coupon form was submitted and registration
+  verification is in progress, usually taking 1-2 business days.
+- Checked Alibaba Cloud billing/cost and ECS surfaces without exposing payment
+  details. The existing demo ECS is pay-as-you-go in `cn-beijing`; no
+  additional paid cloud resource was intentionally created during the check.
+- Recorded the non-secret results in `docs/hackathon-resource-support.md` and
+  kept UID, phone number, Gmail address, coupon/voucher code, API keys, auth
+  tokens, database URLs, account ids, and payment details out of tracked files.
+- Ran the `memory-refresh` audit and refreshed this handoff plus the relevant
+  long-term Qwen/operations memory so the repo matches the resource-support
+  result.
 
 ## Verification
 
 - `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/HandoffBase`: passed/read-only audit.
-- `npm run eval:memory`: passed, 8/8 eval cases.
-- `npm run test:dashboard`: passed, 2/2 tests.
-- `npm run dashboard:build`: passed.
-- `node --check scripts/validate-remote-mcp.mjs`: passed.
-- `node --check scripts/run-memory-eval.mjs`: passed.
-- `npm run check`: passed. Smoke registered 7 tools, 9 resources, and 4
-  prompts; memory-core 28/28, auth 5/5, server 1/1, dashboard 2/2.
-- `git diff --check`: passed.
-- Required tracked-file public-readiness scans found only intentional
-  redacted placeholder values: `MCP_AUTH_TOKEN=<redacted>`.
-  The `/Users/` scan matched only the documentation line naming that scan.
-- `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`.
-- Tracked env-like files remain only `.env.example`.
+- `git diff --check`: passed after this memory refresh.
+- `npm run check`: passed after this memory refresh. Smoke registered 7 tools,
+  9 resources, and 4 prompts; memory-core 28/28, auth 5/5, server 1/1, and
+  dashboard 2/2 passed.
+- Tracked env-style secret scan only found intentional `<redacted>`
+  placeholders in documentation. Private resource-support scan matched only
+  safety instructions, public repository naming, and no real key, token,
+  database URL, coupon/voucher code, UID, phone number, or Gmail address.
+- `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`; do not
+  print or commit its contents.
 
 ## Git State
 
 - Current branch: `main`.
-- Integration content commit: `48e1762 Integrate star-readiness worktrees`.
-- Memory-refresh commit: `abe49a9 Refresh memory after worktree integration`.
-- `main` was pushed to `origin/main` through `abe49a9`.
-- The objective branch names mapped to local worktree branches as follows:
-  - `codex/license-and-examples` -> `codex/open-source-examples`
-  - `codex/architecture-and-comparison-docs` -> `codex/architecture-positioning-docs`
-  - `codex/memory-eval-pack` -> `codex/memory-eval-pack`
-  - `codex/dashboard-demo-polish` -> `codex/dashboard-memory-governance-demo`
-  - `codex/readme-star-polish` -> `codex/readme-open-source-readiness`
-- After pushing this handoff update, `git status --short --branch` should show
-  `main...origin/main` with no local changes.
+- Latest committed resource-support state: `34aa863 docs: record hackathon resource support status`.
+- At the start of this memory refresh, `main` was ahead of `origin/main` by 3
+  commits:
+  - `34aa863 docs: record hackathon resource support status`
+  - `c505e08 docs: record qwen voucher application path`
+  - `489fab0 docs: record hackathon resource support status`
+- This handoff refresh should be committed on `main` and pushed to
+  `origin/main`. A separate merge is not needed while the work is already on
+  `main`.
 
 ## Open Risks
 
+- Coupon/voucher activation is still pending registration verification. Watch
+  for the Qwen Cloud / Alibaba Cloud activation email or check Qwen Cloud
+  benefits after the expected 1-2 business day review window.
+- If the coupon request remains pending and urgent near the deadline, contact
+  `global.hackathon@alibaba-inc.com`; the user should enter UID and phone
+  number directly in email or the browser, not in chat or tracked files.
+- Do not print, save, or commit any approved coupon/voucher code if one becomes
+  available. Ask before redeeming it.
+- Alibaba Resource Center was not enabled, so the paid-resource sweep is a
+  best-effort console check rather than a full Resource Center inventory.
+- Budget alerts were not created because the relevant surface requires the
+  Resource Center authorization flow. Enable the free role and create a 70 RMB
+  or 80 RMB alert only after user approval.
 - Default live/runtime store remains in-memory. `PostgresMemoryStore` exists
   and is tested, but server runtime selection for `STORE_MODE=postgres` and
   `DATABASE_URL` / `POSTGRES_URL` is still future work.
 - The live endpoint remains plain HTTP on the ECS public IP. No domain, TLS
   certificate, load balancer, or managed gateway is configured.
-- The dashboard remains a local governance prototype; it is not wired to the
-  Alibaba ECS endpoint and should not hardcode remote tokens/endpoints.
-- The eval pack is deterministic and local. It is not an official LoCoMo,
-  LongMemEval, Mem2ActBench, MemBench, MemEvoBench, or LifeBench score.
-- GitHub Actions should be checked from the GitHub UI after push.
+- GitHub Actions should be checked from the GitHub UI after pushing.
 - Alibaba ECS should be revalidated before demo/submission if restarted, then
   stopped or released after the approved hackathon demo window.
 
 ## Next Session Prompt
 
 ```text
-Read agent.md, memory/README.md, memory/product.md, memory/architecture.md,
+Read memory/README.md, memory/product.md, memory/architecture.md,
 memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
-docs/dev-materials-checklist.md, and docs/handoff.md first.
+docs/dev-materials-checklist.md, docs/hackathon-resource-support.md,
+and docs/handoff.md first.
 
-Continue from main after the star-readiness commit. Preserve the MCP tool names,
-resource URIs, prompt names, Alibaba deployment proof, and current live
-storeMode=in-memory truth.
+Continue from main after the resource-support and memory-refresh commits.
+Preserve the MCP tool names, resource URIs, prompt names, Alibaba deployment
+proof, current live storeMode=in-memory truth, and secret-handling rules.
 
 Priorities:
-1. Check GitHub Actions after the pushed commit.
-2. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
+1. Check GitHub Actions after the pushed commits.
+2. Watch for the Qwen Cloud / Alibaba Cloud coupon activation email. If pending
+   near the deadline, contact global.hackathon@alibaba-inc.com with UID and
+   phone entered directly by the user.
+3. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
    `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
-3. Keep all Qwen and HandoffBase auth values in ignored local env or cloud
-   secret configuration; never commit `.env.*` files or print secrets.
-4. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
+4. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and
+   payment values in ignored local env, cloud secret configuration, or browser
+   forms only; never commit `.env.*` files or print secrets.
+5. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
    pgvector support and wire `STORE_MODE=postgres` deliberately.
-5. Stop or release the pay-as-you-go ECS instance after the approved demo
+6. Stop or release the pay-as-you-go ECS instance after the approved demo
    window.
 ```
