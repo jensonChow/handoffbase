@@ -5,42 +5,88 @@ agent runtime, a generic vector store wrapper, or a project-local note file. Its
 job is to expose durable memory operations through MCP so different hosts can
 share the same governed continuity layer without changing their own runtimes.
 
-The current project is in open-source and star-readiness mode. The live proof is
+The current project is in submission-readiness mode. The live proof is
 intentionally narrow: a Remote Streamable HTTP MCP server on Alibaba Cloud ECS,
-Qwen-backed memory reasoning, API key auth, and an in-memory runtime store.
+Qwen-backed memory reasoning, API key auth, and an in-memory runtime store. The
+ECS instance has since been stopped to reduce cost, so the public endpoint
+should be revalidated before any submission or demo that depends on it being
+online.
 
 ## System Shape
 
 ```mermaid
 flowchart LR
-  subgraph Hosts["MCP Hosts"]
+  subgraph Hosts["MCP hosts"]
     Codex["Codex"]
     Claude["Claude Code"]
     Cursor["Cursor"]
-    Custom["Custom MCP hosts"]
+    Custom["Custom MCP host"]
   end
 
-  Hosts -->|Remote Streamable HTTP /mcp| Server["HandoffBase MCP Server"]
-  ECS["Alibaba Cloud ECS"] -. "live Docker deployment proof" .- Server
+  subgraph Remote["Remote Streamable HTTP MCP"]
+    Endpoint["/mcp endpoint"]
+  end
 
-  Server --> Tools["MCP tools, resources, prompts"]
-  Server --> Core["Memory Core"]
-  Server --> ProviderBoundary["MemoryReasoningProvider boundary"]
+  subgraph ServerLayer["HandoffBase MCP server"]
+    Surface["MCP tools<br/>memory:// resources<br/>memory prompts"]
+    Service["Memory service layer"]
+  end
 
-  ProviderBoundary --> QwenProvider["QwenMemoryProvider"]
+  subgraph ProviderLayer["Reasoning provider boundary"]
+    ProviderBoundary["MemoryReasoningProvider"]
+    QwenProvider["QwenMemoryProvider"]
+    MockProvider["MockMemoryProvider"]
+  end
+
+  subgraph CoreLayer["Memory core"]
+    Core["Records, lifecycle,<br/>validation, scopes"]
+    Store["MemoryStore"]
+    InMemory["InMemoryMemoryStore<br/>current live demo store"]
+    Postgres["PostgresMemoryStore + pgvector<br/>future runtime wiring"]
+    Events["Memory events"]
+    Trace["Memory traces"]
+    Conflicts["Memory conflict records"]
+  end
+
+  subgraph DashboardLayer["Memory Vault dashboard prototype"]
+    Dashboard["Governance UI"]
+    Pending["Pending review"]
+    ConflictReview["Conflict review"]
+    TraceView["Trace view"]
+  end
+
+  subgraph CloudProof["Alibaba Cloud deployment proof"]
+    ECS["ECS + Docker backend proof"]
+    Limits["Public HTTP IP proof<br/>no TLS, LB, domain, or managed gateway"]
+  end
+
+  Codex --> Endpoint
+  Claude --> Endpoint
+  Cursor --> Endpoint
+  Custom --> Endpoint
+  Endpoint --> Surface
+  Surface --> Service
+
+  Service --> ProviderBoundary
+  ProviderBoundary --> QwenProvider
+  ProviderBoundary --> MockProvider
   QwenProvider --> QwenCloud["Qwen Cloud"]
 
-  Core --> Store["MemoryStore interface"]
-  Store --> InMemory["InMemoryMemoryStore current demo store"]
-  Store -. "implemented path, not default runtime" .-> Postgres["PostgresMemoryStore plus pgvector schema"]
+  Service --> Core
+  Core --> Store
+  Store --> InMemory
+  Store -. "implemented path, not runtime default" .-> Postgres
+  Core --> Events
+  Core --> Trace
+  Core --> Conflicts
 
-  Core --> Trace["Memory Trace records"]
-  Core --> Conflicts["Conflict Records"]
+  Dashboard -->|inspect and govern| Surface
+  Dashboard --> Pending
+  Dashboard --> ConflictReview
+  Dashboard --> TraceView
 
-  Dashboard["Memory Vault dashboard prototype"] -->|inspect and govern| Server
-  Dashboard --> Pending["Pending memory review"]
-  Dashboard --> ConflictReview["Conflict review"]
-  Dashboard --> TraceView["Trace view"]
+  ECS -. "validated deployment proof; instance currently stopped" .-> Endpoint
+  ECS --> Limits
 ```
 
 The standalone Mermaid source lives in
@@ -182,6 +228,10 @@ storeMode=in-memory
 
 Remote validation has succeeded for MCP discovery, `memory_recall`, and
 Qwen-backed `memory_remember` through `npm run mcp:validate-remote`.
+
+The ECS instance has since been stopped to reduce cost. Treat the deployment
+record as proof that validation passed, not as a guarantee that the public
+endpoint is currently online.
 
 ## Current Limitations
 
