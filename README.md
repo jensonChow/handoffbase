@@ -304,6 +304,9 @@ More detail:
 - [Deployment notes](docs/deployment.md)
 - [Alibaba Cloud deployment proof](docs/deployment/alibaba-cloud-proof.md)
 - [Development and public-readiness checklist](docs/dev-materials-checklist.md)
+- [Devpost submission copy](docs/submission/devpost-copy.md)
+- [Submission testing instructions](docs/submission/testing-instructions.md)
+- [Submission checklist](docs/submission/submission-checklist.md)
 - [Current handoff](docs/handoff.md)
 
 ## Examples And Demo
