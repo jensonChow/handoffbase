@@ -1,6 +1,6 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-08T07:11:48Z
+Last verified: 2026-07-08T08:35:51Z
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
@@ -30,8 +30,9 @@ credentials, auth headers, database URLs, or invoice details here.
   created during this check.
 - Current recommendation: continue using Qwen free quota with the stop-when-free
   guardrail enabled for the deployed `qwen-plus` path; do not add paid cloud
-  services; stop or release the pay-as-you-go ECS instance after the approved
-  demo/submission window.
+  services. If live availability is not needed before submission, ask before
+  stopping the pay-as-you-go ECS instance now and restart it around July 17-18
+  for final submission validation.
 
 ## Qwen Cloud Free Tier
 
@@ -103,6 +104,42 @@ credentials, auth headers, database URLs, or invoice details here.
   it is stopped and restarted, then stop or release it after the approved
   hackathon window to avoid ongoing pay-as-you-go spend.
 
+## Cost Runway Check
+
+- Checked timestamp: 2026-07-08T08:35:51Z.
+- Billing visibility: account-level balance and ECS bill-detail pages did not
+  render in Chrome during this check; they stayed on loading skeletons. The
+  estimate below uses the visible ECS resource shape plus conservative planning
+  assumptions rather than exact billing ledger values.
+- Balance bucket: about 100 RMB deposited; exact current balance was not
+  visible.
+- Current spend bucket: likely less than 5 RMB since the ECS instance was
+  created on 2026-07-07 at 23:24 China time.
+- Estimated burn: about 0.17-0.21 RMB/hour, or about 4-5 RMB/day, for the
+  running 2 vCPU / 2 GiB pay-as-you-go ECS instance plus 40 GiB system disk.
+  Traffic is expected to be negligible for the demo unless the endpoint receives
+  real load.
+- Runway from the 2026-07-08 check date:
+  - July 20 submission date: about 12 days, estimated 48-60 RMB.
+  - August 4 judging end: about 27 days, estimated 108-135 RMB.
+  - August 7 winner announcement: about 30 days, estimated 120-150 RMB.
+- Recommendation: likely enough to keep the demo online until July 20, but tight
+  for August 4 or August 7 without more budget. If the project is not submitted
+  yet and live availability is not needed now, recommend asking before stopping
+  ECS and restarting around July 17-18.
+- Qwen guardrail: `qwen-plus-2025-07-28` shows 1,000,000 / 1,000,000 free
+  tokens remaining and free-quota-only / stop-when-free-quota-runs-out enabled.
+- Qwen paid usage: Bailian fee overview showed total model-platform spend `¥0`.
+- Unexpected paid resources: no active RDS/PolarDB, ACK, load balancer, NAT
+  Gateway, Elastic IP conversion, OSS bucket, Log Service project, paid
+  Container Registry Enterprise instance, WAF, API Gateway, Function Compute
+  workload, or snapshot service was found in the best-effort console sweep.
+  Some pages only showed Resource Center or product authorization/open-service
+  prompts, so this is still not a full Resource Center inventory.
+- Stop/release action taken: none. ECS was not stopped, released, resized, or
+  modified.
+- Safe runbook: see `docs/cloud-cost-runbook.md`.
+
 ## Actions Taken
 
 - Read local non-secret deployment and operations docs.
@@ -114,6 +151,14 @@ credentials, auth headers, database URLs, or invoice details here.
 - Checked Alibaba billing card/coupon and budget-management surfaces.
 - Checked ECS detail for the existing deployment instance.
 - Ran a read-only sweep of common paid-service consoles named in the objective.
+- Rechecked cost runway for the running ECS demo. Billing pages stayed on
+  loading skeletons, so the decision uses ECS resource posture plus a
+  conservative 4-5 RMB/day planning estimate.
+- Checked Bailian fee overview; total model-platform spend showed `¥0`.
+- Checked the ECS snapshot page; snapshot service was not opened and no active
+  snapshot resource was found.
+- Created `docs/cloud-cost-runbook.md` with the safe stop/restart procedure and
+  cost-continuation caveats.
 - Found the Qwen Cloud voucher application endpoint from a Devpost discussion
   and verified that the URL redirects to Qwen Cloud SSO login.
 - Rechecked the logged-in Qwen Cloud application page and confirmed the form is

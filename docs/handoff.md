@@ -1,8 +1,38 @@
 # Current Handoff
 
-Updated: 2026-07-08T07:18:18Z
+Updated: 2026-07-08T08:35:51Z
 
 ## Completed This Session
+
+- Rechecked the Alibaba Cloud cost runway for the deployed HandoffBase ECS demo
+  without changing application code or cloud resources.
+- Confirmed the documented ECS instance is still running in `cn-beijing` as
+  pay-as-you-go on `ecs.e-c1m1.large` with 2 vCPU / 2 GiB, traffic-billed
+  public bandwidth, and a 40 GiB ESSD Entry system disk.
+- Billing/cost pages did not render account-level balance or ECS bill details
+  in Chrome; they stayed on loading skeletons. The current decision therefore
+  uses visible ECS resource posture plus a conservative 4-5 RMB/day planning
+  estimate.
+- Confirmed Bailian fee overview showed total model-platform spend `¥0`.
+- Confirmed `qwen-plus-2025-07-28` still had 1,000,000 / 1,000,000 free tokens
+  remaining and free-quota-only / stop-when-free-quota-runs-out enabled.
+- Checked the ECS snapshot page; snapshot service was not opened and no active
+  snapshot resource was found.
+- Ran a read-only best-effort sweep for common paid resources. No active
+  RDS/PolarDB, ACK, load balancer, NAT Gateway, Elastic IP conversion, OSS
+  bucket, Log Service project, paid Container Registry Enterprise instance,
+  WAF, API Gateway, Function Compute workload, or snapshot service was found.
+  Some pages only showed Resource Center or product authorization/open-service
+  prompts, so this is not a full Resource Center inventory.
+- Created `docs/cloud-cost-runbook.md` and updated
+  `docs/hackathon-resource-support.md` with the runway decision: likely enough
+  to keep ECS running until July 20, but tight for August 4 or August 7; if live
+  availability is not needed before submission, ask before stopping ECS now and
+  restart around July 17-18.
+- No stop, release, resize, paid-service enablement, coupon redemption, payment
+  method, autopay, or cloud-resource mutation was performed.
+
+## Prior Completed Work
 
 - Completed the resource-support objective for the Global AI Hackathon Series
   with Qwen Cloud without touching application code.
@@ -36,6 +66,17 @@ Updated: 2026-07-08T07:18:18Z
 
 ## Verification
 
+- `git diff --check`: passed for this cost-runway docs update.
+- `npm run check`: passed for this cost-runway docs update. Smoke registered 7
+  tools, 9 resources, and 4 prompts; memory-core 28/28, auth 5/5, server 1/1,
+  and dashboard 2/2 passed.
+- `node --check scripts/validate-remote-mcp.mjs`: passed.
+- Tracked-file scans for Qwen/DashScope/HandoffBase keys and database URLs found
+  no real secret values. The MCP token scan matched only documented
+  `<redacted>` placeholders. Coupon/voucher scans matched public URLs and status
+  wording only, not coupon or voucher codes.
+- `.env.hackathon.local` remains covered by `.gitignore` rule `.env.*`; only
+  `.env.example` is tracked.
 - `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/HandoffBase`: passed/read-only audit.
 - `git diff --check`: passed after this memory refresh.
 - `npm run check`: passed after this memory refresh. Smoke registered 7 tools,
@@ -63,6 +104,16 @@ Updated: 2026-07-08T07:18:18Z
 
 ## Open Risks
 
+- Account-level balance and exact ECS bill detail were not visible because the
+  billing pages stayed on loading skeletons. Recheck Billing/Cost Management
+  later or after the next billing update for exact spend.
+- Keeping the current ECS instance online to July 20 is likely affordable from a
+  100 RMB deposit, but keeping it online through August 4 or August 7 is likely
+  tight unless the balance is replenished or the instance is stopped when idle.
+- If cost savings matter and the project is not submitted yet, stop ECS only
+  after explicit user approval and restart around July 17-18. In economical
+  stop mode, compute billing can stop but disk billing continues and the public
+  IP may change on restart.
 - Coupon/voucher activation is still pending registration verification. Watch
   for the Qwen Cloud / Alibaba Cloud activation email or check Qwen Cloud
   benefits after the expected 1-2 business day review window.
@@ -102,13 +153,16 @@ Priorities:
 2. Watch for the Qwen Cloud / Alibaba Cloud coupon activation email. If pending
    near the deadline, contact global.hackathon@alibaba-inc.com with UID and
    phone entered directly by the user.
-3. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
+3. If the user approves cost savings before submission, follow
+   `docs/cloud-cost-runbook.md` to revalidate, then stop ECS safely; restart
+   around July 17-18 and revalidate before submission.
+4. Re-run remote `/health` and `npm run mcp:validate-remote` only if safe
    `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` are present in the shell environment.
-4. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and
+5. Keep all Qwen, HandoffBase, Alibaba, Gmail, UID, phone, coupon/voucher, and
    payment values in ignored local env, cloud secret configuration, or browser
    forms only; never commit `.env.*` files or print secrets.
-5. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
+6. Before adding Postgres runtime mode, verify target Alibaba PostgreSQL
    pgvector support and wire `STORE_MODE=postgres` deliberately.
-6. Stop or release the pay-as-you-go ECS instance after the approved demo
+7. Stop or release the pay-as-you-go ECS instance after the approved demo
    window.
 ```

@@ -68,6 +68,19 @@
   Log Service project, or paid Container Registry Enterprise instance. Resource
   Center was not enabled, so a full inventory and budget alerts still require
   user approval for the free Resource Center role/notification setup.
+- As of 2026-07-08T08:35:51Z, the cost-runway check found the ECS demo still
+  running as pay-as-you-go on `ecs.e-c1m1.large` in `cn-beijing`, with 5 Mbps
+  peak public bandwidth billed by traffic and a 40 GiB ESSD Entry system disk.
+  Billing pages did not render exact balance or ECS bill details, so the
+  planning estimate is 4-5 RMB/day. That is likely enough to keep the service
+  online until July 20 from an about-100 RMB balance, but likely tight through
+  August 4 or August 7. If live availability is not needed before submission,
+  ask before stopping ECS and restart around July 17-18 using
+  `docs/cloud-cost-runbook.md`.
+- The same check confirmed Bailian fee overview showed `¥0` model-platform
+  spend, `qwen-plus-2025-07-28` still had 1,000,000 / 1,000,000 free tokens
+  remaining with free-quota-only enabled, and the ECS snapshot page showed
+  snapshot service was not opened.
 
 ## CI
 
