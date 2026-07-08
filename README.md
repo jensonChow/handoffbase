@@ -50,6 +50,12 @@ This repository now contains a runnable integrated MVP:
 
 Local development uses the in-memory store and `MockMemoryProvider` by default. Set `QWEN_API_KEY` or `DASHSCOPE_API_KEY` to use Qwen Cloud through `QwenMemoryProvider`.
 
+## Architecture Docs
+
+- [`docs/architecture.md`](docs/architecture.md): system architecture, boundaries, live deployment proof, and current limitations.
+- [`docs/comparison.md`](docs/comparison.md): respectful positioning against other memory approaches.
+- [`docs/memory-lifecycle.md`](docs/memory-lifecycle.md): how memory is extracted, used, inspected, governed, and forgotten.
+
 ## Quick Start
 
 ```bash

@@ -1,0 +1,29 @@
+flowchart LR
+  subgraph Hosts["MCP Hosts"]
+    Codex["Codex"]
+    Claude["Claude Code"]
+    Cursor["Cursor"]
+    Custom["Custom MCP hosts"]
+  end
+
+  Hosts -->|Remote Streamable HTTP /mcp| Server["HandoffBase MCP Server"]
+  ECS["Alibaba Cloud ECS"] -. "live Docker deployment proof" .- Server
+
+  Server --> Tools["MCP tools, resources, prompts"]
+  Server --> Core["Memory Core"]
+  Server --> ProviderBoundary["MemoryReasoningProvider boundary"]
+
+  ProviderBoundary --> QwenProvider["QwenMemoryProvider"]
+  QwenProvider --> QwenCloud["Qwen Cloud"]
+
+  Core --> Store["MemoryStore interface"]
+  Store --> InMemory["InMemoryMemoryStore current demo store"]
+  Store -. "implemented path, not default runtime" .-> Postgres["PostgresMemoryStore plus pgvector schema"]
+
+  Core --> Trace["Memory Trace records"]
+  Core --> Conflicts["Conflict Records"]
+
+  Dashboard["Memory Vault dashboard prototype"] -->|inspect and govern| Server
+  Dashboard --> Pending["Pending memory review"]
+  Dashboard --> ConflictReview["Conflict review"]
+  Dashboard --> TraceView["Trace view"]
