@@ -127,6 +127,7 @@
 - Architecture, comparison, memory lifecycle, eval, and dashboard demo docs.
 - Practical examples for local, Qwen-backed, remote MCP, HTTP payload, and quickstart workflows.
 - Deterministic local eval pack that runs without Qwen credentials or remote endpoint access.
+- Final public-readiness checklist in `docs/submission/final-public-readiness.md`.
 - Demo video around 3 minutes.
 - Separate proof of Alibaba Cloud backend deployment.
 - README describing Qwen Cloud usage, MCP endpoint, memory lifecycle, and Track 1 fit.
@@ -140,6 +141,6 @@ For star-readiness changes, run at minimum:
 - `npm run dashboard:build`
 - `node --check scripts/validate-remote-mcp.mjs`
 - `npm run check`
-- tracked-file public-readiness scans for Qwen/DashScope/HandoffBase tokens, database URLs, `/Users/`, and workspace ids.
+- tracked-file public-readiness scans for Qwen/DashScope/HandoffBase tokens, database URLs, local workstation paths, and workspace ids.
 
 Placeholder matches such as `<your-handoffbase-api-key>` or `<redacted>` are acceptable only when clearly documented as placeholders.
