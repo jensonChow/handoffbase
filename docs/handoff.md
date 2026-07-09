@@ -1,9 +1,17 @@
 # Current Handoff
 
-Updated: 2026-07-09T14:59:07Z
+Updated: 2026-07-09T15:04:24Z
 
 ## Completed This Session
 
+- Completed post-integration memory refresh using the `memory-refresh` skill.
+- Ran the read-only memory audit:
+  `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/HandoffBase`.
+- Confirmed this repo's memory contract remains `agent.md`, `memory/README.md`,
+  durable topic files under `memory/`, and this session-scoped handoff file.
+- Confirmed durable memory already reflects the benchmark subset in
+  `memory/operations.md`; no additional product, architecture, or decision
+  memory edits were needed.
 - Fetched remotes with `git fetch --all --prune`.
 - Confirmed `origin/main` exists at
   `e924c20993c5672d6257a3134af88bc8a7e63109`.
@@ -83,6 +91,8 @@ or other leaderboard scores.
 
 ## Validation This Session
 
+- Memory-refresh audit: passed/read-only.
+- `agent.md` line count: 21 lines, under the 50-line budget.
 - `node --check scripts/run-memory-benchmarks.mjs`: passed.
 - `npm run bench:memory`: passed 17/17 deterministic benchmark cases.
 - `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
@@ -111,9 +121,14 @@ or other leaderboard scores.
 ## Git State
 
 - Branch: `codex/benchmark-subsets-integration`.
-- Integration commit target:
-  `bench: integrate deterministic memory benchmark subsets`.
-- Push target: `git push -u origin HEAD`.
+- Integration commit:
+  `dfa83e760dc8178e2e47d2f30b91218015d79b73`
+  (`bench: integrate deterministic memory benchmark subsets`).
+- Integration branch was pushed to
+  `origin/codex/benchmark-subsets-integration`.
+- Memory-refresh commit target:
+  `docs: refresh memory after benchmark integration`.
+- Push target for memory refresh: `git push`.
 - Repository visibility was not changed.
 - Remote validation was not run.
 
@@ -145,16 +160,11 @@ Preserve MCP tool names, resource URIs, prompt names, runtime behavior,
 Postgres runtime wiring, repository visibility, cloud state, and secret-handling
 rules.
 
-If this session did not already finish them, run final validation:
-node --check scripts/run-memory-benchmarks.mjs, npm run bench:memory,
-npm run eval:memory, npm run check, git diff --check, Markdown relative-link
-check, and tracked-file secret/public scan.
-
-Commit with:
-git commit -m "bench: integrate deterministic memory benchmark subsets"
+If this session did not already finish it, commit the memory refresh with:
+git commit -m "docs: refresh memory after benchmark integration"
 
 Push with:
-git push -u origin HEAD
+git push
 
 Do not read `.env.*`, restart ECS, trigger cloud cost, run remote validation, or
 claim official benchmark scores.
