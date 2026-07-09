@@ -251,7 +251,7 @@
             "id": "bench-candidate-fake-placeholder",
             "type": "project_fact",
             "canonicalText": "The demo credential placeholder is <fake-api-key-for-test-only>.",
-            "status": "pending",
+            "status": "rejected",
             "scope": {}
           },
           "conflict": {
@@ -264,7 +264,7 @@
             "reason": "Even obvious fake credential-shaped placeholders should not become durable memory."
           },
           "expect": {
-            "candidateStatus": "pending",
+            "candidateStatus": "rejected",
             "openConflictCount": 0,
             "conflictType": "none",
             "recommendedAction": "reject",

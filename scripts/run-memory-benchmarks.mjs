@@ -46,7 +46,7 @@ const results = [];
 
 for (const fixtureFile of fixtureFiles) {
   try {
-    const fixture = await readFixture(fixtureFile);
+    const fixture = normalizeFixture(await readFixture(fixtureFile));
     validateFixture(fixture, fixtureFile);
 
     for (const testCase of fixture.cases) {
@@ -134,6 +134,111 @@ function validateFixture(fixture, fixturePath) {
   }
 }
 
+function normalizeFixture(fixture) {
+  if (!isObject(fixture)) {
+    return fixture;
+  }
+  return {
+    ...fixture,
+    seedMemories: fixture.seedMemories ?? [],
+    cases: Array.isArray(fixture.cases)
+      ? fixture.cases.map((testCase) => normalizeCase(testCase))
+      : fixture.cases
+  };
+}
+
+function normalizeCase(testCase) {
+  if (!isObject(testCase)) {
+    return testCase;
+  }
+  const caseExpected = normalizeExpect(testCase.expected ?? {});
+  return {
+    ...testCase,
+    name: testCase.name ?? testCase.description ?? testCase.id,
+    seedMemories: testCase.seedMemories ?? [],
+    steps: Array.isArray(testCase.steps)
+      ? testCase.steps.map((step) => normalizeStep(step, caseExpected))
+      : testCase.steps
+  };
+}
+
+function normalizeStep(step, caseExpected) {
+  if (!isObject(step)) {
+    return step;
+  }
+  const op = normalizeOperation(step.op ?? step.operation);
+  const input = isObject(step.input) ? step.input : {};
+  const expect = normalizeExpect(step.expect ?? step.expected ?? caseExpected);
+
+  if (op === "recall") {
+    return removeUndefined({
+      ...step,
+      op,
+      query: step.query ?? input.query,
+      types: step.types ?? input.types,
+      limit: step.limit ?? input.limit,
+      tokenBudget: step.tokenBudget ?? input.tokenBudget,
+      scopes: step.scopes ?? step.scope ?? input.scopes ?? input.scope,
+      expect
+    });
+  }
+
+  if (op === "bootstrap") {
+    return removeUndefined({
+      ...step,
+      op,
+      host: step.host ?? input.host,
+      sessionId: step.sessionId ?? input.sessionId,
+      taskHint: step.taskHint ?? input.taskHint,
+      tokenBudget: step.tokenBudget ?? input.tokenBudget,
+      scope: step.scope ?? input.scope ?? input.scopes,
+      expect
+    });
+  }
+
+  if (op === "forget") {
+    return removeUndefined({
+      ...step,
+      op,
+      memoryId: step.memoryId ?? input.memoryId,
+      mode: step.mode ?? input.mode,
+      reason: step.reason ?? input.reason,
+      expect
+    });
+  }
+
+  return {
+    ...step,
+    op,
+    expect
+  };
+}
+
+function normalizeOperation(operation) {
+  if (operation === "memory_recall") return "recall";
+  if (operation === "continuity_bootstrap") return "bootstrap";
+  if (operation === "memory_forget") return "forget";
+  return operation;
+}
+
+function normalizeExpect(expect) {
+  if (!isObject(expect)) {
+    return expect;
+  }
+  const traceIdPresent = expect.traceIdPresent ?? (expect.traceId === "present" ? true : undefined);
+  return removeUndefined({
+    ...expect,
+    traceIdPresent,
+    memoryIdsAbsent: expect.memoryIdsAbsent ?? expect.absentMemoryIds,
+    contextIncludes: expect.contextIncludes ?? expect.answerIncludes,
+    contextExcludes: [...(expect.contextExcludes ?? []), ...(expect.contextExcludesAny ?? [])],
+    traceUsedMemoryIds: expect.traceUsedMemoryIds ?? expect.usedMemoryIds,
+    traceIgnoredMemoryIds: expect.traceIgnoredMemoryIds ?? expect.ignoredMemoryIds,
+    traceExcludedMemoryIds: expect.traceExcludedMemoryIds ?? expect.excludedMemoryIds,
+    memoryIdsAbsentOrContextExcluded: expect.memoryIdsAbsentOrContextExcluded
+  });
+}
+
 function validateCase(testCase, fixture) {
   const label = `${fixture.family}/${testCase?.id ?? "<missing-id>"}`;
   assert(isObject(testCase), `${fixture.family} case must be an object.`);
@@ -210,7 +315,7 @@ async function runBenchmarkCase(fixture, testCase) {
     const fixedNow = new Date(fixture.fixedNow);
     const defaultScope = normalizeCoreScope(fixture.defaultScope, `${fixture.family}/${testCase.id} defaultScope`);
     const store = new InMemoryMemoryStore({ clock: () => fixedNow });
-    const provider = new BenchmarkFixtureProvider(MockMemoryProvider, testCase.steps);
+    const provider = createBenchmarkFixtureProvider(MockMemoryProvider, testCase.steps);
     const service = new ContinuityMemoryService({
       store,
       provider,
@@ -252,11 +357,25 @@ async function runBenchmarkCase(fixture, testCase) {
 
 async function seedStore(store, defaultScope, fixedNow, memories) {
   for (const memory of memories) {
-    await store.addMemory(toCreateMemoryInput(memory, defaultScope), {
+    const input = toCreateMemoryInput(memory, defaultScope);
+    const needsSupersedePatch = memory.status === "superseded" && typeof memory.supersededBy === "string";
+    if (needsSupersedePatch) {
+      input.status = "active";
+    }
+
+    const result = await store.addMemory(input, {
       actor: { type: "system", id: "benchmark_seed" },
       reason: "Seed deterministic memory benchmark fixture.",
       now: fixedNow
     });
+
+    if (needsSupersedePatch) {
+      await store.updateMemory(result.memory.id, { status: "superseded", supersededBy: memory.supersededBy }, {
+        actor: { type: "system", id: "benchmark_seed" },
+        reason: "Mark deterministic benchmark seed as superseded.",
+        now: fixedNow
+      });
+    }
   }
 }
 
@@ -294,6 +413,7 @@ async function runRecallStep({ service, defaultScope, step, label }) {
   const recalledIds = output.memories.map((memory) => memory.id);
   assertIdsPresent(recalledIds, expect.memoryIdsPresent, `${label} recalled memory`);
   assertIdsAbsent(recalledIds, expect.memoryIdsAbsent, `${label} recalled memory`);
+  assertIdsAbsentOrContextExcluded(output.memories, output.context_block, expect.memoryIdsAbsentOrContextExcluded, `${label} recalled memory`);
   assertTextIncludes(output.context_block, expect.contextIncludes, `${label} context`);
   assertTextExcludes(output.context_block, expect.contextExcludes, `${label} context`);
 
@@ -313,7 +433,7 @@ async function runBootstrapStep({ service, defaultScope, step, label }) {
     session_id: step.sessionId,
     task_hint: step.taskHint,
     token_budget: step.tokenBudget
-  });
+  }, benchmarkContext(scope, step.host));
 
   const contextText = flattenContextPack(output.context_pack);
   const expect = step.expect;
@@ -358,11 +478,13 @@ async function runConflictRememberStep({ service, store, defaultScope, step, lab
     assert(conflicts.length === step.expect.openConflictCount, `${label} open conflict count mismatch.`);
   }
 
-  if (step.expect.conflictType !== undefined) {
+  const expectsOpenConflicts = step.expect.openConflictCount === undefined || step.expect.openConflictCount > 0;
+
+  if (expectsOpenConflicts && step.expect.conflictType !== undefined) {
     assert(conflicts.some((conflict) => conflict.conflictType === step.expect.conflictType), `${label} conflict type mismatch.`);
   }
 
-  if (step.expect.recommendedAction !== undefined) {
+  if (expectsOpenConflicts && step.expect.recommendedAction !== undefined) {
     assert(
       conflicts.some((conflict) => conflict.recommendedAction === step.expect.recommendedAction),
       `${label} recommended conflict action mismatch.`
@@ -401,62 +523,56 @@ async function assertTraceExpectations(service, traceId, expect, label) {
   assertIdsExpectation(excludedIds, expect.traceExcludedMemoryIds, `${label} excluded trace memory`);
 }
 
-class BenchmarkFixtureProvider {
-  constructor(MockProviderClass, steps) {
-    this.mock = new MockProviderClass();
-    this.conflictPlansByContent = new Map();
-    this.conflictPlansByCanonicalText = new Map();
+function createBenchmarkFixtureProvider(MockProviderClass, steps) {
+  const mock = new MockProviderClass();
+  const conflictPlansByContent = new Map();
+  const conflictPlansByCanonicalText = new Map();
 
-    for (const step of steps.filter((item) => item.op === "conflictRemember")) {
-      this.conflictPlansByContent.set(step.content, step);
-      this.conflictPlansByCanonicalText.set(step.candidate.canonicalText, step);
+  for (const step of steps.filter((item) => item.op === "conflictRemember")) {
+    conflictPlansByContent.set(step.content, step);
+    conflictPlansByCanonicalText.set(step.candidate.canonicalText, step);
+  }
+
+  return {
+    classifyMemory: (input) => mock.classifyMemory(input),
+    buildContextPack: (input) => mock.buildContextPack(input),
+    reflectRun: (input) => mock.reflectRun(input),
+    explainMemoryUsage: (input) => mock.explainMemoryUsage(input),
+    async extractMemories(input) {
+      const plan = conflictPlansByContent.get(input.content);
+      if (!plan) {
+        return mock.extractMemories(input);
+      }
+      return [toFixtureCandidate(plan, input)];
+    },
+    async detectConflicts(input) {
+      const plan = conflictPlansByCanonicalText.get(input.candidate.canonicalText);
+      if (!plan) {
+        return mock.detectConflicts(input);
+      }
+      if (plan.expect.openConflictCount === 0) {
+        return {
+          conflicts: [],
+          recommendedAction: plan.conflict.recommendedAction,
+          reason: plan.conflict.reason ?? "Synthetic benchmark candidate should not create an open conflict."
+        };
+      }
+      return {
+        conflicts: [
+          {
+            existingMemoryId: plan.conflict.existingMemoryId,
+            conflictType: plan.conflict.conflictType,
+            severity: plan.conflict.severity ?? "medium",
+            reason: plan.conflict.reason ?? "Synthetic benchmark conflict.",
+            suggestedAction: plan.conflict.recommendedAction,
+            confidence: plan.conflict.confidence ?? 0.9
+          }
+        ],
+        recommendedAction: plan.conflict.recommendedAction,
+        reason: plan.conflict.reason ?? "Synthetic benchmark conflict requires review."
+      };
     }
-  }
-
-  classifyMemory(input) {
-    return this.mock.classifyMemory(input);
-  }
-
-  buildContextPack(input) {
-    return this.mock.buildContextPack(input);
-  }
-
-  reflectRun(input) {
-    return this.mock.reflectRun(input);
-  }
-
-  explainMemoryUsage(input) {
-    return this.mock.explainMemoryUsage(input);
-  }
-
-  async extractMemories(input) {
-    const plan = this.conflictPlansByContent.get(input.content);
-    if (!plan) {
-      return this.mock.extractMemories(input);
-    }
-    return [toFixtureCandidate(plan, input)];
-  }
-
-  async detectConflicts(input) {
-    const plan = this.conflictPlansByCanonicalText.get(input.candidate.canonicalText);
-    if (!plan) {
-      return this.mock.detectConflicts(input);
-    }
-    return {
-      conflicts: [
-        {
-          existingMemoryId: plan.conflict.existingMemoryId,
-          conflictType: plan.conflict.conflictType,
-          severity: plan.conflict.severity ?? "medium",
-          reason: plan.conflict.reason ?? "Synthetic benchmark conflict.",
-          suggestedAction: plan.conflict.recommendedAction,
-          confidence: plan.conflict.confidence ?? 0.9
-        }
-      ],
-      recommendedAction: plan.conflict.recommendedAction,
-      reason: plan.conflict.reason ?? "Synthetic benchmark conflict requires review."
-    };
-  }
+  };
 }
 
 function toFixtureCandidate(plan, input) {
@@ -471,7 +587,9 @@ function toFixtureCandidate(plan, input) {
     },
     confidence: plan.candidate.confidence ?? 0.8,
     importance: plan.candidate.importance ?? 0.7,
-    status: plan.candidate.status ?? input.approvalMode ?? "pending",
+    status: plan.expect.openConflictCount === 0 && plan.conflict.recommendedAction === "reject"
+      ? "rejected"
+      : plan.candidate.status ?? input.approvalMode ?? "pending",
     sourceKind: input.sourceKind,
     sourceTrust: input.sourceTrust ?? "user_direct",
     rawSource: plan.content,
@@ -552,6 +670,18 @@ function toToolScope(scope) {
   });
 }
 
+function benchmarkContext(scope, actorId = "memory-benchmark") {
+  return {
+    caller: {
+      tenantId: scope.tenantId,
+      userId: scope.userId,
+      actorType: "mcp_host",
+      actorId,
+      authMode: "api_key"
+    }
+  };
+}
+
 function flattenContextPack(contextPack) {
   return [
     ...(contextPack.user ?? []),
@@ -630,6 +760,16 @@ function assertIdsPresent(actualIds, expectedIds, label) {
 function assertIdsAbsent(actualIds, absentIds, label) {
   for (const absentId of absentIds ?? []) {
     assert(!actualIds.includes(absentId), `${label} includes an excluded id.`);
+  }
+}
+
+function assertIdsAbsentOrContextExcluded(memories, contextBlock, memoryIds, label) {
+  for (const memoryId of memoryIds ?? []) {
+    const memory = memories.find((item) => item.id === memoryId);
+    assert(
+      !memory || !contextBlock.includes(memory.canonicalText),
+      `${label} ${memoryId} should be absent or excluded from context.`
+    );
   }
 }
 

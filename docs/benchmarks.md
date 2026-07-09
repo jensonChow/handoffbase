@@ -66,7 +66,7 @@ Include cases for:
 - Conflict detection when a candidate contradicts an active memory.
 - Pending review records for `ask_user`, `merge`, and `supersede`
   recommendations.
-- Correct resolution behavior for `supersede`, `merge`, `keep-both`, and
+- Correct resolution behavior for `supersede`, `merge`, `keep_both`, and
   `reject`.
 - Distractor memories that should not be treated as conflicts.
 - Trace and resource inspection through pending/conflict vault surfaces.
@@ -146,7 +146,7 @@ manual Qwen proof, and future benchmark adapters.
 | `ignored_memory_correct` | Trace ignored-memory ids match token-budget or ranking expectations. |
 | `excluded_memory_correct` | Trace excluded-memory ids match scope, status, sensitivity, or trust rules. |
 | `conflict_created` | Conflict cases create the expected conflict record. |
-| `conflict_action_correct` | Conflict recommendation or resolution is `ask_user`, `supersede`, `merge`, `keep-both`, or `reject` as expected. |
+| `conflict_action_correct` | Conflict recommendation or resolution is `ask_user`, `supersede`, `merge`, `keep_both`, or `reject` as expected. |
 | `forget_correct` | Forgotten, expired, archived, deleted, or invalidated memories stop influencing recall. |
 | `update_correct` | Newer corrections, merges, and supersessions produce the expected active memory state. |
 | `scope_isolation_correct` | Tenant, user, project, host, and agent-profile boundaries are preserved. |
@@ -155,9 +155,39 @@ manual Qwen proof, and future benchmark adapters.
 Result summaries should include both aggregate pass rate and per-metric counts.
 Do not collapse governance failures into a single answer score.
 
+## Current Deterministic Subset
+
+The first deterministic benchmark-inspired subset now exists and runs with:
+
+```bash
+npm run bench:memory
+```
+
+It uses `scripts/run-memory-benchmarks.mjs` and synthetic fixture families under
+`examples/benchmarks/`:
+
+- `long-memory`: 6 cases for durable recall, temporal update, forget,
+  token-budget behavior, and out-of-scope evidence.
+- `conflicts`: 5 cases for contradiction, duplicate/merge, `keep_both`, reject,
+  and `ask_user` governance paths.
+- `cross-host-handoff`: 6 cases for host-to-host bootstrap, recall,
+  agent-profile/project scope isolation, trace ids, forget, and deployment
+  gotcha handoff.
+
+The runner currently asserts deterministic local behavior against
+`ContinuityMemoryService`, `InMemoryMemoryStore`, and `MockMemoryProvider`. It
+supports fixture branches that use either the runner-native `op`/`expect` shape
+or the public fixture `operation`/`input`/`expected` shape. It passes a
+synthetic API-key caller context for bootstrap cases so tenant/user scope
+matches the seeded fixture data without using real credentials.
+
+Recorded local result summary lives in
+[`docs/benchmark-results.md`](benchmark-results.md). These results are
+benchmark-inspired local regression results, not official benchmark scores.
+
 ## Runner Architecture
 
-The first benchmark runner should preserve the current safe local eval pattern:
+The benchmark runner should preserve the current safe local eval pattern:
 
 - Default mode is deterministic, credential-free, network-free, and suitable for
   CI and contributors.
@@ -166,13 +196,13 @@ The first benchmark runner should preserve the current safe local eval pattern:
   resources.
 - Optional Qwen-backed manual proof mode may run the same fixture families with
   Qwen reasoning, but output must be labeled as manual proof.
-- Fixtures should live under `examples/benchmarks/`.
-- A future runner can be named `scripts/run-memory-benchmarks.mjs`.
-- A future npm script can be named `bench:memory`.
-- Output should be compact: pass/fail lines, aggregate JSON, and a safe Markdown
-  table suitable for docs or Devpost copy after review.
+- Fixtures live under `examples/benchmarks/`.
+- The runner is `scripts/run-memory-benchmarks.mjs`.
+- The npm script is `bench:memory`.
+- Output is compact pass/fail lines plus aggregate, per-family, and per-metric
+  pass counts suitable for safe docs summaries after review.
 
-Suggested directory layout:
+Current directory layout:
 
 ```text
 examples/benchmarks/

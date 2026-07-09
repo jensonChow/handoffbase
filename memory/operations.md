@@ -30,7 +30,7 @@
 - Dashboard dev: `npm run dashboard:dev`.
 - Dashboard build: `npm run dashboard:build`.
 - Memory eval pack: `npm run eval:memory`.
-- Memory benchmark runner: `npm run bench:memory`.
+- Memory benchmark subset: `npm run bench:memory`.
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
@@ -133,8 +133,10 @@
 - Deterministic local eval pack that runs without Qwen credentials or remote endpoint access.
 - Deterministic local memory benchmark runner that runs without Qwen credentials,
   remote endpoint access, network access, or `.env.*` reads.
-- Benchmark strategy and a deterministic benchmark-inspired subset should be in
-  place before README, Devpost, or demo copy uses benchmark claims.
+- Deterministic benchmark-inspired subset with 17 synthetic local cases across
+  long-memory, conflict governance, and cross-host handoff families.
+- Public benchmark wording must cite exact local `npm run bench:memory` results
+  and must not claim official benchmark scores.
 - Devpost submission copy in `docs/submission/devpost-copy.md`.
 - Judge/contributor testing instructions in `docs/submission/testing-instructions.md`.
 - Final submission checklist in `docs/submission/submission-checklist.md`.

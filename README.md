@@ -109,11 +109,15 @@ npm run test
 npm run dashboard:dev
 npm run demo:flow
 npm run demo:jsonrpc
+npm run bench:memory
 ```
 
 `npm run check` is the CI-parity command. It typechecks, builds the server and
 workspaces, runs the MCP registration smoke test, and runs memory-core, auth,
 server, and dashboard tests. It must pass without Qwen credentials.
+
+`npm run bench:memory` runs the deterministic local benchmark-inspired memory
+fixture subset without Qwen credentials or network access.
 
 ## Qwen Setup
 

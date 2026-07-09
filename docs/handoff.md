@@ -1,113 +1,161 @@
 # Current Handoff
 
-Updated: 2026-07-09T13:10:00Z
+Updated: 2026-07-09T14:59:07Z
 
 ## Completed This Session
 
-- Created `codex/benchmark-runner` from the latest `origin/main` after
-  `git fetch --all --prune`.
+- Fetched remotes with `git fetch --all --prune`.
+- Confirmed `origin/main` exists at
+  `e924c20993c5672d6257a3134af88bc8a7e63109`.
 - Confirmed `origin/main` contains:
   - `docs/effect.md`
   - `docs/benchmarks.md`
   - `docs/product-completeness.md`
   - `docs/product-workflows.md`
-- Added `scripts/run-memory-benchmarks.mjs`, the first deterministic memory
-  benchmark runner.
-- Added `npm run bench:memory`.
-- Added benchmark fixture docs:
-  - `examples/benchmarks/README.md`
-  - `examples/benchmarks/schema-notes.md`
-- Added placeholder result status in `docs/benchmark-results.md`.
-- Updated `memory/operations.md` with the new benchmark command and validation
-  expectation.
-- Preserved the existing MCP surface, runtime store selection, Qwen provider
-  wiring, Postgres runtime wiring, cloud deployment state, and repository
-  visibility.
+- Created integration branch `codex/benchmark-subsets-integration` from the
+  latest `origin/main`.
+- Merged the required remote branches in order:
+  - `origin/codex/benchmark-runner` at
+    `3c4639462ad98db5f56c40f9ccb9d50b7cc89f3a`.
+  - `origin/codex/long-memory-benchmarks` at
+    `1e46d770fe730a34781f58ff0f978df27dee6d36`.
+  - `origin/codex/conflict-governance-benchmarks` at
+    `5e661952183111aa7cfb57fb8cf16c0773cb298c`.
+  - `origin/codex/cross-host-handoff-benchmarks` at
+    `67745c91a95a24ef6ab0d34ced0e39752419941e`.
+- Integrated the deterministic memory benchmark runner with fixture families
+  under `examples/benchmarks/`.
+- Fixed runner and fixture schema mismatches:
+  - normalized `operation`/`input`/`expected` fixture style into runner
+    `op`/`expect` steps;
+  - passed a synthetic API-key caller context for bootstrap cases so seeded
+    tenant/user scopes match without real credentials;
+  - seeded `superseded` memories through the update lifecycle so
+    `supersededBy` validation is preserved;
+  - supported token-budget cases where lower-priority memories may be recalled
+    but excluded from the context block;
+  - made zero-open-conflict assertions skip conflict type/action inspection;
+  - aligned the credential-shaped placeholder fixture with the safety rule that
+    it is rejected and creates no open conflict.
+- Updated `docs/benchmark-results.md` with actual `npm run bench:memory`
+  results.
+- Updated `docs/benchmarks.md` to reflect the implemented deterministic subset
+  and the canonical `keep_both` enum.
+- Added a minimal `npm run bench:memory` command mention to `README.md`.
+- Updated `memory/operations.md` with current benchmark subset expectations.
+- Preserved MCP tool names, resource URIs, prompt names, runtime behavior,
+  Postgres runtime wiring, cloud deployment state, repository visibility, and
+  secret-handling boundaries.
 
-## Benchmark Runner State
+## Benchmark Results
 
-- The runner is deterministic, credential-free, network-free, and CI-safe by
-  default.
-- It does not read `.env.*` files.
-- Direct script runs build `@handoffbase/memory-core` and the server unless
-  `HANDOFFBASE_BENCH_SKIP_BUILD=1`.
-- The npm script builds first and then runs the script with
-  `HANDOFFBASE_BENCH_SKIP_BUILD=1`.
-- The runner imports local builds from:
-  - `packages/memory-core/dist/index.js`
-  - `dist/services/continuity-memory-service.js`
-- Runtime execution uses:
-  - `InMemoryMemoryStore`
-  - `MockMemoryProvider`
-  - `ContinuityMemoryService`
-- Fixture discovery is `examples/benchmarks/*/cases.json`.
-- Supported fixture families:
-  - `long-memory`
-  - `conflicts`
-  - `cross-host-handoff`
-- Supported step operations:
-  - `recall`
-  - `bootstrap`
-  - `forget`
-  - `conflictRemember`
-- When no fixture files exist, the runner exits successfully and prints:
-  `No benchmark fixture files found.`
-- Actual benchmark fixtures and official result claims are not included yet.
+`npm run bench:memory` passed all synthetic deterministic benchmark-inspired
+fixtures:
+
+- Total cases: 17.
+- Passed: 17.
+- Failed: 0.
+
+Per-family pass counts:
+
+- `conflicts`: 5/5.
+- `cross-host-handoff`: 6/6.
+- `long-memory`: 6/6.
+
+Per-metric pass counts:
+
+- `answer_correct`: 3/3.
+- `conflict_action_correct`: 5/5.
+- `conflict_created`: 3/3.
+- `evidence_precision_at_k`: 5/5.
+- `evidence_recall_at_k`: 2/2.
+- `excluded_memory_correct`: 1/1.
+- `forget_correct`: 2/2.
+- `scope_isolation_correct`: 7/7.
+- `token_budget_respected`: 1/1.
+- `trace_id_present`: 8/8.
+- `update_correct`: 2/2.
+- `used_memory_correct`: 6/6.
+
+These are deterministic benchmark-inspired local results. They are not official
+LongMemEval, MemConflict, Mem2ActBench, LongMemEval-V2, MemEvoBench, LifeBench,
+or other leaderboard scores.
 
 ## Validation This Session
 
 - `node --check scripts/run-memory-benchmarks.mjs`: passed.
-- `npm run bench:memory`: passed; no benchmark fixture files are present yet.
+- `npm run bench:memory`: passed 17/17 deterministic benchmark cases.
 - `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
 - `npm run check`: passed, including typecheck, build, smoke registration,
   memory-core tests, auth tests, server tests, and dashboard tests.
 - `git diff --check`: passed.
-- Markdown relative-link check: passed for 45 tracked Markdown files.
-- Tracked-file secret/public scan: passed for 136 tracked non-env text files;
-  skipped 1 `.env.*` tracked path without reading contents and reviewed 19
-  intentional placeholder/test hits.
-
-Remaining before handoff is considered publish-complete:
-
-- commit
-- `git push -u origin HEAD`
+- Markdown relative-link check: passed for 51 tracked Markdown files.
+- Tracked-file secret/public scan: passed for 146 non-env tracked text files;
+  skipped 1 `.env.*` path by content, confirmed only `.env.example` is tracked
+  among `.env.*`, and found 0 suspicious real-value matches.
 
 ## Current Product State
 
 - HandoffBase remains a functional open-source memory infrastructure MVP, not a
   production SaaS product.
-- The current live/runtime proof remains `storeMode=in-memory`; Postgres runtime
-  wiring is still future work.
+- The current live/runtime proof remains `storeMode=in-memory`; Postgres
+  runtime wiring remains future work.
 - The Alibaba ECS proof remains historical deployment proof and may be stopped
-  for cost control. Do not restart ECS or run remote validation without explicit
-  approval and safe shell-provided credentials.
-- HandoffBase can now say it has a deterministic benchmark runner, but it still
-  must not claim official benchmark results or scores.
+  for cost control. Do not claim a currently live endpoint without restart and
+  revalidation under explicit approval.
+- The benchmark subset is local, deterministic, public-safe, credential-free,
+  network-free, and synthetic. It does not read `.env.*`, call Qwen or
+  DashScope, call a remote MCP endpoint, restart ECS, use database URLs, or
+  require paid cloud resources.
 
 ## Git State
 
-- Branch: `codex/benchmark-runner`
-- Commit target: `bench: add deterministic memory benchmark runner`
-- Push target: `git push -u origin HEAD`
+- Branch: `codex/benchmark-subsets-integration`.
+- Integration commit target:
+  `bench: integrate deterministic memory benchmark subsets`.
+- Push target: `git push -u origin HEAD`.
 - Repository visibility was not changed.
+- Remote validation was not run.
+
+## Open Risks
+
+- GitHub Actions should be checked after the pushed branch or any future PR.
+- The deterministic subset proves local service behavior over synthetic
+  fixtures only; public materials must not claim official benchmark scores.
+- The subset does not add Qwen-backed manual benchmark mode or external
+  benchmark dataset adapters.
+- Durable runtime storage, TLS/domain/LB/monitoring, and production SaaS
+  operations remain future work.
+- ECS restart, current public IP confirmation, `/health`, and remote MCP
+  validation still require explicit approval and safe shell-provided secrets.
 
 ## Next Session Prompt
 
 ```text
-Continue from branch codex/benchmark-runner.
+Continue from branch codex/benchmark-subsets-integration.
 
 Read agent.md, memory/README.md, memory/product.md,
 memory/architecture.md, memory/operations.md, memory/decisions.md,
-docs/handoff.md, docs/effect.md, docs/benchmarks.md, docs/evals.md,
-docs/product-completeness.md, scripts/run-memory-eval.mjs, package.json,
-examples/evals/opportunity-scout-memory-eval.json, and
+docs/handoff.md, README.md, docs/effect.md, docs/benchmarks.md,
+docs/product-completeness.md, docs/product-workflows.md, docs/evals.md,
+scripts/run-memory-eval.mjs, package.json, and
 packages/memory-core/src/types.ts first.
 
 Preserve MCP tool names, resource URIs, prompt names, runtime behavior,
 Postgres runtime wiring, repository visibility, cloud state, and secret-handling
 rules.
 
-Finish validation, commit, and push only if all required local checks and scans
-pass. Do not read `.env.*`, restart ECS, trigger cloud cost, or run remote
-validation.
+If this session did not already finish them, run final validation:
+node --check scripts/run-memory-benchmarks.mjs, npm run bench:memory,
+npm run eval:memory, npm run check, git diff --check, Markdown relative-link
+check, and tracked-file secret/public scan.
+
+Commit with:
+git commit -m "bench: integrate deterministic memory benchmark subsets"
+
+Push with:
+git push -u origin HEAD
+
+Do not read `.env.*`, restart ECS, trigger cloud cost, run remote validation, or
+claim official benchmark scores.
 ```
