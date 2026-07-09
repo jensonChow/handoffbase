@@ -1,0 +1,405 @@
+{
+  "family": "long-memory",
+  "description": "Synthetic LongMemEval-style benchmark-inspired cases for HandoffBase.",
+  "fixedNow": "2026-07-09T00:00:00.000Z",
+  "defaultScope": {
+    "tenantId": "bench-tenant",
+    "userId": "bench-user",
+    "projectId": "bench-project",
+    "agentProfileId": "bench-agent"
+  },
+  "cases": [
+    {
+      "id": "preference-survives-later-session",
+      "description": "A durable preference created in one session should be recalled in a later opportunity-selection task.",
+      "capability": "long-term memory",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-pref-infra-over-prizes",
+          "type": "user_preference",
+          "canonicalText": "User prioritizes credible AI agent and memory infrastructure opportunities with founder-network and startup-resource value over prize money alone.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.96,
+          "importance": 0.95,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "recall-later-session-preference",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-preference-recall",
+          "input": {
+            "query": "When ranking upcoming AI builder opportunities, what should matter most for this user?",
+            "types": ["user_preference"],
+            "limit": 5,
+            "tokenBudget": 700
+          }
+        }
+      ],
+      "expected": {
+        "memoryIdsPresent": ["bench-pref-infra-over-prizes"],
+        "contextIncludes": [
+          "credible AI agent",
+          "memory infrastructure",
+          "founder-network",
+          "startup-resource",
+          "prize money alone"
+        ],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "answer_correct",
+        "evidence_recall_at_k",
+        "trace_id_present",
+        "used_memory_correct"
+      ]
+    },
+    {
+      "id": "procedure-guides-later-task",
+      "description": "A remembered procedure should guide a later bootstrap for event recommendation work.",
+      "capability": "multi-session recall",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-procedure-verify-event-rules",
+          "type": "procedure",
+          "canonicalText": "Before recommending events, verify deadline, timezone, eligibility, and official rules from primary sources.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.97,
+          "importance": 0.98,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "bootstrap-later-recommendation-task",
+          "operation": "continuity_bootstrap",
+          "sessionId": "bench-session-procedure-bootstrap",
+          "input": {
+            "host": "codex",
+            "taskHint": "Recommend suitable AI events for a memory-infrastructure project.",
+            "tokenBudget": 700
+          }
+        }
+      ],
+      "expected": {
+        "memoryIdsPresent": ["bench-procedure-verify-event-rules"],
+        "contextIncludes": [
+          "deadline",
+          "timezone",
+          "eligibility",
+          "official rules"
+        ],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "answer_correct",
+        "evidence_recall_at_k",
+        "trace_id_present",
+        "used_memory_correct"
+      ]
+    },
+    {
+      "id": "project-fact-update-supersedes-old",
+      "description": "A newer active project fact should supersede an older stale project fact in recall.",
+      "capability": "temporal update",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-fact-old-primary-proof",
+          "type": "project_fact",
+          "canonicalText": "The project submission deck is the primary proof artifact for the benchmark sprint.",
+          "sourceKind": "agent_observation",
+          "status": "superseded",
+          "confidence": 0.86,
+          "importance": 0.72,
+          "supersededBy": "bench-fact-new-primary-proof",
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "revision": "old"
+          }
+        },
+        {
+          "id": "bench-fact-new-primary-proof",
+          "type": "project_fact",
+          "canonicalText": "The deterministic benchmark-inspired fixture set is the current proof artifact for the benchmark sprint.",
+          "sourceKind": "user_correction",
+          "status": "active",
+          "confidence": 0.94,
+          "importance": 0.93,
+          "supersedes": ["bench-fact-old-primary-proof"],
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "revision": "new"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "recall-current-project-proof",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-project-update",
+          "input": {
+            "query": "What is the current proof artifact for the benchmark sprint?",
+            "types": ["project_fact"],
+            "limit": 5,
+            "tokenBudget": 700
+          }
+        }
+      ],
+      "expected": {
+        "memoryIdsPresent": ["bench-fact-new-primary-proof"],
+        "memoryIdsAbsent": ["bench-fact-old-primary-proof"],
+        "contextIncludes": [
+          "deterministic benchmark-inspired fixture set",
+          "current proof artifact"
+        ],
+        "contextExcludes": [
+          "submission deck is the primary proof artifact"
+        ],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "update_correct",
+        "excluded_memory_correct",
+        "evidence_precision_at_k"
+      ]
+    },
+    {
+      "id": "forget-invalidates-stale-memory",
+      "description": "A stale active memory should be recalled before explicit invalidation and absent afterward.",
+      "capability": "forget correctness",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-pref-include-low-priority-events",
+          "type": "user_preference",
+          "canonicalText": "User wants low-priority event suggestions included in every recommendation batch.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.83,
+          "importance": 0.64,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "recall-before-forget",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-forget-before",
+          "input": {
+            "query": "Should low-priority event suggestions appear in each recommendation batch?",
+            "types": ["user_preference"],
+            "limit": 5,
+            "tokenBudget": 700
+          },
+          "expected": {
+            "memoryIdsPresent": ["bench-pref-include-low-priority-events"],
+            "traceIdPresent": true
+          }
+        },
+        {
+          "id": "invalidate-stale-preference",
+          "operation": "memory_forget",
+          "input": {
+            "memoryId": "bench-pref-include-low-priority-events",
+            "mode": "invalidate",
+            "reason": "Synthetic benchmark step invalidates a stale preference."
+          },
+          "expected": {
+            "status": "invalidated"
+          }
+        },
+        {
+          "id": "recall-after-forget",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-forget-after",
+          "input": {
+            "query": "Should low-priority event suggestions appear in each recommendation batch?",
+            "types": ["user_preference"],
+            "limit": 5,
+            "tokenBudget": 700
+          },
+          "expected": {
+            "memoryIdsAbsent": ["bench-pref-include-low-priority-events"],
+            "contextExcludes": ["low-priority event suggestions"],
+            "traceIdPresent": true
+          }
+        }
+      ],
+      "expected": {
+        "finalStatus": {
+          "bench-pref-include-low-priority-events": "invalidated"
+        },
+        "memoryIdsAbsent": ["bench-pref-include-low-priority-events"],
+        "contextExcludes": ["low-priority event suggestions"],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "forget_correct",
+        "trace_id_present",
+        "evidence_precision_at_k"
+      ]
+    },
+    {
+      "id": "token-budget-ignores-lower-priority-memory",
+      "description": "A tight context budget should preserve the highest-importance evidence and exclude lower-priority memories.",
+      "capability": "token budget behavior",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-procedure-budget-critical-checks",
+          "type": "procedure",
+          "canonicalText": "When context budget is tight, include deadline and eligibility guardrails before optional presentation preferences.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.97,
+          "importance": 0.99,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "priority": "high"
+          }
+        },
+        {
+          "id": "bench-pref-budget-report-title",
+          "type": "user_preference",
+          "canonicalText": "User likes short friendly titles on benchmark reports.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.75,
+          "importance": 0.28,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "priority": "low"
+          }
+        },
+        {
+          "id": "bench-pref-budget-sort-fixtures",
+          "type": "user_preference",
+          "canonicalText": "User prefers benchmark fixture examples to be sorted alphabetically unless a case narrative needs another order.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.72,
+          "importance": 0.34,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "priority": "low"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "recall-with-tight-token-budget",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-token-budget",
+          "input": {
+            "query": "Bring in only the most important guidance for recommending an event.",
+            "limit": 5,
+            "tokenBudget": 40
+          }
+        }
+      ],
+      "expected": {
+        "memoryIdsPresent": ["bench-procedure-budget-critical-checks"],
+        "memoryIdsAbsentOrContextExcluded": [
+          "bench-pref-budget-report-title",
+          "bench-pref-budget-sort-fixtures"
+        ],
+        "contextIncludes": ["deadline", "eligibility"],
+        "contextExcludesAny": [
+          "short friendly titles",
+          "sorted alphabetically"
+        ],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "token_budget_respected",
+        "evidence_precision_at_k",
+        "trace_id_present"
+      ]
+    },
+    {
+      "id": "out-of-scope-evidence-missing",
+      "description": "Memory from another project scope should not satisfy recall in the default project scope.",
+      "capability": "scope isolation",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-fact-default-project-guidance",
+          "type": "project_fact",
+          "canonicalText": "Default benchmark project guidance focuses on synthetic memory recall and lifecycle assertions.",
+          "sourceKind": "agent_observation",
+          "status": "active",
+          "confidence": 0.88,
+          "importance": 0.78,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture"
+          }
+        },
+        {
+          "id": "bench-fact-other-project-private-plan",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-other-project",
+            "agentProfileId": "bench-agent"
+          },
+          "type": "project_fact",
+          "canonicalText": "Other synthetic project guidance says to prioritize a separate mock migration plan.",
+          "sourceKind": "agent_observation",
+          "status": "active",
+          "confidence": 0.91,
+          "importance": 0.9,
+          "metadata": {
+            "synthetic": true,
+            "origin": "long-memory-benchmark-fixture",
+            "scope": "out-of-default-project"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "recall-default-scope-only",
+          "operation": "memory_recall",
+          "sessionId": "bench-session-scope-isolation",
+          "input": {
+            "query": "What project guidance should apply to the default benchmark project?",
+            "types": ["project_fact"],
+            "limit": 5,
+            "tokenBudget": 700
+          }
+        }
+      ],
+      "expected": {
+        "memoryIdsPresent": ["bench-fact-default-project-guidance"],
+        "memoryIdsAbsent": ["bench-fact-other-project-private-plan"],
+        "contextIncludes": ["synthetic memory recall", "lifecycle assertions"],
+        "contextExcludes": ["separate mock migration plan"],
+        "traceIdPresent": true
+      },
+      "metrics": [
+        "scope_isolation_correct",
+        "evidence_precision_at_k"
+      ]
+    }
+  ]
+}
