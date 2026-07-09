@@ -13,6 +13,8 @@
 
 Session-scoped transfer notes live in `docs/handoff.md`; do not duplicate short-term handoff state into durable memory files.
 
+Public-facing product, effect, benchmark, and workflow docs live under `docs/`; do not create durable memory files for those docs unless they change product, architecture, operation, or decision facts.
+
 ## Update Rules
 
 - 修改产品方向、架构、接口、部署或比赛策略后，同步更新对应 memory 文件。

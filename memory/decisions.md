@@ -89,3 +89,9 @@
 - Decision: Submission-readiness integration is docs-only and should keep the public story honest: Track 1 MemoryAgent, Qwen-backed reasoning, Alibaba ECS proof, `storeMode=in-memory`, stopped ECS cost posture, and future Postgres/TLS/LB/domain work.
 - Rationale: The submission package merged Devpost copy, testing instructions, checklist, video scripts, architecture notes, final public-readiness docs, and an ECS relaunch runbook without changing product behavior, cloud state, MCP names, resource URIs, prompt names, or secret handling.
 - Status: active.
+
+## 2026-07-09
+
+- Decision: HandoffBase should prioritize effect proof and product completeness before additional feature expansion.
+- Rationale: Core MCP, Qwen, lifecycle, and governance features are enough for the MVP, but benchmark-backed behavior improvement and product workflow clarity are needed to make it credible as long-term open-source infrastructure.
+- Status: active.
