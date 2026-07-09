@@ -68,4 +68,6 @@ The first demo deployment uses the approved minimal ECS + Docker path in `cn-bei
 
 Runtime secrets are configured only through the ECS Docker env file and are not committed. `/health` reports `providerMode: "qwen"`, `authMode: "api_key"`, and `storeMode: "in-memory"`. Live remote validation passed for `tools/list`, authenticated `memory_recall`, and Qwen-backed `memory_remember`.
 
+As of 2026-07-08, the ECS instance is stopped in economical stop mode for cost control and the prior public IP may change on restart. Treat `docs/deployment/alibaba-cloud-proof.md` as historical validation evidence, not a current-online guarantee. Use `docs/deployment/relaunch-runbook.md` to restart and revalidate before recording, submission, or judging if a live endpoint is required.
+
 Keep Postgres/RDS optional until pgvector support is verified for the selected service/version, runtime store selection is wired, and additional paid provisioning is explicitly approved.

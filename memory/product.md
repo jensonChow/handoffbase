@@ -30,3 +30,9 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 公开定位必须保持克制：HandoffBase 是 MCP-native memory handoff layer，不声称全面替代 Mem0、Zep、Letta、LangMem 或成熟 managed memory 平台。比较文档应强调不同定位：跨 host MCP handoff、可追踪 context pack、冲突治理、用户可审计控制。
 
 当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实说明 live proof 是 Qwen-backed、storeMode 仍为 in-memory，Postgres runtime wiring 是 future work。
+
+## Submission Readiness
+
+2026-07-09 起，项目有一套面向 Devpost 的 submission-readiness docs-only package。核心材料在 `docs/submission/`：Devpost copy、testing instructions、submission checklist、main demo script、Alibaba proof video script、recording shot list、architecture-for-devpost、final public-readiness checklist。
+
+Submission copy 必须继续强调 Track 1: MemoryAgent、Qwen-backed memory reasoning、Remote Streamable HTTP MCP、Memory Vault governance、Alibaba ECS proof、local deterministic eval pack，以及当前限制。不能声称 ECS endpoint 当前在线、不能声称 production SaaS readiness、不能声称 benchmark score、不能声称 live store 已经 durable。

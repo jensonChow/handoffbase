@@ -83,3 +83,9 @@
 - Decision: Star-readiness integration should add open-source polish as docs/examples/eval/dashboard/README artifacts without changing MCP tool names, resource URIs, prompt names, cloud deployment, or Postgres runtime wiring.
 - Rationale: The five source worktree branches were reconciled into `main` by restoring their stronger docs/examples/eval/dashboard/README content, then recording branch ancestry with merge commits. This preserved the deployed Qwen-backed in-memory proof and existing hackathon functionality.
 - Status: active.
+
+## 2026-07-09
+
+- Decision: Submission-readiness integration is docs-only and should keep the public story honest: Track 1 MemoryAgent, Qwen-backed reasoning, Alibaba ECS proof, `storeMode=in-memory`, stopped ECS cost posture, and future Postgres/TLS/LB/domain work.
+- Rationale: The submission package merged Devpost copy, testing instructions, checklist, video scripts, architecture notes, final public-readiness docs, and an ECS relaunch runbook without changing product behavior, cloud state, MCP names, resource URIs, prompt names, or secret handling.
+- Status: active.

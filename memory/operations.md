@@ -34,6 +34,8 @@
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
 - Remote deployment validation: `MCP_ENDPOINT=<endpoint>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote`.
+- Markdown relative-link sanity check:
+  `node -e '<repo-local markdown link check script>'`.
 
 ## Deployment Profile
 
@@ -127,9 +129,16 @@
 - Architecture, comparison, memory lifecycle, eval, and dashboard demo docs.
 - Practical examples for local, Qwen-backed, remote MCP, HTTP payload, and quickstart workflows.
 - Deterministic local eval pack that runs without Qwen credentials or remote endpoint access.
+- Devpost submission copy in `docs/submission/devpost-copy.md`.
+- Judge/contributor testing instructions in `docs/submission/testing-instructions.md`.
+- Final submission checklist in `docs/submission/submission-checklist.md`.
+- Architecture-for-Devpost notes in `docs/submission/architecture-for-devpost.md`.
+- Main demo script, Alibaba proof video script, and recording shot list in
+  `docs/submission/`.
 - Final public-readiness checklist in `docs/submission/final-public-readiness.md`.
 - Demo video around 3 minutes.
 - Separate proof of Alibaba Cloud backend deployment.
+- Relaunch runbook for the stopped ECS proof in `docs/deployment/relaunch-runbook.md`.
 - README describing Qwen Cloud usage, MCP endpoint, memory lifecycle, and Track 1 fit.
 
 ## Public Readiness Validation
@@ -141,6 +150,12 @@ For star-readiness changes, run at minimum:
 - `npm run dashboard:build`
 - `node --check scripts/validate-remote-mcp.mjs`
 - `npm run check`
+- Markdown relative-link check over tracked Markdown docs.
 - tracked-file public-readiness scans for Qwen/DashScope/HandoffBase tokens, database URLs, local workstation paths, and workspace ids.
 
 Placeholder matches such as `<your-handoffbase-api-key>` or `<redacted>` are acceptable only when clearly documented as placeholders.
+
+Do not run `npm run mcp:validate-remote` unless `MCP_ENDPOINT` and
+`MCP_AUTH_TOKEN` are already present in the shell environment. The ECS instance
+is currently stopped for cost control, so remote validation requires restart,
+current public-IP confirmation, and safe token handling first.
