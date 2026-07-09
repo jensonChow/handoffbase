@@ -1,0 +1,372 @@
+{
+  "family": "cross-host-handoff",
+  "description": "Synthetic HandoffBase-specific cross-host handoff benchmark-inspired cases.",
+  "fixedNow": "2026-07-09T00:00:00.000Z",
+  "defaultScope": {
+    "tenantId": "bench-tenant",
+    "userId": "bench-user",
+    "projectId": "bench-project-a",
+    "agentProfileId": "bench-agent"
+  },
+  "cases": [
+    {
+      "id": "host-b-receives-user-preference",
+      "name": "Host B receives a user preference captured by Host A",
+      "description": "Seed an active user-scoped preference as if Host A captured it; Host B bootstrap should include the preference with an inspectable trace.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-pref-concise-failures",
+          "type": "user_preference",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user"
+          },
+          "canonicalText": "When an agent reports a failed validation, the user prefers concise failure copy followed by the next recovery action.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.96,
+          "importance": 0.9,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "codex",
+            "capturedAt": "2026-07-08T10:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "host-b-bootstrap",
+          "operation": "bootstrap",
+          "host": "claude-code",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "taskHint": "Prepare a handoff summary after local validation.",
+          "expected": {
+            "traceId": "present",
+            "usedMemoryIds": ["bench-pref-concise-failures"],
+            "contextIncludes": ["concise failure copy", "next recovery action"]
+          }
+        }
+      ],
+      "expected": {
+        "traceIdPresent": true,
+        "usedMemoryIds": ["bench-pref-concise-failures"],
+        "absentMemoryIds": []
+      },
+      "metrics": ["scope_isolation_correct", "trace_id_present", "used_memory_correct"]
+    },
+    {
+      "id": "host-b-receives-project-procedure",
+      "name": "Host B receives a project-scoped procedure",
+      "description": "Seed a project-scoped procedure memory; Host B bootstrap for the same project should include the procedure fragment.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-procedure-project-validation",
+          "type": "procedure",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a"
+          },
+          "canonicalText": "For project bench-project-a, run the local check suite and report exact validation outcomes before handoff.",
+          "sourceKind": "run_reflection",
+          "status": "active",
+          "confidence": 0.94,
+          "importance": 0.93,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "codex",
+            "capturedAt": "2026-07-08T11:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "same-project-bootstrap",
+          "operation": "bootstrap",
+          "host": "cursor",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "taskHint": "Continue a documentation fixture task for the same project.",
+          "expected": {
+            "traceId": "present",
+            "usedMemoryIds": ["bench-procedure-project-validation"],
+            "contextIncludes": ["run the local check suite", "report exact validation outcomes"]
+          }
+        }
+      ],
+      "expected": {
+        "traceIdPresent": true,
+        "usedMemoryIds": ["bench-procedure-project-validation"],
+        "contextIncludes": ["run the local check suite"]
+      },
+      "metrics": ["scope_isolation_correct", "trace_id_present", "used_memory_correct"]
+    },
+    {
+      "id": "host-c-other-project-excludes-project-memory",
+      "name": "Host C in another project excludes project memory",
+      "description": "Seed project A memory; Host C bootstrap for project B should exclude the project A memory and text.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-fact-project-a-release-boundary",
+          "type": "project_fact",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a"
+          },
+          "canonicalText": "Project bench-project-a treats benchmark fixtures as docs and data only until a runner is explicitly implemented.",
+          "sourceKind": "decision_record",
+          "status": "active",
+          "confidence": 0.93,
+          "importance": 0.89,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "claude-code",
+            "capturedAt": "2026-07-08T12:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "other-project-bootstrap",
+          "operation": "bootstrap",
+          "host": "custom-mcp-host",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-b",
+            "agentProfileId": "bench-agent"
+          },
+          "taskHint": "Start work in a separate synthetic project.",
+          "expected": {
+            "traceId": "present",
+            "absentMemoryIds": ["bench-fact-project-a-release-boundary"],
+            "contextExcludes": ["benchmark fixtures as docs and data only", "bench-project-a"]
+          }
+        }
+      ],
+      "expected": {
+        "absentMemoryIds": ["bench-fact-project-a-release-boundary"],
+        "contextExcludes": ["benchmark fixtures as docs and data only", "bench-project-a"]
+      },
+      "metrics": ["scope_isolation_correct", "evidence_precision_at_k"]
+    },
+    {
+      "id": "agent-profile-procedure-isolated",
+      "name": "Agent-profile procedure is isolated",
+      "description": "Seed an agent-profile-specific procedure; the matching agent profile should receive it and a different profile should not.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-procedure-agent-profile-handoff",
+          "type": "procedure",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "agentProfileId": "bench-agent"
+          },
+          "canonicalText": "For bench-agent handoff tasks, summarize branch, commit, files changed, validation, and notes in that order.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.95,
+          "importance": 0.92,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "cursor",
+            "capturedAt": "2026-07-08T13:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "matching-profile-bootstrap",
+          "operation": "bootstrap",
+          "host": "codex",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "taskHint": "Prepare a final handoff response.",
+          "expected": {
+            "traceId": "present",
+            "usedMemoryIds": ["bench-procedure-agent-profile-handoff"],
+            "contextIncludes": ["branch, commit, files changed, validation, and notes"]
+          }
+        },
+        {
+          "id": "different-profile-bootstrap",
+          "operation": "bootstrap",
+          "host": "codex",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent-alt"
+          },
+          "taskHint": "Prepare a final handoff response with a different agent profile.",
+          "expected": {
+            "traceId": "present",
+            "absentMemoryIds": ["bench-procedure-agent-profile-handoff"],
+            "contextExcludes": ["branch, commit, files changed, validation, and notes"]
+          }
+        }
+      ],
+      "expected": {
+        "matchingProfileUsedMemoryIds": ["bench-procedure-agent-profile-handoff"],
+        "differentProfileAbsentMemoryIds": ["bench-procedure-agent-profile-handoff"]
+      },
+      "metrics": ["scope_isolation_correct", "used_memory_correct"]
+    },
+    {
+      "id": "forgotten-memory-does-not-cross-host",
+      "name": "Forgotten memory does not cross hosts",
+      "description": "Seed active memory; Host B recall sees it, forget invalidates it, and later Host B recall does not see it.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-tool-note-use-summary-template",
+          "type": "tool_memory",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a"
+          },
+          "canonicalText": "When drafting synthetic benchmark reports for bench-project-a, use the compact summary template named bench-summary-v1.",
+          "sourceKind": "agent_observation",
+          "status": "active",
+          "confidence": 0.88,
+          "importance": 0.72,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "custom-mcp-host",
+            "capturedAt": "2026-07-08T14:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "host-b-recall-before-forget",
+          "operation": "recall",
+          "host": "claude-code",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "query": "Which template should be used for synthetic benchmark reports?",
+          "expected": {
+            "traceId": "present",
+            "usedMemoryIds": ["bench-tool-note-use-summary-template"],
+            "contextIncludes": ["bench-summary-v1"]
+          }
+        },
+        {
+          "id": "forget-template-memory",
+          "operation": "forget",
+          "host": "codex",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "memoryId": "bench-tool-note-use-summary-template",
+          "mode": "invalidate",
+          "reason": "Synthetic fixture invalidates the template note before later recall.",
+          "expected": {
+            "status": "invalidated"
+          }
+        },
+        {
+          "id": "host-b-recall-after-forget",
+          "operation": "recall",
+          "host": "claude-code",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "query": "Which template should be used for synthetic benchmark reports?",
+          "expected": {
+            "traceId": "present",
+            "absentMemoryIds": ["bench-tool-note-use-summary-template"],
+            "contextExcludes": ["bench-summary-v1"]
+          }
+        }
+      ],
+      "expected": {
+        "beforeForgetUsedMemoryIds": ["bench-tool-note-use-summary-template"],
+        "afterForgetAbsentMemoryIds": ["bench-tool-note-use-summary-template"],
+        "finalStatus": "invalidated"
+      },
+      "metrics": ["forget_correct", "scope_isolation_correct", "trace_id_present"]
+    },
+    {
+      "id": "deployment-gotcha-handoff",
+      "name": "Deployment gotcha is handed off safely",
+      "description": "Seed a synthetic deployment gotcha; Host B recall for deployment planning should include it without real endpoints or account details.",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "seedMemories": [
+        {
+          "id": "bench-failure-stopped-demo-revalidate",
+          "type": "failure_memory",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a"
+          },
+          "canonicalText": "Stopped demo endpoints require restart and revalidation before any live availability claim is made.",
+          "sourceKind": "post_run_reflection",
+          "status": "active",
+          "confidence": 0.91,
+          "importance": 0.95,
+          "metadata": {
+            "synthetic": true,
+            "capturedByHost": "codex",
+            "capturedAt": "2026-07-08T15:00:00.000Z"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "deployment-planning-recall",
+          "operation": "recall",
+          "host": "cursor",
+          "scope": {
+            "tenantId": "bench-tenant",
+            "userId": "bench-user",
+            "projectId": "bench-project-a",
+            "agentProfileId": "bench-agent"
+          },
+          "query": "What deployment caution should be applied before making a live availability claim?",
+          "expected": {
+            "traceId": "present",
+            "usedMemoryIds": ["bench-failure-stopped-demo-revalidate"],
+            "contextIncludes": ["restart and revalidation", "before any live availability claim"]
+          }
+        }
+      ],
+      "expected": {
+        "answerIncludes": ["restart and revalidation", "before any live availability claim"],
+        "usedMemoryIds": ["bench-failure-stopped-demo-revalidate"]
+      },
+      "metrics": ["answer_correct", "used_memory_correct", "trace_id_present"]
+    }
+  ]
+}
