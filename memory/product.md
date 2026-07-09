@@ -31,6 +31,10 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 
 当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实说明 live proof 是 Qwen-backed、storeMode 仍为 in-memory，Postgres runtime wiring 是 future work。
 
+## Effect Proof First
+
+2026-07-09 起，产品叙事从包装优先转向效果证明优先。README、demo、dashboard、submission copy 和 open-source polish 都必须服务于一个更核心的产品价值：HandoffBase 如何通过可治理、可追踪、可更新、可遗忘、可冲突处理的 working memory，让后续 session、host 和 project 中的 agent 做出更正确、更一致、更少重复犯错的行为。公开材料应优先连接到 benchmark/eval-aware 指标、确定性回归包、负例测试和当前实现边界，而不是先追求营销包装。
+
 ## Submission Readiness
 
 2026-07-09 起，项目有一套面向 Devpost 的 submission-readiness docs-only package。核心材料在 `docs/submission/`：Devpost copy、testing instructions、submission checklist、main demo script、Alibaba proof video script、recording shot list、architecture-for-devpost、final public-readiness checklist。
