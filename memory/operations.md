@@ -30,6 +30,7 @@
 - Dashboard dev: `npm run dashboard:dev`.
 - Dashboard build: `npm run dashboard:build`.
 - Memory eval pack: `npm run eval:memory`.
+- Memory benchmark runner: `npm run bench:memory`.
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
@@ -130,6 +131,8 @@
 - Effect claims, benchmark strategy, product completeness, and product workflow docs.
 - Practical examples for local, Qwen-backed, remote MCP, HTTP payload, and quickstart workflows.
 - Deterministic local eval pack that runs without Qwen credentials or remote endpoint access.
+- Deterministic local memory benchmark runner that runs without Qwen credentials,
+  remote endpoint access, network access, or `.env.*` reads.
 - Benchmark strategy and a deterministic benchmark-inspired subset should be in
   place before README, Devpost, or demo copy uses benchmark claims.
 - Devpost submission copy in `docs/submission/devpost-copy.md`.
@@ -149,6 +152,7 @@
 For star-readiness changes, run at minimum:
 
 - `npm run eval:memory`
+- `npm run bench:memory`
 - `npm run test:dashboard`
 - `npm run dashboard:build`
 - `node --check scripts/validate-remote-mcp.mjs`

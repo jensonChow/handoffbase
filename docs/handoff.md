@@ -1,136 +1,113 @@
 # Current Handoff
 
-Updated: 2026-07-09T12:22:11Z
+Updated: 2026-07-09T13:10:00Z
 
 ## Completed This Session
 
-- Used the `memory-refresh` skill after the Effect Proof Sprint integration.
-- Ran the bundled read-only memory audit:
-  `python3 /Users/jenson/.codex/skills/memory-refresh/scripts/audit_project_memory.py /Users/jenson/Desktop/AI\ Event\ 2026/HandoffBase`.
-- Confirmed the repo memory contract is `agent.md`, `memory/README.md`,
-  durable topic files under `memory/`, and this handoff file.
-- Confirmed `agent.md` remains a hard-rule file only and stays under its
-  50-line budget.
-- Reviewed the current memory files that own the latest project state:
-  `memory/product.md`, `memory/architecture.md`, `memory/operations.md`,
-  `memory/qwen-cloud.md`, and `memory/decisions.md`.
-- Confirmed the previous integration commit already updated durable memory for:
-  effect proof first, benchmark strategy next, product completeness boundaries,
-  current live proof remaining `storeMode=in-memory`, stopped ECS posture, and
-  no production SaaS or benchmark-score claim.
-- Kept this refresh scoped to session handoff cleanup; no runtime code, MCP
-  surface, cloud state, repository visibility, or secret-bearing files changed.
+- Created `codex/benchmark-runner` from the latest `origin/main` after
+  `git fetch --all --prune`.
+- Confirmed `origin/main` contains:
+  - `docs/effect.md`
+  - `docs/benchmarks.md`
+  - `docs/product-completeness.md`
+  - `docs/product-workflows.md`
+- Added `scripts/run-memory-benchmarks.mjs`, the first deterministic memory
+  benchmark runner.
+- Added `npm run bench:memory`.
+- Added benchmark fixture docs:
+  - `examples/benchmarks/README.md`
+  - `examples/benchmarks/schema-notes.md`
+- Added placeholder result status in `docs/benchmark-results.md`.
+- Updated `memory/operations.md` with the new benchmark command and validation
+  expectation.
+- Preserved the existing MCP surface, runtime store selection, Qwen provider
+  wiring, Postgres runtime wiring, cloud deployment state, and repository
+  visibility.
 
-## Effect Proof Integration State
+## Benchmark Runner State
 
-- Integration branch: `codex/effect-proof-docs-integration`.
-- Integration commit before this memory refresh:
-  `34c796233b8c602d771b63b50df1433d87d7bff8`
-  (`docs: integrate effect proof planning`).
-- Source branches merged into that integration commit:
-  - `origin/codex/effect-claims` at
-    `e50d3d692496494f51d2c9cf173163df9efd0953`.
-  - `origin/codex/benchmark-strategy` at
-    `0e56033af591c80ef8adee2cbabadbe576946ce5`.
-  - `origin/codex/product-completeness` at
-    `9f6137dfee3b1b0277ab3c3fe65bd77b7e9a9ad0`.
-  - `origin/codex/product-workflows` at
-    `33a7ed9545d4ecf951b064f17b3fbd10d04df6c2`.
-- New public docs:
-  - `docs/effect.md`.
-  - `docs/benchmarks.md`.
-  - `docs/product-completeness.md`.
-  - `docs/product-workflows.md`.
-- README now links those docs from the architecture/details section.
+- The runner is deterministic, credential-free, network-free, and CI-safe by
+  default.
+- It does not read `.env.*` files.
+- Direct script runs build `@handoffbase/memory-core` and the server unless
+  `HANDOFFBASE_BENCH_SKIP_BUILD=1`.
+- The npm script builds first and then runs the script with
+  `HANDOFFBASE_BENCH_SKIP_BUILD=1`.
+- The runner imports local builds from:
+  - `packages/memory-core/dist/index.js`
+  - `dist/services/continuity-memory-service.js`
+- Runtime execution uses:
+  - `InMemoryMemoryStore`
+  - `MockMemoryProvider`
+  - `ContinuityMemoryService`
+- Fixture discovery is `examples/benchmarks/*/cases.json`.
+- Supported fixture families:
+  - `long-memory`
+  - `conflicts`
+  - `cross-host-handoff`
+- Supported step operations:
+  - `recall`
+  - `bootstrap`
+  - `forget`
+  - `conflictRemember`
+- When no fixture files exist, the runner exits successfully and prints:
+  `No benchmark fixture files found.`
+- Actual benchmark fixtures and official result claims are not included yet.
+
+## Validation This Session
+
+- `node --check scripts/run-memory-benchmarks.mjs`: passed.
+- `npm run bench:memory`: passed; no benchmark fixture files are present yet.
+- `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
+- `npm run check`: passed, including typecheck, build, smoke registration,
+  memory-core tests, auth tests, server tests, and dashboard tests.
+- `git diff --check`: passed.
+- Markdown relative-link check: passed for 45 tracked Markdown files.
+- Tracked-file secret/public scan: passed for 136 tracked non-env text files;
+  skipped 1 `.env.*` tracked path without reading contents and reviewed 19
+  intentional placeholder/test hits.
+
+Remaining before handoff is considered publish-complete:
+
+- commit
+- `git push -u origin HEAD`
 
 ## Current Product State
 
 - HandoffBase remains a functional open-source memory infrastructure MVP, not a
   production SaaS product.
-- The public story should put effect proof first, with benchmark strategy and a
-  deterministic benchmark-inspired subset next.
-- No official benchmark score is claimed.
-- The Alibaba ECS proof remains historical deployment proof. The instance may
-  be stopped for cost control and must be restarted/revalidated before claiming
-  a current live endpoint.
-- The live/runtime proof remains `storeMode=in-memory`; Postgres runtime
-  selection, durable production deployment, TLS, domain, load balancer,
-  monitoring, and production operations remain future work.
-- Repository visibility, video upload, public URLs, coupon/voucher activation,
-  and any paid cloud restart require separate user action or approval.
-
-## Verification
-
-- Previous integration validation:
-  - `git diff --check`: passed.
-  - `npm run check`: passed.
-  - `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
-  - Markdown relative-link check: passed for 45 tracked Markdown files.
-  - Tracked-file secret/public scan: passed; only `.env.example` is tracked
-    among `.env.*` files.
-- Memory-refresh audit: passed/read-only and identified the current branch,
-  recent commits, changed files, and memory layout.
-- Memory-refresh validation:
-  - `agent.md` line count: 21 lines, under the 50-line budget.
-  - `git diff --check`: passed.
-  - Markdown relative-link check: passed for 45 tracked Markdown files.
-  - Tracked-file secret/public scan: passed; only `.env.example` is tracked
-    among `.env.*` files, and 136 tracked text files had zero suspicious
-    real-value matches.
-  - `npm run check`: passed.
-  - `npm run eval:memory`: passed 8/8 deterministic memory eval cases.
-- Remote validator was not run. The prior objective forbade it, and the ECS
-  proof remains stopped unless separately restarted and revalidated with safe
-  shell-provided credentials.
+- The current live/runtime proof remains `storeMode=in-memory`; Postgres runtime
+  wiring is still future work.
+- The Alibaba ECS proof remains historical deployment proof and may be stopped
+  for cost control. Do not restart ECS or run remote validation without explicit
+  approval and safe shell-provided credentials.
+- HandoffBase can now say it has a deterministic benchmark runner, but it still
+  must not claim official benchmark results or scores.
 
 ## Git State
 
-- Branch at refresh time: `codex/effect-proof-docs-integration`.
-- User requested: memory refresh, commit, push, merge.
-- Memory-refresh commit message:
-  `docs: refresh memory after effect proof integration`.
-- After committing this handoff refresh, push the integration branch, then
-  fast-forward `main` to the refreshed integration branch and push `main`.
-- The final assistant response should report the exact memory-refresh commit,
-  branch push state, main merge/push state, and validation outcomes.
-- Do not make the repository public unless explicitly instructed.
-
-## Open Risks
-
-- GitHub Actions should be checked after `main` is pushed.
-- Effect docs and benchmark strategy are planning/proof-direction artifacts; a
-  deterministic benchmark subset still needs implementation before benchmark
-  claims can be used publicly.
-- The cross-host handoff proof needs a repeatable demo/eval beyond current
-  deterministic Opportunity Scout fixtures.
-- ECS restart, current public IP confirmation, `/health`, and remote MCP
-  validation still require explicit approval and safe shell-provided secrets.
-- Main demo video and Alibaba proof video still need recording/upload and final
-  Devpost linking.
+- Branch: `codex/benchmark-runner`
+- Commit target: `bench: add deterministic memory benchmark runner`
+- Push target: `git push -u origin HEAD`
+- Repository visibility was not changed.
 
 ## Next Session Prompt
 
 ```text
+Continue from branch codex/benchmark-runner.
+
 Read agent.md, memory/README.md, memory/product.md,
-memory/architecture.md, memory/operations.md, memory/qwen-cloud.md,
-memory/decisions.md, docs/handoff.md, README.md, docs/effect.md,
-docs/benchmarks.md, docs/product-completeness.md, and
-docs/product-workflows.md first.
+memory/architecture.md, memory/operations.md, memory/decisions.md,
+docs/handoff.md, docs/effect.md, docs/benchmarks.md, docs/evals.md,
+docs/product-completeness.md, scripts/run-memory-eval.mjs, package.json,
+examples/evals/opportunity-scout-memory-eval.json, and
+packages/memory-core/src/types.ts first.
 
-Continue from main after the effect-proof integration and memory-refresh merge.
 Preserve MCP tool names, resource URIs, prompt names, runtime behavior,
-Postgres runtime wiring, repository visibility, cloud state, and
-secret-handling rules.
+Postgres runtime wiring, repository visibility, cloud state, and secret-handling
+rules.
 
-Priorities:
-1. Check GitHub Actions for the pushed main branch.
-2. Implement the first deterministic benchmark-inspired subset only if the next
-   objective explicitly broadens scope beyond docs-only.
-3. Keep public wording honest: no production SaaS claim, no official benchmark
-   score, no current-live ECS claim without restart/revalidation, and live
-   runtime truth remains storeMode=in-memory.
-4. Restart ECS or run remote validation only with explicit approval and safe
-   shell-provided credentials.
-5. Keep Qwen, HandoffBase, MCP, Alibaba, Gmail, UID, phone, coupon/voucher, and
-   payment values out of tracked files and logs.
+Finish validation, commit, and push only if all required local checks and scans
+pass. Do not read `.env.*`, restart ECS, trigger cloud cost, or run remote
+validation.
 ```
