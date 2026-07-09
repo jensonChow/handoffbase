@@ -129,6 +129,8 @@
 - Architecture, comparison, memory lifecycle, eval, and dashboard demo docs.
 - Practical examples for local, Qwen-backed, remote MCP, HTTP payload, and quickstart workflows.
 - Deterministic local eval pack that runs without Qwen credentials or remote endpoint access.
+- Benchmark strategy and a deterministic benchmark-inspired subset should be in
+  place before README, Devpost, or demo copy uses benchmark claims.
 - Devpost submission copy in `docs/submission/devpost-copy.md`.
 - Judge/contributor testing instructions in `docs/submission/testing-instructions.md`.
 - Final submission checklist in `docs/submission/submission-checklist.md`.
