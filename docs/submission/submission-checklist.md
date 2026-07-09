@@ -6,7 +6,7 @@ remote validation.
 ## Repository Readiness
 
 - [ ] Public repo check: make the repository public only after explicit user
-  approval.
+  approval, or confirm the repository is otherwise shareable with judges.
 - [ ] Repo URL check: add the final public repository URL to Devpost after
   visibility changes.
 - [ ] LICENSE check: MIT license is present.
