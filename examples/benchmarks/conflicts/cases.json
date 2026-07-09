@@ -1,0 +1,356 @@
+{
+  "family": "conflicts",
+  "description": "Synthetic MemConflict-style governance benchmark-inspired cases for HandoffBase.",
+  "fixedNow": "2026-07-09T00:00:00.000Z",
+  "defaultScope": {
+    "tenantId": "bench-tenant",
+    "userId": "bench-user",
+    "projectId": "bench-project",
+    "agentProfileId": "bench-agent"
+  },
+  "cases": [
+    {
+      "id": "preference-contradiction-supersede",
+      "name": "Preference correction creates a supersede conflict",
+      "seedMemories": [
+        {
+          "id": "bench-pref-prize-money",
+          "type": "user_preference",
+          "canonicalText": "User prioritizes prize money above all else when evaluating AI events.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.94,
+          "importance": 0.9,
+          "scope": {},
+          "metadata": {
+            "synthetic": true,
+            "publicSafe": true
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "conflictRemember",
+          "source": "user_correction",
+          "content": "User now prioritizes credibility, founder network, and startup resources when evaluating AI events.",
+          "approvalMode": "pending",
+          "candidate": {
+            "id": "bench-candidate-pref-credibility-network",
+            "type": "user_preference",
+            "canonicalText": "User now prioritizes credibility, founder network, and startup resources when evaluating AI events.",
+            "status": "pending",
+            "scope": {}
+          },
+          "conflict": {
+            "id": "bench-conflict-pref-prize-vs-network",
+            "existingMemoryId": "bench-pref-prize-money",
+            "candidateMemoryId": "bench-candidate-pref-credibility-network",
+            "conflictType": "contradiction",
+            "recommendedAction": "supersede",
+            "severity": "high",
+            "reason": "The new preference reverses the older prize-money priority."
+          },
+          "expect": {
+            "candidateStatus": "pending",
+            "openConflictCount": 1,
+            "conflictType": "contradiction",
+            "recommendedAction": "supersede",
+            "vaultConflictsCount": 1,
+            "vaultResource": {
+              "uri": "memory://vault/conflicts",
+              "containsConflictId": "bench-conflict-pref-prize-vs-network",
+              "containsExistingMemoryId": "bench-pref-prize-money",
+              "containsCandidateMemoryId": "bench-candidate-pref-credibility-network"
+            },
+            "resolutionExpectation": {
+              "action": "supersede",
+              "existingStatusAfterResolution": "superseded",
+              "candidateStatusAfterResolution": "active",
+              "conflictStatusAfterResolution": "resolved"
+            }
+          }
+        }
+      ],
+      "metrics": [
+        "conflict_created",
+        "conflict_action_correct"
+      ]
+    },
+    {
+      "id": "procedure-duplicate-merge",
+      "name": "Procedure refinement recommends merge",
+      "seedMemories": [
+        {
+          "id": "bench-procedure-deadline-timezone",
+          "type": "procedure",
+          "canonicalText": "Verify deadline and timezone before recommending events.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.95,
+          "importance": 0.93,
+          "scope": {},
+          "metadata": {
+            "synthetic": true,
+            "publicSafe": true
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "conflictRemember",
+          "source": "user_correction",
+          "content": "Verify deadline, timezone, eligibility, and official rules before recommending events.",
+          "approvalMode": "pending",
+          "candidate": {
+            "id": "bench-candidate-procedure-rules",
+            "type": "procedure",
+            "canonicalText": "Verify deadline, timezone, eligibility, and official rules before recommending events.",
+            "status": "pending",
+            "scope": {}
+          },
+          "conflict": {
+            "id": "bench-conflict-procedure-merge",
+            "existingMemoryId": "bench-procedure-deadline-timezone",
+            "candidateMemoryId": "bench-candidate-procedure-rules",
+            "conflictType": "duplicate",
+            "recommendedAction": "merge",
+            "severity": "medium",
+            "reason": "The candidate preserves the existing procedure and adds eligibility and official-rule checks."
+          },
+          "expect": {
+            "candidateStatus": "pending",
+            "openConflictCount": 1,
+            "conflictType": "duplicate",
+            "recommendedAction": "merge",
+            "vaultConflictsCount": 1,
+            "vaultResource": {
+              "uri": "memory://vault/conflicts",
+              "containsConflictId": "bench-conflict-procedure-merge",
+              "containsExistingMemoryId": "bench-procedure-deadline-timezone",
+              "containsCandidateMemoryId": "bench-candidate-procedure-rules"
+            },
+            "resolutionExpectation": {
+              "action": "merge",
+              "mergedCanonicalTextIncludes": [
+                "deadline",
+                "timezone",
+                "eligibility",
+                "official rules"
+              ],
+              "activeMemoryCountAfterResolution": 1,
+              "conflictStatusAfterResolution": "resolved"
+            }
+          }
+        }
+      ],
+      "metrics": [
+        "conflict_created",
+        "conflict_action_correct",
+        "update_correct"
+      ]
+    },
+    {
+      "id": "different-project-keep-both",
+      "name": "Similar memories in different projects should be kept",
+      "seedMemories": [
+        {
+          "id": "bench-project-a-preference",
+          "type": "project_fact",
+          "canonicalText": "For project A, the preferred demo narrative emphasizes local deterministic evidence before cloud proof.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.84,
+          "scope": {
+            "projectId": "bench-project-a"
+          },
+          "metadata": {
+            "synthetic": true,
+            "publicSafe": true
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "conflictRemember",
+          "source": "user_correction",
+          "content": "For project B, the preferred demo narrative emphasizes cloud proof before local deterministic evidence.",
+          "approvalMode": "pending",
+          "candidate": {
+            "id": "bench-candidate-project-b-preference",
+            "type": "project_fact",
+            "canonicalText": "For project B, the preferred demo narrative emphasizes cloud proof before local deterministic evidence.",
+            "status": "pending",
+            "scope": {
+              "projectId": "bench-project-b"
+            }
+          },
+          "conflict": {
+            "id": "bench-conflict-project-scope-overlap",
+            "existingMemoryId": "bench-project-a-preference",
+            "candidateMemoryId": "bench-candidate-project-b-preference",
+            "conflictType": "scope_overlap",
+            "recommendedAction": "keep_both",
+            "severity": "low",
+            "reason": "The memories are similar but scoped to different projects."
+          },
+          "expect": {
+            "candidateStatus": "pending",
+            "openConflictCount": 1,
+            "conflictType": "scope_overlap",
+            "recommendedAction": "keep_both",
+            "vaultConflictsCount": 1,
+            "vaultResource": {
+              "uri": "memory://vault/conflicts",
+              "containsConflictId": "bench-conflict-project-scope-overlap",
+              "containsExistingMemoryId": "bench-project-a-preference",
+              "containsCandidateMemoryId": "bench-candidate-project-b-preference"
+            },
+            "resolutionExpectation": {
+              "action": "keep_both",
+              "existingStatusAfterResolution": "active",
+              "candidateStatusAfterResolution": "active",
+              "projectARecallExcludesCandidate": true,
+              "projectBRecallExcludesExisting": true,
+              "conflictStatusAfterResolution": "resolved"
+            }
+          }
+        }
+      ],
+      "metrics": [
+        "scope_isolation_correct",
+        "conflict_action_correct"
+      ]
+    },
+    {
+      "id": "unsafe-placeholder-candidate-reject",
+      "name": "Credential-shaped placeholder candidate is rejected",
+      "seedMemories": [
+        {
+          "id": "bench-procedure-no-sensitive-values",
+          "type": "procedure",
+          "canonicalText": "Do not store API keys, auth tokens, cookies, private credentials, payment details, or cloud account identifiers as durable memory.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.99,
+          "importance": 0.99,
+          "scope": {},
+          "metadata": {
+            "synthetic": true,
+            "publicSafe": true
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "conflictRemember",
+          "source": "user_correction",
+          "content": "The demo credential placeholder is <fake-api-key-for-test-only>.",
+          "approvalMode": "pending",
+          "candidate": {
+            "id": "bench-candidate-fake-placeholder",
+            "type": "project_fact",
+            "canonicalText": "The demo credential placeholder is <fake-api-key-for-test-only>.",
+            "status": "pending",
+            "scope": {}
+          },
+          "conflict": {
+            "id": "bench-conflict-placeholder-reject",
+            "existingMemoryId": "bench-procedure-no-sensitive-values",
+            "candidateMemoryId": "bench-candidate-fake-placeholder",
+            "conflictType": "none",
+            "recommendedAction": "reject",
+            "severity": "high",
+            "reason": "Even obvious fake credential-shaped placeholders should not become durable memory."
+          },
+          "expect": {
+            "candidateStatus": "pending",
+            "openConflictCount": 0,
+            "conflictType": "none",
+            "recommendedAction": "reject",
+            "vaultConflictsCount": 0,
+            "vaultResource": {
+              "uri": "memory://vault/conflicts",
+              "excludesConflictId": "bench-conflict-placeholder-reject"
+            },
+            "resolutionExpectation": {
+              "action": "reject",
+              "candidateStatusAfterResolution": "rejected",
+              "activeMemoryCreated": false
+            }
+          }
+        }
+      ],
+      "metrics": [
+        "conflict_action_correct"
+      ]
+    },
+    {
+      "id": "stale-fact-ask-user",
+      "name": "Stale deployment proof fact asks the user",
+      "seedMemories": [
+        {
+          "id": "bench-fact-synthetic-proof-earlier-run",
+          "type": "project_fact",
+          "canonicalText": "Benchmark deployment proof was last validated in a synthetic earlier run.",
+          "sourceKind": "agent_observation",
+          "status": "active",
+          "confidence": 0.76,
+          "importance": 0.82,
+          "scope": {},
+          "metadata": {
+            "synthetic": true,
+            "publicSafe": true
+          }
+        }
+      ],
+      "steps": [
+        {
+          "op": "conflictRemember",
+          "source": "user_correction",
+          "content": "Deployment proof status changed and should be verified before use.",
+          "approvalMode": "pending",
+          "candidate": {
+            "id": "bench-candidate-proof-status-verify",
+            "type": "project_fact",
+            "canonicalText": "Deployment proof status changed and should be verified before use.",
+            "status": "pending",
+            "scope": {}
+          },
+          "conflict": {
+            "id": "bench-conflict-stale-proof-ask-user",
+            "existingMemoryId": "bench-fact-synthetic-proof-earlier-run",
+            "candidateMemoryId": "bench-candidate-proof-status-verify",
+            "conflictType": "contradiction",
+            "recommendedAction": "ask_user",
+            "severity": "medium",
+            "reason": "The candidate says proof status changed but does not provide a validated replacement state."
+          },
+          "expect": {
+            "candidateStatus": "pending",
+            "openConflictCount": 1,
+            "conflictType": "contradiction",
+            "recommendedAction": "ask_user",
+            "vaultConflictsCount": 1,
+            "vaultResource": {
+              "uri": "memory://vault/conflicts",
+              "containsConflictId": "bench-conflict-stale-proof-ask-user",
+              "containsExistingMemoryId": "bench-fact-synthetic-proof-earlier-run",
+              "containsCandidateMemoryId": "bench-candidate-proof-status-verify"
+            },
+            "resolutionExpectation": {
+              "action": "ask_user",
+              "existingStatusAfterResolution": "active",
+              "candidateStatusAfterResolution": "pending",
+              "conflictStatusAfterResolution": "open"
+            }
+          }
+        }
+      ],
+      "metrics": [
+        "conflict_created",
+        "conflict_action_correct"
+      ]
+    }
+  ]
+}
