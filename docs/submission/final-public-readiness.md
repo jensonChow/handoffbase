@@ -1,6 +1,6 @@
 # Final Public Readiness
 
-Last updated: 2026-07-08T17:15:27Z
+Last updated: 2026-07-09T15:38:29Z
 
 Scope: docs-only public-readiness pass for HandoffBase public repository and
 Devpost submission. This pass does not change application behavior, cloud
@@ -12,7 +12,7 @@ deployment, runtime storage, or secret configuration.
 | --- | --- | --- |
 | Tracked repository safety | Go | Final tracked-file scans found only safe placeholders, public URLs, and safety-instruction wording. |
 | Public repository visibility | User action needed | The repository still needs to be made public by the owner. Do not make it public from this task. |
-| Devpost assets | Nearly ready | Copy, testing instructions, architecture notes, checklist, and video scripts are in `docs/submission/`; final public repo URL and uploaded video links still need to be filled. |
+| Devpost assets | Nearly ready | Copy, testing instructions, architecture notes, checklist, video scripts, and benchmark docs are in the repo; final public repo URL and uploaded video links still need to be filled. |
 | Live backend proof | Not currently live | The ECS instance is documented as stopped in economical stop mode. Restart and revalidate before recording, submission, or judging if a live endpoint is needed. |
 | Production readiness | No-go | This is a runnable MVP and deployment proof, not a durable production SaaS service. |
 
@@ -21,7 +21,7 @@ deployment, runtime storage, or secret configuration.
 - [ ] Make the GitHub repository public only after explicit user approval.
 - [x] `LICENSE` is present and uses MIT.
 - [x] `README.md` describes the MVP, Qwen usage, MCP surface, architecture,
-  examples, eval pack, deployment proof, and limitations.
+  examples, eval pack, benchmark subset, deployment proof, and limitations.
 - [x] `.gitignore` ignores `.env` and `.env.*`, while allowing
   `.env.example`.
 - [x] `.dockerignore` excludes `.env` and `.env.*`, while allowing
@@ -46,6 +46,9 @@ deployment, runtime storage, or secret configuration.
   `docs/submission/alibaba-proof-video-script.md`.
 - [x] Recording shot list: `docs/submission/recording-shot-list.md`.
 - [x] Alibaba proof doc link: `docs/deployment/alibaba-cloud-proof.md`.
+- [x] Relaunch runbook: `docs/deployment/relaunch-runbook.md`.
+- [x] Benchmark documentation: `docs/benchmarks.md` and
+  `docs/benchmark-results.md`.
 - [ ] Main demo video link: `TODO`.
 - [ ] Alibaba proof video link: `TODO`.
 
@@ -55,6 +58,8 @@ deployment, runtime storage, or secret configuration.
 | --- | --- |
 | `npm run check` | Passed. Built/typechecked workspaces and server, built dashboard, smoke-registered 7 tools, 9 resources, and 4 prompts, and passed memory-core 28/28, auth 5/5, server 1/1, and dashboard 2/2 tests. |
 | `npm run eval:memory` | Passed 8/8 deterministic memory eval cases without Qwen credentials or a remote endpoint. |
+| `npm run bench:memory` | Passed 17/17 deterministic benchmark-inspired local cases. |
+| `npm run smoke` | Passed; registered 7 tools, 9 resources, and 4 prompts. |
 | `npm run dashboard:build` | Passed. |
 | `npm run test:dashboard` | Passed 2/2 dashboard API tests. |
 | `node --check scripts/validate-remote-mcp.mjs` | Passed. |
@@ -106,8 +111,8 @@ Expected safe outcomes:
 - The public endpoint proof used HTTP on an ECS IP, with no TLS, domain, load
   balancer, or managed gateway.
 - The Memory Vault dashboard is a governance prototype and defaults to mock data.
-- The eval pack is deterministic and local; it is not an official benchmark
-  score.
+- The eval pack and benchmark subset are deterministic and local; they are not
+  official benchmark scores.
 - No official benchmark result is claimed.
 
 ## Final Go/No-Go Decision Fields

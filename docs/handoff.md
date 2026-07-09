@@ -1,6 +1,6 @@
 # Current Handoff
 
-Updated: 2026-07-09T15:36:53Z
+Updated: 2026-07-09T15:38:29Z
 
 ## Completed Recently
 
@@ -20,6 +20,7 @@ Updated: 2026-07-09T15:36:53Z
   - `docs/submission/alibaba-proof-video-script.md`
   - `docs/submission/recording-shot-list.md`
   - `docs/submission/architecture-for-devpost.md`
+  - `docs/submission/final-public-readiness.md`
 - Updated architecture submission assets:
   - `docs/architecture.md`
   - `docs/assets/architecture.mmd`
@@ -82,8 +83,10 @@ or other leaderboard scores.
 - `npm run bench:memory`: passed 17/17 deterministic benchmark cases.
 - `node --check scripts/run-memory-benchmarks.mjs`: passed in the benchmark
   integration session.
+- `node --check scripts/validate-remote-mcp.mjs`: passed in the public
+  readiness session.
 - Markdown relative-link check and tracked-file secret/public scan passed in
-  the benchmark integration session.
+  the benchmark and public-readiness sessions.
 
 ## Current Product State
 
@@ -131,6 +134,8 @@ or other leaderboard scores.
 - If final submission validation needs a live endpoint, restart the ECS
   instance around July 17-18, recheck the public IP, and revalidate using
   `docs/deployment/relaunch-runbook.md`.
+- Public repository visibility still requires owner action; do not make the
+  repo public without explicit approval.
 
 ## Next Session Prompt
 
@@ -140,9 +145,9 @@ memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
 docs/handoff.md, README.md, docs/effect.md, docs/benchmarks.md,
 docs/product-completeness.md, docs/product-workflows.md, docs/evals.md,
 docs/dev-materials-checklist.md, docs/hackathon-resource-support.md,
-docs/deployment/relaunch-runbook.md, scripts/run-memory-eval.mjs,
-scripts/run-memory-benchmarks.mjs, package.json, and
-packages/memory-core/src/types.ts first.
+docs/deployment/relaunch-runbook.md, docs/submission/final-public-readiness.md,
+scripts/run-memory-eval.mjs, scripts/run-memory-benchmarks.mjs, package.json,
+and packages/memory-core/src/types.ts first.
 
 Preserve MCP tool names, resource URIs, prompt names, runtime behavior,
 Postgres runtime wiring, repository visibility, cloud state, and secret-handling
