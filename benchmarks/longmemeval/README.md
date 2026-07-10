@@ -148,6 +148,28 @@ separate answered-vs-abstention split, alongside the judge label, dataset digest
 and the `official_qa_evaluator: false` flag. Report it as "a stratified subset
 scored by a Qwen judge," never as the official LongMemEval leaderboard number.
 
+## One command: the comparison table
+
+`scripts/benchmarks/longmemeval-compare.mjs` runs every backend over the same
+dataset selection, scores each with one judge, and writes a ready-to-review
+`comparison.md` (overall + per-question-type table) under `--output-dir`. It
+never writes into a tracked doc — review the numbers before publishing them.
+
+```sh
+# Deterministic, credential-free smoke over the tiny fixture:
+npm run bench:longmemeval:compare -- \
+  --dataset benchmarks/longmemeval/fixtures/tiny-longmemeval.json \
+  --output-dir /tmp/handoffbase-lme-compare --embeddings mock
+
+# Real, Qwen-in-the-loop run over a downloaded subset (export the key first):
+npm run bench:longmemeval:compare -- \
+  --dataset /abs/path/longmemeval_s.json --output-dir /abs/path/results \
+  --reader qwen --embeddings qwen --judge qwen --judge-model qwen-max --limit 50
+```
+
+`--backends` (default `no-memory,handoffbase,raw-history`) restricts the set.
+Use `--limit 5` to calibrate cost before a larger run.
+
 ## End-to-end real run (owner checklist)
 
 1. Download the official LongMemEval-S dataset locally (see the upstream repo);

@@ -37,6 +37,7 @@
     "bench:longmemeval": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/benchmarks/longmemeval-run.mjs",
     "bench:longmemeval:tiny": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/benchmarks/longmemeval-tiny.mjs",
     "bench:longmemeval:score": "node scripts/benchmarks/longmemeval-score.mjs",
+    "bench:longmemeval:compare": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/benchmarks/longmemeval-compare.mjs",
     "e2e:cross-host": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node --test test/e2e/cross-host-http.test.mjs",
     "eval:memory": "npm run build --workspace @handoffbase/memory-core && node scripts/run-memory-eval.mjs",
     "feedback:to-benchmark": "npm run build --workspace @handoffbase/memory-core && node scripts/feedback-fixture-to-benchmark.mjs",
