@@ -19,8 +19,9 @@ governed continuity across sessions, hosts, projects, and tools. It uses Qwen
 Cloud for memory extraction, conflict detection, context packing, reflection,
 and trace explanation, then exposes the result through Remote Streamable HTTP
 MCP tools, resources, and prompts. The current open-source MVP includes a
-Qwen-backed Alibaba Cloud ECS deployment proof, a deterministic local eval pack,
-and a Memory Vault dashboard prototype for review and governance.
+Qwen-backed Alibaba Cloud ECS deployment proof, deterministic comparative and
+cross-host product gates, a cleaned-format LongMemEval adapter, and a
+server-backed Memory Vault dashboard for review and governance.
 
 ## Long Description
 
@@ -56,17 +57,19 @@ silently overwriting the older fact. If a context pack uses or ignores memory,
 the host receives a trace id. Users and operators can later ask what shaped the
 agent's context and why. That makes memory auditable, not just convenient.
 
-The current implementation is a runnable MVP. The MCP server exposes seven
+The current implementation is a runnable MVP. The MCP server exposes eight
 tools, nine `memory://` resources, and four reusable prompts. The memory core
 includes validation, sensitive-data rejection, trace records, conflict records,
-an in-memory runtime store, and an implemented Postgres/pgvector storage path
-for future runtime wiring. The local developer path uses a deterministic
+an in-memory default, and an explicit Postgres/pgvector runtime after migration.
+The local developer path uses a deterministic
 `MockMemoryProvider`, so contributors can run checks without Qwen credentials or
 paid cloud access. The repository also includes a deterministic AI Opportunity
 Scout eval pack that exercises recall, bootstrap traces, token-budget behavior,
 candidate creation, controlled conflicts, and forgetting.
 
-HandoffBase also includes a Memory Vault dashboard prototype. The dashboard
+HandoffBase also includes a Memory Vault dashboard. Same-origin server APIs are
+the default, and Postgres mode can share the MCP runtime database under an
+explicit private tenant/user scope. The dashboard
 shows vault records, pending review, trace inspection, and conflict review for a
 demo scenario where an opportunity-scouting agent learns a user's hackathon
 preferences and later applies them across sessions. The dashboard is not a full
@@ -82,9 +85,9 @@ revalidation instructions rather than assuming the public endpoint is always
 online.
 
 The honest limitation is that HandoffBase is not yet a production SaaS memory
-platform. The live proof uses `storeMode=in-memory`; durable Postgres runtime
-wiring, managed deployment hardening, TLS, monitoring, and larger benchmark
-integration are future work. The point of the project is narrower and concrete:
+platform. The historical live proof uses `storeMode=in-memory`; durable cloud
+Postgres deployment, managed hardening, TLS, monitoring, and a full official
+benchmark run are future work. The point of the project is narrower and concrete:
 make memory portable, traceable, governed, and accessible through MCP, so agents
 can behave like long-term collaborators without forcing users into one runtime.
 
@@ -92,7 +95,8 @@ can behave like long-term collaborators without forcing users into one runtime.
 
 - Exposes a Remote Streamable HTTP MCP server for agent memory handoff.
 - Lets hosts call `continuity_bootstrap`, `memory_recall`, `memory_remember`,
-  `memory_reflect`, `memory_update`, `memory_forget`, and `memory_trace`.
+  `memory_reflect`, `memory_update`, `memory_forget`, `memory_trace`, and
+  `memory_resolve_conflict`.
 - Provides `memory://` resources for user profiles, agent procedures, project
   facts, tool notes, run summaries, traces, pending candidates, and conflicts.
 - Builds scoped, token-budgeted context packs for new sessions.
@@ -182,14 +186,14 @@ multiple hosts can use.
 ## What Is Implemented Now
 
 - Remote Streamable HTTP MCP server at `/mcp`.
-- Seven MCP tools, nine `memory://` resources, and four prompts.
+- Eight MCP tools, nine `memory://` resources, and four prompts.
 - `@handoffbase/memory-core` with records, lifecycle statuses, traces, events,
   conflict records, validation, and sensitive-data rejection.
 - `QwenMemoryProvider`, `MockMemoryProvider`, and the provider boundary.
 - In-memory runtime store by default.
-- `PostgresMemoryStore` and pgvector migration path as a future runtime option.
+- `PostgresMemoryStore`, explicit migration, and opt-in runtime selection.
 - API-key auth for the deployed server path.
-- Memory Vault dashboard prototype.
+- Same-origin server-backed Memory Vault dashboard with explicit mock mode.
 - AI Opportunity Scout demo and example JSON-RPC/HTTP payloads.
 - Deterministic local eval pack.
 - Alibaba Cloud ECS + Docker deployment proof.
@@ -197,19 +201,20 @@ multiple hosts can use.
 ## Current Limitations
 
 - The current Alibaba Cloud proof is Qwen-backed but uses `storeMode=in-memory`.
-- Durable Postgres runtime selection is not wired as the default server mode.
+- Postgres runtime selection is opt-in and has not been deployed to a durable
+  cloud database; the default remains in-memory.
 - The public ECS proof is a minimal HTTP demo endpoint, not a production TLS
   service with a domain, load balancer, monitoring, and managed persistence.
 - The Memory Vault dashboard is a prototype.
-- The local eval pack is a deterministic regression/demo pack, not an official
-  benchmark score.
+- The local comparison and LongMemEval tiny fixture are deterministic and
+  synthetic; no full official run or official score exists.
 - The ECS endpoint may be stopped or restarted around submission windows to
   control pay-as-you-go cost.
 
 ## Future Roadmap
 
-- Wire durable `STORE_MODE=postgres` runtime selection after the target database
-  service and pgvector support are verified.
+- Validate the implemented `STORE_MODE=postgres` path against an approved
+  durable database service with verified vector-extension support.
 - Add managed deployment hardening: TLS, domain routing, monitoring, rotation,
   and operational runbooks.
 - Expand benchmark integrations for long-term conversational memory,
@@ -229,8 +234,8 @@ multiple hosts can use.
 - Qwen Cloud through `QwenMemoryProvider`
 - `@handoffbase/memory-core`
 - In-memory store for the current runtime proof
-- Postgres/pgvector storage path for future runtime wiring
-- Next.js Memory Vault dashboard prototype
+- Postgres/pgvector storage with explicit migration and opt-in runtime selection
+- Next.js Memory Vault dashboard with same-origin server APIs
 - Docker
 - Alibaba Cloud ECS
 

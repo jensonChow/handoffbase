@@ -10,10 +10,12 @@ It is built as a Remote Streamable HTTP MCP server, with Qwen-backed memory
 reasoning behind a provider interface, a traceable memory lifecycle, and a
 Memory Vault dashboard prototype for review and governance.
 
-Current status: runnable MVP. The local path uses an in-memory store and
-`MockMemoryProvider` by default. The Alibaba Cloud proof is Qwen-backed and
-authenticated, but still uses `storeMode=in-memory`; it is a deployment proof,
-not a production SaaS service.
+Current status: runnable infrastructure MVP. Local and CI paths use
+`InMemoryMemoryStore` and `MockMemoryProvider` by default. A Postgres runtime is
+available behind explicit `STORE_MODE=postgres`, `DATABASE_URL`, and migration
+steps. The historical Alibaba Cloud proof is Qwen-backed and authenticated, but
+used `storeMode=in-memory`; it is a deployment proof, not a production SaaS
+service.
 
 ## Why HandoffBase
 
@@ -45,10 +47,10 @@ HandoffBase MCP server
         |       +--> MockMemoryProvider
         |
         +--> MemoryStore
-        |       +--> In-memory MVP store
-        |       +--> Postgres + pgvector migration path
+        |       +--> In-memory default
+        |       +--> Postgres + pgvector runtime
         |
-        +--> Memory Vault dashboard prototype
+        +--> Memory Vault same-origin server backend
 ```
 
 Every connected agent can:
@@ -58,6 +60,7 @@ Every connected agent can:
 - remember new durable facts, procedures, preferences, and failures,
 - reflect on completed runs,
 - update, supersede, expire, or forget outdated memories,
+- resolve governed conflicts with explicit lifecycle actions,
 - explain which memories were used, ignored, or excluded.
 
 ## What Is Implemented
@@ -65,12 +68,13 @@ Every connected agent can:
 | Area | Current implementation |
 | --- | --- |
 | MCP transport | Remote Streamable HTTP server at `/mcp` |
-| MCP surface | 7 tools, 9 `memory://` resources, and 4 reusable prompts |
+| MCP surface | 8 tools, 9 `memory://` resources, and 4 reusable prompts |
 | Memory core | `@handoffbase/memory-core` with records, scopes, lifecycle, events, traces, validation, and sensitive-data rejection |
 | Providers | `MemoryReasoningProvider`, `QwenMemoryProvider`, and deterministic `MockMemoryProvider` |
-| Store | In-memory runtime store by default; `PostgresMemoryStore` and pgvector SQL migration path exist for future runtime wiring |
-| Dashboard | Next.js Memory Vault prototype with vault, pending review, edit/delete, trace, and conflict review views |
+| Store | Credential-free in-memory default; opt-in `PostgresMemoryStore` runtime selected by `STORE_MODE=postgres` after an explicit migration |
+| Dashboard | Next.js Memory Vault with same-origin server APIs by default; it follows the MCP runtime's `STORE_MODE`/`DATABASE_URL`, while mock mode is explicit |
 | Demo | Deterministic AI Opportunity Scout flow and JSON-RPC/HTTP example payloads |
+| Product proof | Comparative 17-case memory benchmark, cleaned-format LongMemEval adapter with tiny fixture, and real HTTP/MCP cross-host E2E |
 | Deployment proof | Alibaba Cloud ECS + Docker proof with API-key auth, Qwen provider mode, and in-memory store mode |
 
 ## Quickstart
@@ -109,15 +113,23 @@ npm run test
 npm run dashboard:dev
 npm run demo:flow
 npm run demo:jsonrpc
+npm run eval:memory
 npm run bench:memory
+npm run bench:longmemeval:tiny
+npm run e2e:cross-host
 ```
 
 `npm run check` is the CI-parity command. It typechecks, builds the server and
-workspaces, runs the MCP registration smoke test, and runs memory-core, auth,
-server, and dashboard tests. It must pass without Qwen credentials.
+workspaces, runs deterministic unit/integration gates, the MCP registration
+smoke test, the local eval and comparative benchmark, the LongMemEval tiny
+fixture, the real HTTP/MCP cross-host E2E, the Markdown relative-link check, and
+the tracked-file secret scan. It must pass without Qwen credentials, a
+database, Docker, or network access.
 
 `npm run bench:memory` runs the deterministic local benchmark-inspired memory
-fixture subset without Qwen credentials or network access.
+fixture subset without Qwen credentials or network access. Its recorded
+comparative result is HandoffBase 17/17 versus no-memory 0/17, with 34/34
+expectation conformance. This is not an official benchmark score.
 
 ## Qwen Setup
 
@@ -155,6 +167,35 @@ Qwen is used for the reasoning-heavy memory work:
 The memory core remains provider-agnostic. Qwen-specific logic lives behind
 `QwenMemoryProvider`; the default local/test path remains mock-provider
 compatible.
+
+## Postgres Runtime
+
+No database is required for the default local or CI path. To use durable
+storage, provide a Postgres database with the vector extension available,
+apply the schema explicitly, and then select the runtime:
+
+```bash
+DATABASE_URL=<postgres-url> npm run db:migrate
+STORE_MODE=postgres DATABASE_URL=<postgres-url> npm run dev:server
+```
+
+`STORE_MODE=postgres` fails fast if `DATABASE_URL` is missing. Migration is
+never run implicitly at server startup. `POSTGRES_URL` is not a runtime alias;
+use `DATABASE_URL`.
+
+If Docker and the Compose plugin are available, the repository also provides a
+disposable local persistence harness. It creates an isolated pgvector
+container, applies the migration, writes a memory, restarts Postgres, recalls
+the memory, and removes the container and volume:
+
+```bash
+npm run test:postgres:restart
+```
+
+This Docker-only harness is intentionally outside `npm run check` so the safe
+CI path stays credential-free and database-free. Docker was unavailable in the
+current integration environment, so this command has not been reported as
+passed here.
 
 ## Connect Via MCP
 
@@ -211,6 +252,7 @@ TLS endpoint or managed SaaS service.
 | `memory_update` | Edit, merge, or supersede an existing memory record. |
 | `memory_forget` | Invalidate, archive, expire, or delete an existing memory record. |
 | `memory_trace` | Explain which memories were used, ignored, or excluded. |
+| `memory_resolve_conflict` | Apply an authorized conflict decision and persist its lifecycle and audit effects. |
 
 ## MCP Resources
 
@@ -245,6 +287,7 @@ TLS endpoint or managed SaaS service.
 | Bootstrap | `continuity_bootstrap` builds a token-budgeted context pack for a new host/session. |
 | Reflect | `memory_reflect` turns run outcomes into procedure, decision, tool, failure, or outcome memories. |
 | Trace | `memory_trace` and `memory://traces/{trace_id}` explain selected, ignored, and excluded memories. |
+| Resolve | `memory_resolve_conflict` accepts or rejects a candidate, supersedes an existing memory, merges, keeps both, or dismisses the conflict. |
 | Update | `memory_update` edits, merges, or supersedes stale or conflicting memories. |
 | Forget | `memory_forget` invalidates, archives, expires, or deletes memory records. |
 
@@ -272,8 +315,11 @@ answers:
 - `memory://traces/{trace_id}` exposes trace details through MCP resources.
 - `memory://vault/pending` exposes pending memory candidates.
 - `memory://vault/conflicts` exposes open conflict records.
-- The Memory Vault dashboard prototype shows vault, pending review, trace, and
-  conflict-review views through a dashboard client boundary.
+- The Memory Vault dashboard shows vault, pending review, trace, and
+  conflict-review views through same-origin server API routes by default.
+- In `STORE_MODE=postgres`, its server backend uses the same `DATABASE_URL` as
+  the MCP runtime and requires private tenant/user scope before opening the
+  vault. `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` selects fixture-only mock mode.
 
 This is not only retrieval. The memory lifecycle is meant to be governed:
 pending approval, conflict review, supersession, expiry, deletion, and trace
@@ -290,9 +336,9 @@ flowchart LR
   Provider --> Qwen["QwenMemoryProvider"]
   Provider --> Mock["MockMemoryProvider"]
   Service --> Store["MemoryStore"]
-  Store --> Memory["In-memory MVP store"]
-  Store --> Postgres["Postgres + pgvector path"]
-  Dashboard["Memory Vault dashboard"] --> API["Dashboard API/client boundary"]
+  Store --> Memory["In-memory default"]
+  Store --> Postgres["Postgres + pgvector runtime"]
+  Dashboard["Memory Vault dashboard"] --> API["Same-origin dashboard API"]
   API --> Store
 ```
 
@@ -306,6 +352,9 @@ More detail:
 - [Effect claims](docs/effect.md)
 - [Eval pack](docs/evals.md)
 - [Benchmark strategy](docs/benchmarks.md)
+- [Recorded local benchmark results](docs/benchmark-results.md)
+- [LongMemEval adapter](benchmarks/longmemeval/README.md)
+- [Cross-host E2E proof](docs/workstreams/cross-host-e2e.md)
 - [Product completeness](docs/product-completeness.md)
 - [Product workflows](docs/product-workflows.md)
 - [Dashboard demo](docs/demo-dashboard.md)
@@ -337,6 +386,10 @@ More detail:
 - `npm run demo:flow` for an offline narration
 - `npm run demo:jsonrpc` for JSON-RPC request examples
 - `npm run eval:memory` for the deterministic local memory eval pack
+- `npm run bench:memory` for the 17-case comparative local benchmark
+- `npm run bench:longmemeval:tiny` for the synthetic three-backend adapter gate
+- `npm run e2e:cross-host` for real Express/HTTP/MCP cross-host continuity
+- `npm run demo:cross-host` for the human-readable version of that scenario
 - `npm run dashboard:dev` for the local Memory Vault dashboard prototype
 
 The demo shows a user teaching an opportunity-scouting agent their hackathon
@@ -361,35 +414,40 @@ See [docs/comparison.md](docs/comparison.md) for the longer positioning note.
 
 ## Eval Awareness
 
-The repo currently includes deterministic checks and demo fixtures rather than
-published benchmark claims:
+The repo includes deterministic product-proof checks rather than an official
+leaderboard claim:
 
 - MCP registration smoke test,
 - memory-core lifecycle, validation, sanitizer, and Postgres contract tests,
 - auth and server route tests,
 - dashboard API tests,
-- deterministic Opportunity Scout session fixtures.
-- a local eval pack at [docs/evals.md](docs/evals.md) and
-  [examples/evals/opportunity-scout-memory-eval.json](examples/evals/opportunity-scout-memory-eval.json).
+- a local eval pack at [docs/evals.md](docs/evals.md),
+- a comparative synthetic benchmark with recorded HandoffBase 17/17 versus
+  no-memory 0/17 and 34/34 expectation conformance,
+- a real loopback HTTP/MCP cross-host scenario, and
+- a cleaned-format LongMemEval adapter with a synthetic tiny fixture, explicit
+  deterministic/Qwen modes, and official-evaluator-compatible hypotheses.
 
-Future eval work should measure cross-session recall quality, conflict
-detection precision, trace completeness, forgetting behavior, token-budget
-packing, and whether remembered procedures improve agent decisions without
-over-recalling irrelevant context.
+The official LongMemEval dataset was not downloaded or vendored, the full
+credentialed run has not been completed, no paid judge was invoked, and no
+official LongMemEval score exists. See
+[the LongMemEval adapter guide](benchmarks/longmemeval/README.md) for the exact
+manual boundary.
 
 ## Current Limitations
 
 - The live Alibaba Cloud proof is Qwen-backed but uses `storeMode=in-memory`.
-- `PostgresMemoryStore` and the SQL migration path exist, but runtime
-  `STORE_MODE=postgres` wiring is future work.
+- Postgres runtime wiring and migration exist, but no durable cloud deployment
+  has been provisioned or validated; the default remains in-memory.
 - The public ECS proof uses HTTP on a demo endpoint; production use should add
   TLS, domain routing, hardened auth, durable storage, monitoring, and a managed
   deployment path.
-- The Memory Vault dashboard is a governance prototype, not a full production
-  admin console.
-- The eval pack is deterministic and local; it is not an official benchmark
-  score.
-- No benchmark results are claimed here.
+- The Memory Vault dashboard has a real server-backed path, but it is not a
+  hardened production admin console.
+- The comparative benchmark and LongMemEval tiny fixture are deterministic and
+  synthetic; neither is an official benchmark score.
+- No full official LongMemEval run or paid official QA evaluation has been
+  completed.
 
 ## License
 

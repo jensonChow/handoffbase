@@ -34,6 +34,12 @@ export const toolRegistrations = [
     title: "Memory Trace",
     description: "Explain which memories were used, ignored, or excluded.",
   },
+  {
+    name: "memory_resolve_conflict",
+    title: "Resolve Memory Conflict",
+    description:
+      "Apply an authorized conflict decision: accept or reject the candidate, supersede the existing memory, merge, keep both, or dismiss the conflict.",
+  },
 ] as const;
 
 export const resourceRegistrations = [

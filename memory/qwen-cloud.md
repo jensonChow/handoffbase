@@ -33,6 +33,10 @@ Provider input is sanitized before Qwen prompt construction. The sanitizer redac
 
 CI and local `npm run check` must pass without Qwen credentials. The GitHub Actions workflow clears `QWEN_API_KEY` and `DASHSCOPE_API_KEY`, so any test that exercises provider behavior must use mock responses or `MockMemoryProvider` unless explicitly marked as a manual credentialed check.
 
+`benchmarks/longmemeval` 现在提供显式 opt-in 的 `--reader qwen` 和 `--memory-provider qwen`。它复用现有 Qwen/DashScope env conventions，但不会加载 `.env.*`、不会把 credential/base URL 写入 artifacts，并且 errors 不回显 response body 或 credential。默认与 CI tiny fixture 固定使用 deterministic reader + mock provider，即使 shell 中存在 Qwen key 也不会自动切换。
+
+截至 2026-07-10，只完成了 fake-fetch/config coverage 和 tiny deterministic matrix；没有下载 official LongMemEval dataset、没有运行 full credentialed Qwen adapter、没有调用 official paid judge，因此没有 official LongMemEval score。
+
 ## Credentialed Validation State
 
 As of 2026-07-07, a dedicated Model Studio key labeled `handoffbase-hackathon-dev` was created for local hackathon validation and stored only in ignored `.env.hackathon.local` with local HandoffBase API key material. Do not commit or print the key; rotate or delete it after the hackathon.
@@ -70,4 +74,4 @@ Runtime secrets are configured only through the ECS Docker env file and are not 
 
 As of 2026-07-08, the ECS instance is stopped in economical stop mode for cost control and the prior public IP may change on restart. Treat `docs/deployment/alibaba-cloud-proof.md` as historical validation evidence, not a current-online guarantee. Use `docs/deployment/relaunch-runbook.md` to restart and revalidate before recording, submission, or judging if a live endpoint is required.
 
-Keep Postgres/RDS optional until pgvector support is verified for the selected service/version, runtime store selection is wired, and additional paid provisioning is explicitly approved.
+Keep Postgres/RDS optional until pgvector support is verified for the selected service/version and additional paid provisioning is explicitly approved. Runtime store selection is now implemented in code, but no Alibaba Postgres/RDS instance has been provisioned or validated.

@@ -5,29 +5,25 @@ void main().catch(handleFatal);
 
 async function main(): Promise<void> {
   const config = loadServerConfig();
-  const { server, url } = await startHttpServer(config);
+  const started = await startHttpServer(config);
 
-  console.log(`handoffbase listening at ${url}`);
+  console.log(`handoffbase listening at ${started.url}`);
 
-  async function shutdown(signal: string): Promise<void> {
-    console.log(`Received ${signal}; shutting down`);
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
-      });
-    });
+  let shutdownPromise: Promise<void> | undefined;
+  function shutdown(signal: string): Promise<void> {
+    if (!shutdownPromise) {
+      console.log(`Received ${signal}; shutting down`);
+      shutdownPromise = started.close();
+    }
+    return shutdownPromise;
   }
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
       shutdown(signal)
         .then(() => process.exit(0))
-        .catch((error) => {
-          console.error("Shutdown failed:", error);
+        .catch(() => {
+          console.error("Shutdown failed.");
           process.exit(1);
         });
     });
@@ -37,10 +33,8 @@ async function main(): Promise<void> {
 function handleFatal(error: unknown): void {
   if (error instanceof ConfigError) {
     console.error(error.message);
-  } else if (error instanceof Error) {
-    console.error(error);
   } else {
-    console.error("Startup failed:", error);
+    console.error("Startup failed.");
   }
   process.exit(1);
 }

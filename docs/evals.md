@@ -1,6 +1,9 @@
 # Memory Evals
 
-HandoffBase is benchmark-aware, not benchmark-complete. The project maps to the capabilities measured by modern long-term memory research, but this repository does not integrate full benchmark datasets and does not claim official benchmark scores.
+HandoffBase is benchmark-aware, not benchmark-complete. The repository now has
+a comparative deterministic subset and a cleaned-format LongMemEval adapter,
+but it does not vendor the official dataset and does not claim an official
+benchmark score.
 
 The included eval pack is a small hackathon-oriented regression check. It is designed to be reproducible, credential-free, and network-free by default so contributors can verify memory behavior without Qwen credentials, Alibaba Cloud endpoint access, or paid API calls.
 
@@ -54,7 +57,44 @@ The pack covers the AI Opportunity Scout story:
 | `controlled-conflict` | A deterministic conflict path creates a pending candidate and open conflict |
 | `forget-invalidation` | `memory_forget` invalidates a stale memory and recall stops using it |
 
-This is a regression and demo-readiness eval, not a replacement for LoCoMo, LongMemEval, LongMemEval-V2, Mem2ActBench, MemBench, MemEvoBench, or LifeBench. Full benchmark integration would require dataset adapters, benchmark-specific scoring, contamination controls, and cost planning.
+This is a regression and demo-readiness eval, not a replacement for LoCoMo,
+LongMemEval, LongMemEval-V2, Mem2ActBench, MemBench, MemEvoBench, or LifeBench.
+Full official reporting still requires the external dataset, benchmark-specific
+scoring/evaluator, contamination controls, and cost planning.
+
+## Integrated Product-Proof Gates
+
+The eval pack is complemented by three deterministic gates:
+
+```bash
+npm run bench:memory
+npm run bench:longmemeval:tiny
+npm run e2e:cross-host
+```
+
+- `bench:memory` executes 17 shared synthetic cases with both no-memory and
+  HandoffBase baselines. The recorded result is HandoffBase 17/17 versus
+  no-memory 0/17 with 34/34 expectation conformance.
+- `bench:longmemeval:tiny` runs a synthetic cleaned-format fixture across
+  no-memory, raw-history, and HandoffBase with network disabled and explicitly
+  verifies that no official evaluator score is present.
+- `e2e:cross-host` starts a real loopback Streamable HTTP MCP server and uses
+  official MCP SDK clients to prove auth, Host A→Host B continuity, project
+  isolation, trace linkage, and forgetting.
+
+These remain credential-free, in-memory product regressions. They do not read
+`.env.*`, call Qwen, download a benchmark, or invoke a paid judge.
+
+## LongMemEval Adapter Boundary
+
+`npm run bench:longmemeval -- ...` accepts an explicitly supplied local cleaned
+LongMemEval JSON file and supports deterministic or Qwen reader modes plus mock
+or Qwen HandoffBase memory-provider modes. It emits official-evaluator input
+but does not install or invoke the official evaluator. See the
+[adapter guide](../benchmarks/longmemeval/README.md).
+
+For this integration, no official dataset was downloaded, no full credentialed
+run was completed, and no official LongMemEval QA score exists.
 
 ## Reading Results
 

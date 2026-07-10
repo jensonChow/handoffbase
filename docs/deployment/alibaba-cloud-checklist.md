@@ -7,7 +7,8 @@ This is a proof checklist, not a claim that the service is already deployed.
 - Remote Streamable HTTP MCP endpoint, for example `https://<domain>/mcp`.
 - Node.js service running the official MCP TypeScript SDK transport.
 - Qwen Cloud configured through `QwenMemoryProvider`.
-- In-memory MVP store for the current deployable demo; Postgres/pgvector store code is available for follow-up runtime wiring.
+- Credential-free in-memory default for the demo; optional Postgres/pgvector
+  runtime selected with `STORE_MODE=postgres` after an explicit migration.
 - Event log enabled for memory add, update, delete, recall, bootstrap, and reflect operations.
 - Optional dashboard route for Memory Vault and trace review.
 
@@ -34,11 +35,11 @@ QWEN_TIMEOUT_MS=30000
 Set only one Qwen credential in cloud secret configuration; leave both blank to
 use the mock provider for non-credentialed deployment checks.
 
-Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Future Postgres runtime variables are documented in `docs/deployment.md`.
+Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Postgres uses `STORE_MODE=postgres` plus `DATABASE_URL` after `npm run db:migrate`; the dashboard additionally requires private tenant/user scope. See `docs/deployment.md`.
 
 Security expectations:
 
-- Store `QWEN_API_KEY`, `DASHSCOPE_API_KEY`, API keys, and future database URLs in Alibaba Cloud secret or environment configuration, not in git.
+- Store `QWEN_API_KEY`, `DASHSCOPE_API_KEY`, API keys, and database URLs in Alibaba Cloud secret or environment configuration, not in git.
 - Enable HTTPS before sharing the endpoint.
 - Restrict dashboard access before using real user memories.
 - Do not seed private credentials, cookies, tokens, or full conversation logs.

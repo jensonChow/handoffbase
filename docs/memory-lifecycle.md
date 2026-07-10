@@ -2,7 +2,7 @@
 
 HandoffBase users do not have to manually fill a database. Agents create memory
 candidates while doing normal work, and users govern the result through MCP
-tools, resources, traces, conflicts, and the Memory Vault dashboard prototype.
+tools, resources, traces, conflicts, and the Memory Vault dashboard.
 
 The lifecycle has five loops:
 
@@ -78,6 +78,7 @@ Users and agents govern memory with:
 
 - `memory_update`
 - `memory_forget`
+- `memory_resolve_conflict`
 - conflict records
 - trace records
 - Memory Vault review flows
@@ -89,6 +90,11 @@ should replace an older procedure.
 `memory_forget` invalidates, archives, expires, or deletes a memory. It is the
 right tool when a memory is no longer wanted, no longer true, out of scope, or
 too sensitive to keep.
+
+`memory_resolve_conflict` applies an authorized terminal decision to a conflict:
+accept or reject the candidate, supersede the existing memory, merge canonical
+text, keep both active, or dismiss the conflict. It scope-checks both linked
+memories and records lifecycle/audit effects.
 
 The core lifecycle statuses are:
 
@@ -128,7 +134,9 @@ Conflict records include:
 - resolution metadata
 
 Recommended actions can include accepting, ignoring, merging, superseding,
-asking the user, keeping both memories, or rejecting the candidate.
+asking the user, keeping both memories, or rejecting the candidate. Once the
+decision is explicit, `memory_resolve_conflict` persists the actual terminal
+state rather than leaving resolution as dashboard-only intent.
 
 This is the difference between memory as storage and memory as governance. A
 storage-only system might overwrite a preference because the newest sentence
@@ -154,7 +162,7 @@ looks more relevant. HandoffBase records the disagreement so a user can decide.
 
 ## Current Runtime State
 
-The live Alibaba Cloud ECS proof currently reports:
+The historical Alibaba Cloud ECS proof reported:
 
 ```text
 authMode=api_key
@@ -162,6 +170,8 @@ providerMode=qwen
 storeMode=in-memory
 ```
 
-That means memory reasoning is Qwen-backed, remote access is API-key protected,
-and runtime storage is the in-memory demo store. `PostgresMemoryStore` exists as
-an implemented path, but durable Postgres runtime wiring is future work.
+That image used Qwen-backed reasoning, API-key access, and the in-memory demo
+store. Current code also supports explicit `STORE_MODE=postgres` plus
+`DATABASE_URL` after `npm run db:migrate`; the dashboard follows the same store
+selection. No durable cloud database was provisioned, and the Docker restart
+harness was not run in this integration environment.

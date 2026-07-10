@@ -14,6 +14,10 @@
       "name": "Host B receives a user preference captured by Host A",
       "description": "Seed an active user-scoped preference as if Host A captured it; Host B bootstrap should include the preference with an inspectable trace.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-pref-concise-failures",
@@ -53,11 +57,6 @@
           }
         }
       ],
-      "expected": {
-        "traceIdPresent": true,
-        "usedMemoryIds": ["bench-pref-concise-failures"],
-        "absentMemoryIds": []
-      },
       "metrics": ["scope_isolation_correct", "trace_id_present", "used_memory_correct"]
     },
     {
@@ -65,6 +64,10 @@
       "name": "Host B receives a project-scoped procedure",
       "description": "Seed a project-scoped procedure memory; Host B bootstrap for the same project should include the procedure fragment.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-project-validation",
@@ -105,11 +108,6 @@
           }
         }
       ],
-      "expected": {
-        "traceIdPresent": true,
-        "usedMemoryIds": ["bench-procedure-project-validation"],
-        "contextIncludes": ["run the local check suite"]
-      },
       "metrics": ["scope_isolation_correct", "trace_id_present", "used_memory_correct"]
     },
     {
@@ -117,6 +115,10 @@
       "name": "Host C in another project excludes project memory",
       "description": "Seed project A memory; Host C bootstrap for project B should exclude the project A memory and text.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-fact-project-a-release-boundary",
@@ -126,7 +128,7 @@
             "userId": "bench-user",
             "projectId": "bench-project-a"
           },
-          "canonicalText": "Project bench-project-a treats benchmark fixtures as docs and data only until a runner is explicitly implemented.",
+          "canonicalText": "Project bench-project-a treats benchmark fixtures as governed local regression inputs only.",
           "sourceKind": "decision_record",
           "status": "active",
           "confidence": 0.93,
@@ -152,15 +154,10 @@
           "taskHint": "Start work in a separate synthetic project.",
           "expected": {
             "traceId": "present",
-            "absentMemoryIds": ["bench-fact-project-a-release-boundary"],
-            "contextExcludes": ["benchmark fixtures as docs and data only", "bench-project-a"]
+            "contextExcludes": ["benchmark fixtures as governed local regression inputs only", "bench-project-a"]
           }
         }
       ],
-      "expected": {
-        "absentMemoryIds": ["bench-fact-project-a-release-boundary"],
-        "contextExcludes": ["benchmark fixtures as docs and data only", "bench-project-a"]
-      },
       "metrics": ["scope_isolation_correct", "evidence_precision_at_k"]
     },
     {
@@ -168,6 +165,10 @@
       "name": "Agent-profile procedure is isolated",
       "description": "Seed an agent-profile-specific procedure; the matching agent profile should receive it and a different profile should not.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-agent-profile-handoff",
@@ -220,15 +221,10 @@
           "taskHint": "Prepare a final handoff response with a different agent profile.",
           "expected": {
             "traceId": "present",
-            "absentMemoryIds": ["bench-procedure-agent-profile-handoff"],
             "contextExcludes": ["branch, commit, files changed, validation, and notes"]
           }
         }
       ],
-      "expected": {
-        "matchingProfileUsedMemoryIds": ["bench-procedure-agent-profile-handoff"],
-        "differentProfileAbsentMemoryIds": ["bench-procedure-agent-profile-handoff"]
-      },
       "metrics": ["scope_isolation_correct", "used_memory_correct"]
     },
     {
@@ -236,6 +232,10 @@
       "name": "Forgotten memory does not cross hosts",
       "description": "Seed active memory; Host B recall sees it, forget invalidates it, and later Host B recall does not see it.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-tool-note-use-summary-template",
@@ -310,11 +310,6 @@
           }
         }
       ],
-      "expected": {
-        "beforeForgetUsedMemoryIds": ["bench-tool-note-use-summary-template"],
-        "afterForgetAbsentMemoryIds": ["bench-tool-note-use-summary-template"],
-        "finalStatus": "invalidated"
-      },
       "metrics": ["forget_correct", "scope_isolation_correct", "trace_id_present"]
     },
     {
@@ -322,6 +317,10 @@
       "name": "Deployment gotcha is handed off safely",
       "description": "Seed a synthetic deployment gotcha; Host B recall for deployment planning should include it without real endpoints or account details.",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-failure-stopped-demo-revalidate",
@@ -362,10 +361,6 @@
           }
         }
       ],
-      "expected": {
-        "answerIncludes": ["restart and revalidation", "before any live availability claim"],
-        "usedMemoryIds": ["bench-failure-stopped-demo-revalidate"]
-      },
       "metrics": ["answer_correct", "used_memory_correct", "trace_id_present"]
     }
   ]

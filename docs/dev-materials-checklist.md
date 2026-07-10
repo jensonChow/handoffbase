@@ -1,6 +1,6 @@
 # Development Materials Checklist
 
-Last updated: 2026-07-08T07:18:18Z
+Last updated: 2026-07-10T06:39:07Z
 
 This file is the non-secret setup ledger for HandoffBase hackathon development,
 local validation, and deployment readiness. Do not add API keys, database URLs,
@@ -35,10 +35,10 @@ Status: prepared
 | `HANDOFFBASE_TENANT_ID` | prepared | `demo-tenant`. |
 | `HANDOFFBASE_USER_ID` | prepared | `demo-user`. |
 | `HANDOFFBASE_ACTOR_ID` | prepared | `hackathon-dev`. |
-| `DATABASE_URL` / `POSTGRES_URL` | future optional | Do not configure until Postgres is provisioned and runtime store selection is wired. |
-| `STORE_MODE` | future optional | Current runtime still reports `in-memory`. |
-| `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT` | prepared | `mock`. Set to `http` for local Next.js API route testing. |
-| `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL` | optional | Blank unless dashboard API is hosted on another origin. |
+| `DATABASE_URL` | optional | Required only for `STORE_MODE=postgres`; keep it server-side and apply `npm run db:migrate` explicitly first. No database URL is recorded here. |
+| `STORE_MODE` | optional | Defaults to `in-memory`; current code also accepts `postgres`. The historical ECS proof remains in-memory. |
+| `HANDOFFBASE_DASHBOARD_CLIENT_MODE` | optional | Browser uses same-origin HTTP by default; set server-only value `mock` only for fixture mode. |
+| `HANDOFFBASE_DASHBOARD_TENANT_ID` / `HANDOFFBASE_DASHBOARD_USER_ID` | required only for Postgres dashboard | Private server-side vault scope; never expose through `NEXT_PUBLIC_*`. |
 
 ## Qwen / DashScope Material
 
@@ -144,14 +144,15 @@ Live Qwen-backed MCP validation:
 - Secret handling: Qwen key and local auth key were loaded only from
   `.env.hackathon.local`; values were not printed
 
-Remote ECS MCP validation:
+Historical remote ECS MCP validation (before the current 8-tool integration):
 
 - Command path: `npm run mcp:validate-remote`
 - Endpoint: `http://123.56.244.157/mcp`
 - Authentication: auth token supplied only through `MCP_AUTH_TOKEN`
 - `GET /health`: reported `authMode=api_key`, `providerMode=qwen`, and
   `storeMode=in-memory`
-- `tools/list`: returned 7 tools
+- `tools/list`: returned the then-current 7 tools; the stopped ECS image has not
+  been rebuilt or revalidated against the current 8-tool manifest
 - `memory_recall`: returned 5 memories and a trace id
 - `memory_remember`: returned 2 pending candidate memories through the
   Qwen-backed provider path
@@ -230,12 +231,16 @@ Known limits:
 
 ## Optional Postgres Readiness
 
-Status: prepare only
+Status: runtime implemented locally; cloud provisioning remains prepare only
 
-- Runtime code: `PostgresMemoryStore` exists in `packages/memory-core`.
-- Default server factory: still uses `InMemoryMemoryStore`.
-- Deployment docs: mark `DATABASE_URL`, `POSTGRES_URL`, and `STORE_MODE` as
-  future runtime wiring.
+- Runtime code: `PostgresMemoryStore`, the `pg` query client, graceful pool
+  shutdown, explicit migration, and `STORE_MODE=postgres` selection are
+  implemented. `InMemoryMemoryStore` remains the default.
+- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL` and
+  requires private tenant/user scope before opening the shared vault.
+- Local compose and a disposable restart harness are present, but Docker was
+  unavailable during the Product Proof integration, so no container-restart
+  pass is claimed.
 - Candidate services to inspect after approval/login:
   - ApsaraDB RDS for PostgreSQL
   - PolarDB for PostgreSQL
@@ -244,8 +249,9 @@ Status: prepare only
 - pgvector support status: not verified from an official target-service/version
   document in this run; verify the selected Alibaba PostgreSQL service and
   engine version support before provisioning.
-- Env vars needed later: `DATABASE_URL` or `POSTGRES_URL`, plus
-  `STORE_MODE=postgres` only after runtime wiring supports it.
+- Env vars for an approved later deployment: `DATABASE_URL` plus
+  `STORE_MODE=postgres`; run `npm run db:migrate` from the checkout/operator
+  environment before startup.
 
 No database has been created and no database URL has been stored.
 
@@ -254,7 +260,7 @@ No database has been created and no database URL has been stored.
 Status: local CI setup documented; remote CI should be rechecked before submission
 
 - Repository: `jensonChow/handoffbase`
-- Current branch: `main`
+- Integration branch: `codex/product-proof-integration` (local only; no push or merge in this session)
 - Deployment image source commit: `b565210`
 - Workflow file: `.github/workflows/ci.yml`
 - GitHub Actions enabled: yes
@@ -266,7 +272,8 @@ Status: local CI setup documented; remote CI should be rechecked before submissi
 - Workflow status: `CI` active
 - Latest run for current commit: check the GitHub Actions tab before submission
 - Latest CI status should be checked from the GitHub Actions tab before submission.
-- Current local check result: `npm run check` passed on 2026-07-07T16:29Z
+- Current Product Proof check result belongs in `docs/handoff.md`; re-run it
+  after every integration change before relying on this checklist.
 
 Possible GitHub Actions secrets needed later:
 

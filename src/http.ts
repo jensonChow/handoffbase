@@ -7,6 +7,11 @@ import { resolveCallerContext } from "./auth/request.js";
 import { AuthError, type AuthConfig } from "./auth/types.js";
 import { SERVER_NAME, SERVER_TRANSPORT, SERVER_VERSION } from "./config.js";
 import { createContinuityMcpServer } from "./mcp/server.js";
+import {
+  createMemoryRuntime,
+  type MemoryRuntime,
+  type MemoryRuntimeOptions,
+} from "./runtime/memory-runtime.js";
 import { createDefaultMemoryService } from "./services/continuity-memory-service.js";
 import { withCallerContext, type MemoryService, type MemoryServiceRuntimeInfo } from "./services/memory-service.js";
 
@@ -18,13 +23,14 @@ export interface HttpAppOptions {
   service?: MemoryService;
 }
 
-export interface HttpServerOptions extends HttpAppOptions {
+export interface HttpServerOptions extends HttpAppOptions, MemoryRuntimeOptions {
   port?: number;
 }
 
 export interface StartedHttpServer {
   server: NodeHttpServer;
   url: string;
+  close(): Promise<void>;
 }
 
 export function createHttpApp(options: HttpAppOptions = {}): Express {
@@ -72,8 +78,8 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
         void transport.close();
         void mcpServer.close();
       });
-    } catch (error) {
-      console.error("Error handling MCP request:", error);
+    } catch {
+      console.error("Error handling MCP request.");
       if (!res.headersSent) {
         res.status(500).json({
           jsonrpc: "2.0",
@@ -97,18 +103,65 @@ export async function startHttpServer(options: HttpServerOptions = {}): Promise<
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 3000;
   const mcpPath = options.mcpPath ?? "/mcp";
-  const app = createHttpApp({ ...options, host, mcpPath });
+  const runtime: MemoryRuntime = options.service
+    ? { service: options.service, close: async () => undefined }
+    : createMemoryRuntime(options);
 
+  try {
+    const app = createHttpApp({ ...options, host, mcpPath, service: runtime.service });
+    const server = await listen(app, port, host);
+    const address = server.address();
+    const actualPort = typeof address === "object" && address ? address.port : port;
+
+    return {
+      server,
+      url: `http://${hostForUrl(host)}:${actualPort}${mcpPath}`,
+      close: createServerCloser(server, runtime),
+    };
+  } catch (error) {
+    await runtime.close();
+    throw error;
+  }
+}
+
+function listen(app: Express, port: number, host: string): Promise<NodeHttpServer> {
   return new Promise((resolve, reject) => {
+    const onError = (error: Error) => reject(error);
     const server = app.listen(port, host, () => {
-      const address = server.address();
-      const actualPort = typeof address === "object" && address ? address.port : port;
-      resolve({
-        server,
-        url: `http://${hostForUrl(host)}:${actualPort}${mcpPath}`,
-      });
+      server.off("error", onError);
+      resolve(server);
     });
-    server.once("error", reject);
+    server.once("error", onError);
+  });
+}
+
+function createServerCloser(server: NodeHttpServer, runtime: MemoryRuntime): () => Promise<void> {
+  let closePromise: Promise<void> | undefined;
+  return () => {
+    closePromise ??= (async () => {
+      try {
+        await closeNodeHttpServer(server);
+      } finally {
+        await runtime.close();
+      }
+    })();
+    return closePromise;
+  };
+}
+
+async function closeNodeHttpServer(server: NodeHttpServer): Promise<void> {
+  if (!server.listening) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
   });
 }
 

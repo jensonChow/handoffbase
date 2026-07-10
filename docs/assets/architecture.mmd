@@ -24,15 +24,16 @@ flowchart LR
   subgraph CoreLayer["Memory core"]
     Core["Records, lifecycle,<br/>validation, scopes"]
     Store["MemoryStore"]
-    InMemory["InMemoryMemoryStore<br/>current live demo store"]
-    Postgres["PostgresMemoryStore + pgvector<br/>future runtime wiring"]
+    InMemory["InMemoryMemoryStore<br/>credential-free default"]
+    Postgres["PostgresMemoryStore + pgvector<br/>opt-in runtime"]
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
   end
 
-  subgraph DashboardLayer["Memory Vault dashboard prototype"]
+  subgraph DashboardLayer["Memory Vault dashboard"]
     Dashboard["Governance UI"]
+    DashboardAPI["Same-origin server API"]
     Pending["Pending review"]
     ConflictReview["Conflict review"]
     TraceView["Trace view"]
@@ -58,12 +59,13 @@ flowchart LR
   Service --> Core
   Core --> Store
   Store --> InMemory
-  Store -. "implemented path, not runtime default" .-> Postgres
+  Store --> Postgres
   Core --> Events
   Core --> Trace
   Core --> Conflicts
 
-  Dashboard -->|inspect and govern| Surface
+  Dashboard --> DashboardAPI
+  DashboardAPI -->|same MemoryStore selection| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView

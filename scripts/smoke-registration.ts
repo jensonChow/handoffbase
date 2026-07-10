@@ -1,11 +1,20 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { InMemoryMemoryStore, MockMemoryProvider } from "@handoffbase/memory-core";
 import assert from "node:assert/strict";
 import { startHttpServer } from "../src/http.js";
 import { registrationManifest } from "../src/mcp/manifest.js";
+import { ContinuityMemoryService } from "../src/services/continuity-memory-service.js";
 
 const manifest = registrationManifest();
-const started = await startHttpServer({ host: "127.0.0.1", port: 0 });
+const store = new InMemoryMemoryStore();
+const service = new ContinuityMemoryService({ store, provider: new MockMemoryProvider() });
+const started = await startHttpServer({
+  host: "127.0.0.1",
+  port: 0,
+  authConfig: { mode: "disabled" },
+  service,
+});
 const client = new Client({
   name: "handoffbase-registration-smoke",
   version: "0.1.0",
@@ -31,6 +40,11 @@ try {
   const prompts = await client.listPrompts();
   const resources = await client.listResources();
   const resourceTemplates = await client.listResourceTemplates();
+  const resourceCount = resources.resources.length + resourceTemplates.resourceTemplates.length;
+
+  assert.equal(tools.tools.length, 8, "smoke expects 8 MCP tools");
+  assert.equal(resourceCount, 9, "smoke expects 9 MCP resources");
+  assert.equal(prompts.prompts.length, 4, "smoke expects 4 MCP prompts");
 
   assert.deepEqual(
     tools.tools.map((tool) => tool.name).sort(),
@@ -55,6 +69,17 @@ try {
     assert.ok(tool.inputSchema, `${tool.name} has an input schema`);
     assert.ok(tool.outputSchema, `${tool.name} has an output schema`);
   }
+
+  const invalidMerge = await client.callTool({
+    name: "memory_resolve_conflict",
+    arguments: {
+      conflict_id: "missing-merge-text",
+      action: "merge",
+      reason: "The MCP boundary must reject merge without merged_text.",
+    },
+  });
+  assert.equal(invalidMerge.isError, true, "merge without merged_text is rejected");
+  assert.match(renderToolText(invalidMerge), /merged_text is required/);
 
   await client.readResource({ uri: "memory://vault/pending" });
   await client.readResource({ uri: "memory://users/smoke-user/profile" });
@@ -185,9 +210,65 @@ try {
   };
   assert.ok(rememberPayload.candidate_memories?.[0]?.id, "remember persists a candidate memory");
 
+  await store.addMemory({
+    id: "smoke-conflict-existing",
+    scope: { tenantId: "demo-tenant", userId: "demo-user", agentProfileId: "opportunity-scout" },
+    type: "user_preference",
+    canonicalText: "Smoke conflict existing memory.",
+    rawSource: "smoke fixture",
+    sourceKind: "user_statement",
+    status: "active",
+  });
+  await store.addMemory({
+    id: "smoke-conflict-candidate",
+    scope: { tenantId: "demo-tenant", userId: "demo-user", agentProfileId: "opportunity-scout" },
+    type: "user_preference",
+    canonicalText: "Smoke conflict candidate memory.",
+    rawSource: "smoke fixture",
+    sourceKind: "user_correction",
+    status: "pending",
+  });
+  await store.addConflict({
+    id: "smoke-conflict",
+    tenantId: "demo-tenant",
+    candidateMemoryId: "smoke-conflict-candidate",
+    existingMemoryId: "smoke-conflict-existing",
+    conflictType: "contradiction",
+    recommendedAction: "supersede_existing",
+  });
+
+  const resolutionResult = await client.callTool({
+    name: "memory_resolve_conflict",
+    arguments: {
+      conflict_id: "smoke-conflict",
+      action: "supersede_existing",
+      reason: "Verify the complete conflict resolution workflow in the local smoke test.",
+    },
+  });
+  const resolutionPayload = resolutionResult.structuredContent as {
+    conflict_status?: string;
+    candidate_memory?: { id?: string; status?: string; supersedes?: string[] };
+    existing_memory?: { id?: string; status?: string; superseded_by?: string };
+    event_ids?: string[];
+  };
+  assert.equal(resolutionPayload.conflict_status, "resolved", "resolution closes the conflict");
+  assert.equal(resolutionPayload.candidate_memory?.status, "active", "resolution activates the candidate");
+  assert.deepEqual(
+    resolutionPayload.candidate_memory?.supersedes,
+    ["smoke-conflict-existing"],
+    "resolution links the candidate to the superseded memory",
+  );
+  assert.equal(resolutionPayload.existing_memory?.status, "superseded", "resolution supersedes the existing memory");
+  assert.equal(
+    resolutionPayload.existing_memory?.superseded_by,
+    "smoke-conflict-candidate",
+    "resolution records the replacement link",
+  );
+  assert.equal(resolutionPayload.event_ids?.length, 2, "resolution returns both lifecycle audit events");
+
   console.log(
     `registered ${tools.tools.length} tools, ${
-      resources.resources.length + resourceTemplates.resourceTemplates.length
+      resourceCount
     } resources, ${prompts.prompts.length} prompts`,
   );
 } finally {
@@ -208,4 +289,12 @@ function parseJsonResource(resource: unknown): Record<string, unknown> {
   const text = content?.text;
   assert.ok(typeof text === "string", "resource returns JSON text");
   return JSON.parse(text) as Record<string, unknown>;
+}
+
+function renderToolText(result: unknown): string {
+  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content ?? [];
+  return content
+    .filter((item) => item.type === "text" && typeof item.text === "string")
+    .map((item) => item.text)
+    .join("\n");
 }

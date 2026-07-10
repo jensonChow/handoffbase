@@ -29,15 +29,15 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 
 公开定位必须保持克制：HandoffBase 是 MCP-native memory handoff layer，不声称全面替代 Mem0、Zep、Letta、LangMem 或成熟 managed memory 平台。比较文档应强调不同定位：跨 host MCP handoff、可追踪 context pack、冲突治理、用户可审计控制。
 
-当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实说明 live proof 是 Qwen-backed、storeMode 仍为 in-memory，Postgres runtime wiring 是 future work。
+当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实区分：historical Alibaba live proof 是 Qwen-backed、`storeMode=in-memory`；当前代码已有 selectable Postgres runtime，但没有完成 Alibaba durable deployment proof。
 
 ## Effect Proof First
 
 2026-07-09 起，产品叙事从包装优先转向效果证明优先。README、demo、dashboard、submission copy 和 open-source polish 都必须服务于一个更核心的产品价值：HandoffBase 如何通过可治理、可追踪、可更新、可遗忘、可冲突处理的 working memory，让后续 session、host 和 project 中的 agent 做出更正确、更一致、更少重复犯错的行为。公开材料应优先连接到 benchmark/eval-aware 指标、确定性回归包、负例测试和当前实现边界，而不是先追求营销包装。
 
-Benchmark strategy is the next proof layer, but public copy must not claim official benchmark scores until a deterministic benchmark-inspired subset or external benchmark adapter exists with exact validation output.
+当前 proof layer 包含 deterministic comparative subset（no-memory 与 HandoffBase）、真实 loopback HTTP/MCP cross-host E2E，以及 cleaned LongMemEval-format adapter/tiny fixture。它们证明 local regression 和 integration behavior，不构成 official benchmark score。只有完成 full official dataset run、official evaluator 和结果记录后才能公开 official score。
 
-当前产品完整性边界：HandoffBase 是 functional open-source memory infrastructure MVP，不是 production SaaS。Alibaba ECS proof 是 historical deployment proof and may be stopped for cost control；当前 live/runtime truth remains `storeMode=in-memory`，Postgres runtime wiring、durable deployment、TLS/domain/LB/monitoring 和 production operations 都仍是 future work。
+当前产品完整性边界：HandoffBase 是 functional open-source memory infrastructure MVP，不是 production SaaS。代码支持 8-tool MCP、authorized conflict resolution、selectable Postgres runtime、server-backed dashboard、comparative/tiny/e2e product gates；credential-free default 仍是 mock + in-memory。Alibaba ECS proof 是 historical deployment proof and may be stopped for cost control；其 live truth 仍为 `storeMode=in-memory`。Managed durable deployment、TLS/domain/LB/monitoring、backup/restore 和 multi-process conflict atomicity 仍是 future work。
 
 ## Submission Readiness
 

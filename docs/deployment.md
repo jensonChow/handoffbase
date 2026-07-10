@@ -5,7 +5,9 @@ handoffbase is deployable as a standard Node.js HTTP service exposing:
 - `/health` for safe runtime metadata.
 - `/mcp` by default for Remote Streamable HTTP MCP.
 
-The production image does not bake secrets into the filesystem. Pass Qwen credentials, API key auth config, and future database values through environment variables or the cloud provider secret manager.
+The production image does not bake secrets into the filesystem. Pass Qwen
+credentials, API-key auth config, and database values through environment
+variables or the cloud provider secret manager.
 
 ## Local Production Check
 
@@ -86,8 +88,33 @@ When Qwen credentials are present, `providerMode` reports `qwen`. When `HANDOFFB
 | `HANDOFFBASE_AUTH_MODE` | No | `disabled` by default. Set to `api_key` to require bearer or `X-Handoffbase-Api-Key` on MCP POST requests. |
 | `HANDOFFBASE_API_KEYS_JSON` | Required when using multi-key `api_key` auth | JSON object keyed by API key with tenant/user and optional actor/scope restrictions. |
 | `HANDOFFBASE_API_KEY` / `HANDOFFBASE_TENANT_ID` / `HANDOFFBASE_USER_ID` | Alternative for single-key `api_key` auth | Simpler local/deployment fallback. Optional actor and allowed-scope vars are documented in `.env.example`. |
-| `DATABASE_URL` / `POSTGRES_URL` | Future runtime wiring | `PostgresMemoryStore` now supports core CRUD, recall, traces, events, embeddings, and conflicts, but the default server factory still uses the in-memory MVP store. |
-| `STORE_MODE` | Future runtime wiring | Placeholder for selecting a durable store. Current default runtime reports `in-memory`. |
+| `STORE_MODE` | No | `in-memory` by default. Set exactly `postgres` to select `PostgresMemoryStore`. |
+| `DATABASE_URL` | Required when `STORE_MODE=postgres` | Postgres connection used by the MCP runtime and dashboard server. `POSTGRES_URL` is not a runtime alias. Apply the migration before startup. |
+| `HANDOFFBASE_DASHBOARD_CLIENT_MODE` | No | Dashboard browser uses same-origin HTTP APIs by default. Set `mock` only for isolated fixture mode. |
+| `HANDOFFBASE_DASHBOARD_TENANT_ID` / `HANDOFFBASE_DASHBOARD_USER_ID` | Required for dashboard with Postgres | Private server-side vault scope; never expose as `NEXT_PUBLIC_*`. |
+| `HANDOFFBASE_DASHBOARD_AGENT_PROFILE_ID` / `HANDOFFBASE_DASHBOARD_PROJECT_ID` / `HANDOFFBASE_DASHBOARD_HOST_ID` | No | Optional private dashboard scope filters. |
+
+## Postgres Runtime
+
+Migration is explicit and startup fails closed when Postgres mode lacks a
+database URL:
+
+```sh
+DATABASE_URL=<postgres-url> npm run db:migrate
+STORE_MODE=postgres DATABASE_URL=<postgres-url> npm run start:server
+```
+
+The default remains `STORE_MODE=in-memory`, which is the correct credential-free
+path for local checks and CI. `npm run test:postgres:integration` uses only an
+explicit `TEST_DATABASE_URL` naming a dedicated test database; otherwise that
+optional integration case skips.
+
+On a machine with Docker and the Compose plugin, run
+`npm run test:postgres:restart` to create a disposable pgvector container,
+apply the migration, write a memory, restart Postgres, recall it through a fresh
+pool, and tear down the volume. This harness was not executed in the current
+integration environment because Docker was unavailable; it must not be
+reported as passed until run on a Docker-capable machine.
 
 ## Alibaba Cloud Notes
 
@@ -98,6 +125,9 @@ The current production shape can run on ECS, ACK, or another Alibaba Cloud conta
 3. Store `QWEN_API_KEY` or `DASHSCOPE_API_KEY` in Alibaba Cloud secret or environment configuration, not in git or the image.
 4. Put HTTPS in front of the service through a load balancer, ingress, or API gateway before sharing the MCP endpoint.
 5. Use `HANDOFFBASE_AUTH_MODE=api_key` and store API key mappings as cloud secrets before exposing non-demo data.
-6. Keep the in-memory MVP path for demo deployment unless a later runtime selection branch wires `PostgresMemoryStore` to `DATABASE_URL` or `POSTGRES_URL`.
+6. Keep the in-memory path for a credential-free demo, or explicitly migrate a
+   dedicated database and set `STORE_MODE=postgres` plus `DATABASE_URL` for a
+   durable deployment. Do not point the disposable test commands at shared or
+   production data.
 
 For submission evidence, capture the running service, `/health`, an MCP initialize/tools-list request, and a redacted Qwen provider call when Qwen credentials are configured.

@@ -15,15 +15,17 @@ import {
   RefreshCcw,
   Save,
   Search,
-  ShieldCheck,
   Trash2,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DashboardRuntimeStatus } from "@/components/dashboard-runtime-status";
 import {
   createMemoryClient,
+  MemoryClientError,
   type ConflictCandidate,
   type DashboardSnapshot,
+  type MemoryClientMode,
   type MemoryRecord,
   type MemoryStatus,
   type MemoryTrace,
@@ -31,6 +33,16 @@ import {
 } from "@/lib/memory-client";
 
 type ViewKey = "vault" | "pending" | "trace" | "conflicts";
+
+type LoadError = {
+  kind: "configuration" | "load";
+  message: string;
+};
+
+type MutationError = {
+  kind: "mutation" | "refresh";
+  message: string;
+};
 
 type EditState = {
   type: MemoryType;
@@ -64,9 +76,18 @@ const statuses: MemoryStatus[] = [
   "superseded"
 ];
 
-const client = createMemoryClient();
-
-export function MemoryVaultDashboard() {
+export function MemoryVaultDashboard({
+  clientMode = "http"
+}: {
+  clientMode?: MemoryClientMode;
+}) {
+  const client = useMemo(
+    () =>
+      clientMode === "mock"
+        ? createMemoryClient({ mode: "mock" })
+        : createMemoryClient({ mode: "http" }),
+    [clientMode]
+  );
   const [view, setView] = useState<ViewKey>("vault");
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [selectedMemoryId, setSelectedMemoryId] = useState<string>("");
@@ -77,7 +98,8 @@ export function MemoryVaultDashboard() {
   const [scopeFilter, setScopeFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isMutating, setIsMutating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [mutationError, setMutationError] = useState<MutationError | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [actionReason, setActionReason] = useState("User requested memory lifecycle update.");
@@ -85,17 +107,26 @@ export function MemoryVaultDashboard() {
   const loadDashboard = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setLoadError(null);
+      setMutationError(null);
       const data = await client.listDashboard();
       setSnapshot(data);
-      setSelectedMemoryId((current) => current || data.memories[0]?.id || "");
-      setSelectedTraceId((current) => current || data.traces[0]?.id || "");
+      setSelectedMemoryId((current) =>
+        data.memories.some((memory) => memory.id === current)
+          ? current
+          : data.memories[0]?.id || ""
+      );
+      setSelectedTraceId((current) =>
+        data.traces.some((trace) => trace.id === current)
+          ? current
+          : data.traces[0]?.id || ""
+      );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to load dashboard.");
+      setLoadError(toLoadError(caught));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     void loadDashboard();
@@ -208,13 +239,21 @@ export function MemoryVaultDashboard() {
   }
 
   async function runMutation(action: () => Promise<MemoryRecord | void>, selectId?: string) {
+    let mutationCompleted = false;
+
     try {
       setIsMutating(true);
-      setError(null);
+      setLoadError(null);
+      setMutationError(null);
       await action();
+      mutationCompleted = true;
       await refreshAfterMutation(selectId);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Action failed.");
+      setMutationError({
+        kind: mutationCompleted ? "refresh" : "mutation",
+        message:
+          caught instanceof Error ? caught.message : "The memory change failed."
+      });
     } finally {
       setIsMutating(false);
     }
@@ -224,6 +263,9 @@ export function MemoryVaultDashboard() {
     setSelectedMemoryId(memoryId);
     setView("vault");
   }
+
+  const runtimeMode =
+    snapshot?.runtime.mode ?? (clientMode === "mock" ? "mock_demo" : undefined);
 
   const shell = (
     <main className="dashboard-shell">
@@ -267,10 +309,7 @@ export function MemoryVaultDashboard() {
           />
         </nav>
 
-        <div className="side-note">
-          <ShieldCheck size={17} aria-hidden="true" />
-          <span>Mock/default dashboard. No remote backend, secrets, or persisted credentials.</span>
-        </div>
+        <DashboardRuntimeStatus mode={runtimeMode} />
       </aside>
 
       <section className="workspace">
@@ -279,9 +318,19 @@ export function MemoryVaultDashboard() {
             <p className="eyebrow">HandoffBase Memory Vault</p>
             <h2>{viewTitle(view)}</h2>
           </div>
-          <button className="icon-text-button" type="button" onClick={loadDashboard}>
-            <RefreshCcw size={16} aria-hidden="true" />
-            Refresh
+          <button
+            className="icon-text-button"
+            type="button"
+            onClick={loadDashboard}
+            disabled={isLoading}
+            aria-busy={isLoading}
+          >
+            <RefreshCcw
+              className={isLoading ? "is-spinning" : undefined}
+              size={16}
+              aria-hidden="true"
+            />
+            {isLoading ? "Refreshing" : "Refresh"}
           </button>
         </header>
 
@@ -293,13 +342,30 @@ export function MemoryVaultDashboard() {
           <Metric label="Trace runs" value={stats.traces} tone="violet" />
         </div>
 
-        {error ? (
-          <ErrorState message={error} onRetry={loadDashboard} />
-        ) : (
+        {loadError ? (
+          <ErrorState error={loadError} onRetry={loadDashboard} />
+        ) : null}
+
+        {mutationError ? (
+          <MutationErrorState
+            error={mutationError}
+            onDismiss={() => setMutationError(null)}
+          />
+        ) : null}
+
+        {isMutating ? (
+          <div className="mutation-progress" role="status">
+            <Clock3 size={18} aria-hidden="true" />
+            Applying memory change to the active store…
+          </div>
+        ) : null}
+
+        {snapshot ? (
           <>
             {view === "vault" ? (
               <VaultView
                 memories={filteredMemories}
+                hasStoredMemories={snapshot.memories.length > 0}
                 selectedMemory={selectedMemory}
                 selectedEvents={selectedEvents}
                 editState={editState}
@@ -407,10 +473,10 @@ export function MemoryVaultDashboard() {
             ) : null}
 
             {view === "conflicts" ? (
-              <ConflictView conflicts={snapshot?.conflicts ?? []} />
+              <ConflictView conflicts={snapshot.conflicts} />
             ) : null}
           </>
-        )}
+        ) : null}
       </section>
     </main>
   );
@@ -437,6 +503,7 @@ export function MemoryVaultDashboard() {
 
 function VaultView(props: {
   memories: MemoryRecord[];
+  hasStoredMemories: boolean;
   selectedMemory?: MemoryRecord;
   selectedEvents: DashboardSnapshot["events"];
   editState: EditState | null;
@@ -532,8 +599,16 @@ function VaultView(props: {
         ) : (
           <EmptyState
             icon={<Inbox size={24} aria-hidden="true" />}
-            title="No memories match these filters"
-            body="Clear search or select a broader type, status, or scope filter."
+            title={
+              props.hasStoredMemories
+                ? "No memories match these filters"
+                : "No memories in this store"
+            }
+            body={
+              props.hasStoredMemories
+                ? "Clear search or select a broader type, status, or scope filter."
+                : "The connected server store is ready for the first scoped memory write."
+            }
           />
         )}
       </section>
@@ -816,7 +891,7 @@ function MemoryDetailPanel(props: {
       {props.deleteConfirm ? (
         <div className="delete-confirm">
           <AlertTriangle size={18} aria-hidden="true" />
-          <span>This removes the memory from the vault mock store.</span>
+          <span>This removes the memory from the active dashboard store.</span>
           <button type="button" onClick={props.onDelete} disabled={props.isMutating}>
             Confirm delete
           </button>
@@ -1276,13 +1351,29 @@ function EmptyState({
   );
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorState({ error, onRetry }: { error: LoadError; onRetry: () => void }) {
+  const isConfigurationError = error.kind === "configuration";
+
   return (
-    <div className="error-state">
+    <div
+      className={
+        isConfigurationError
+          ? "error-state configuration-error"
+          : "error-state"
+      }
+      role="alert"
+    >
       <AlertTriangle size={24} aria-hidden="true" />
       <div>
-        <h3>Dashboard failed to load</h3>
-        <p>{message}</p>
+        <h3>
+          {isConfigurationError
+            ? "Dashboard configuration required"
+            : "Dashboard failed to load"}
+        </h3>
+        <p>{error.message}</p>
+        {isConfigurationError ? (
+          <p>Configure the memory store on the server, then retry this same-origin API request.</p>
+        ) : null}
       </div>
       <button type="button" onClick={onRetry}>
         <RefreshCcw size={16} aria-hidden="true" />
@@ -1290,6 +1381,51 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       </button>
     </div>
   );
+}
+
+function MutationErrorState({
+  error,
+  onDismiss
+}: {
+  error: MutationError;
+  onDismiss: () => void;
+}) {
+  const refreshFailed = error.kind === "refresh";
+
+  return (
+    <div className="error-state mutation-error" role="alert">
+      <AlertTriangle size={24} aria-hidden="true" />
+      <div>
+        <h3>{refreshFailed ? "Memory changed; refresh failed" : "Memory change failed"}</h3>
+        <p>{error.message}</p>
+        <p>
+          {refreshFailed
+            ? "The server accepted the change. Refresh to confirm its latest stored state."
+            : "The last successfully loaded dashboard state is still shown below."}
+        </p>
+      </div>
+      <button type="button" onClick={onDismiss}>
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
+function toLoadError(error: unknown): LoadError {
+  if (
+    error instanceof MemoryClientError &&
+    (error.code === "dashboard_configuration_error" || error.status === 503)
+  ) {
+    return {
+      kind: "configuration",
+      message: error.message
+    };
+  }
+
+  return {
+    kind: "load",
+    message: error instanceof Error ? error.message : "Unable to load dashboard."
+  };
 }
 
 function viewTitle(view: ViewKey) {

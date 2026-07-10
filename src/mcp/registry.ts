@@ -15,6 +15,8 @@ import {
   memoryTraceOutputShape,
   memoryUpdateInputShape,
   memoryUpdateOutputShape,
+  MemoryResolveConflictInputSchema,
+  MemoryResolveConflictOutputSchema,
 } from "../schemas.js";
 import type { MemoryService } from "../services/memory-service.js";
 import { promptRegistrations, resourceRegistrations, toolRegistrations } from "./manifest.js";
@@ -130,6 +132,18 @@ export function registerContinuityMcp(server: McpServer, service: MemoryService)
       outputSchema: memoryTraceOutputShape,
     },
     async (input) => structuredToolResult(await service.trace(input)),
+  );
+
+  const resolveConflict = toolMetadata("memory_resolve_conflict");
+  server.registerTool(
+    resolveConflict.name,
+    {
+      title: resolveConflict.title,
+      description: resolveConflict.description,
+      inputSchema: MemoryResolveConflictInputSchema,
+      outputSchema: MemoryResolveConflictOutputSchema,
+    },
+    async (input) => structuredToolResult(await service.resolveConflict(input)),
   );
 
   for (const resource of resourceRegistrations) {
@@ -275,7 +289,7 @@ function registerPrompts(server: McpServer): void {
             type: "text",
             text: [
               "Review pending or active memories with the user.",
-              "Use memory://vault/pending or memory://vault/conflicts when appropriate, then call memory_update, memory_forget, or memory_remember for confirmed changes.",
+              "Use memory://vault/pending or memory://vault/conflicts when appropriate, then call memory_resolve_conflict, memory_update, memory_forget, or memory_remember for confirmed changes.",
               `Scope: ${args.review_scope ?? "default"}`,
               `Status filter: ${args.status ?? "pending"}`,
             ].join("\n"),
@@ -305,7 +319,7 @@ function registerPrompts(server: McpServer): void {
             type: "text",
             text: [
               "Resolve the memory conflict by asking for a clear user decision.",
-              "Do not silently overwrite durable memory. Use memory_update only after the resolution is explicit.",
+              "Do not silently overwrite durable memory. Call memory_resolve_conflict only after the resolution is explicit.",
               `Conflict: ${args.conflict_id ?? "unknown"}`,
               `Existing memory: ${args.existing_memory ?? "not provided"}`,
               `Proposed memory: ${args.proposed_memory ?? "not provided"}`,

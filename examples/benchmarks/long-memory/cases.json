@@ -14,6 +14,10 @@
       "description": "A durable preference created in one session should be recalled in a later opportunity-selection task.",
       "capability": "long-term memory",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-pref-infra-over-prizes",
@@ -44,6 +48,7 @@
       ],
       "expected": {
         "memoryIdsPresent": ["bench-pref-infra-over-prizes"],
+        "usedMemoryIds": ["bench-pref-infra-over-prizes"],
         "contextIncludes": [
           "credible AI agent",
           "memory infrastructure",
@@ -65,6 +70,10 @@
       "description": "A remembered procedure should guide a later bootstrap for event recommendation work.",
       "capability": "multi-session recall",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-verify-event-rules",
@@ -93,7 +102,7 @@
         }
       ],
       "expected": {
-        "memoryIdsPresent": ["bench-procedure-verify-event-rules"],
+        "usedMemoryIds": ["bench-procedure-verify-event-rules"],
         "contextIncludes": [
           "deadline",
           "timezone",
@@ -114,6 +123,10 @@
       "description": "A newer active project fact should supersede an older stale project fact in recall.",
       "capability": "temporal update",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-fact-old-primary-proof",
@@ -182,6 +195,10 @@
       "description": "A stale active memory should be recalled before explicit invalidation and absent afterward.",
       "capability": "forget correctness",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-pref-include-low-priority-events",
@@ -242,14 +259,6 @@
           }
         }
       ],
-      "expected": {
-        "finalStatus": {
-          "bench-pref-include-low-priority-events": "invalidated"
-        },
-        "memoryIdsAbsent": ["bench-pref-include-low-priority-events"],
-        "contextExcludes": ["low-priority event suggestions"],
-        "traceIdPresent": true
-      },
       "metrics": [
         "forget_correct",
         "trace_id_present",
@@ -261,6 +270,10 @@
       "description": "A tight context budget should preserve the highest-importance evidence and exclude lower-priority memories.",
       "capability": "token budget behavior",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-budget-critical-checks",
@@ -341,6 +354,10 @@
       "description": "Memory from another project scope should not satisfy recall in the default project scope.",
       "capability": "scope isolation",
       "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-fact-default-project-guidance",

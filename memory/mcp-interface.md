@@ -15,8 +15,11 @@
 - `memory_update`: 编辑、合并或 supersede 旧记忆。
 - `memory_forget`: 删除、失效或归档记忆。
 - `memory_trace`: 解释某次回答使用、忽略或排除的记忆。
+- `memory_resolve_conflict`: 对 open conflict 执行显式、授权、可审计的 resolution。
 
-当前实现已注册以上 7 个 tools，并使用 Zod schemas 定义 input/output。`memory_remember`、`memory_recall`、`memory_reflect`、`memory_update`、`memory_forget` 会写入 in-memory store 的 event/trace 基础记录。
+当前实现已注册以上 8 个 tools，并使用 Zod schemas 定义 input/output。`memory_resolve_conflict` 支持 `accept_candidate`、`reject_candidate`、`supersede_existing`、`merge`、`keep_both` 和 `dismiss_conflict`；`merge` 必须提供 `merged_text`。所有动作必须保留 linked memory 的 scope/source/provenance 和 audit/supersession links。
+
+Authenticated HTTP 通过 typed `MemoryService.resolveConflict` 和 caller-bound wrapper 传递 scope，不再借用 `memory_update` private dispatch。Conflict vault 会逐条过滤同 tenant 下其他 user 无权读取的记录。
 
 Trace semantics:
 

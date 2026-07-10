@@ -4,6 +4,7 @@ import {
   PostgresMemoryStore,
   QwenMemoryProvider,
   QwenProviderError,
+  applyMemoryPatch,
   rejectSensitiveText,
   type ConflictResult,
   type ContextPackInput,
@@ -11,6 +12,7 @@ import {
   type JsonObject,
   type JsonValue,
   type MemoryCandidate,
+  type MemoryActor,
   type MemoryConflictRecord,
   type MemoryListFilter,
   type MemoryReasoningProvider,
@@ -20,11 +22,14 @@ import {
   type MemoryStatus,
   type MemoryStore,
   type MemoryTrace,
+  type MemoryUpdateResult,
   type RunRecord,
   type SourceKind,
   type SourceTrust,
   type StoredMemory,
+  type UpdateMemoryPatch,
 } from "@handoffbase/memory-core";
+import { randomUUID } from "node:crypto";
 import {
   ScopeGuardError,
   applyCallerAllowedDefaults,
@@ -33,7 +38,8 @@ import {
   isAuthEnforced,
 } from "../auth/scope.js";
 import type { CallerContext } from "../auth/types.js";
-import type {
+import {
+  MemoryResolveConflictInputSchema,
   CandidateMemory,
   ContinuityBootstrapInput,
   ContinuityBootstrapOutput,
@@ -45,6 +51,9 @@ import type {
   MemoryReflectOutput,
   MemoryRememberInput,
   MemoryRememberOutput,
+  MemoryConflictResolutionAction,
+  MemoryResolveConflictInput,
+  MemoryResolveConflictOutput,
   MemorySummary,
   MemoryTraceInput,
   MemoryTraceOutput,
@@ -79,11 +88,31 @@ interface BuiltContextPack {
   estimatedTokens: number;
 }
 
+interface LinkedConflictMemories {
+  candidate?: MemoryRecord;
+  existing?: MemoryRecord;
+}
+
+interface AppliedResolutionMutation {
+  before: MemoryRecord;
+  expected: MemoryRecord;
+  eventId?: string;
+}
+
+class ConflictLinkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConflictLinkError";
+  }
+}
+
 export class ContinuityMemoryService implements MemoryService {
   private readonly store: MemoryStore;
   private readonly provider: MemoryReasoningProvider;
   private readonly runtimeInfo: MemoryServiceRuntimeInfo;
   private readonly seedDemoMemories: boolean;
+  private readonly conflictResolutionLocks = new Map<string, Promise<void>>();
+  private readonly memoryMutationLocks = new Map<string, Promise<void>>();
   private seedPromise?: Promise<void>;
 
   constructor(options: ContinuityMemoryServiceOptions = {}) {
@@ -269,19 +298,21 @@ export class ContinuityMemoryService implements MemoryService {
     }
 
     for (const invalidated of reflection.invalidatedMemories) {
-      const memory = await this.store.getMemory(invalidated.memoryId);
-      if (memory) {
-        assertScopedRequestNarrowed(memory.scope, context.caller, "memory_reflect invalidation");
-        await this.store.updateMemory(
-          invalidated.memoryId,
-          { status: "invalidated", validUntil: new Date().toISOString() },
-          {
-            actor: callerActor(context.caller, { type: "agent", id: "memory_reflect" }),
-            reason: invalidated.reason,
-            runId: run.id,
-          },
-        );
-      }
+      await this.withMemoryMutationLocks([invalidated.memoryId], async () => {
+        const memory = await this.store.getMemory(invalidated.memoryId);
+        if (memory) {
+          assertScopedRequestNarrowed(memory.scope, context.caller, "memory_reflect invalidation");
+          await this.store.updateMemory(
+            invalidated.memoryId,
+            { status: "invalidated", validUntil: new Date().toISOString() },
+            {
+              actor: callerActor(context.caller, { type: "agent", id: "memory_reflect" }),
+              reason: invalidated.reason,
+              runId: run.id,
+            },
+          );
+        }
+      });
     }
 
     const trace = await this.store.addTrace({
@@ -301,70 +332,247 @@ export class ContinuityMemoryService implements MemoryService {
   }
 
   async update(input: MemoryUpdateInput, context: MemoryServiceContext = {}): Promise<MemoryUpdateOutput> {
-    await this.ensureSeeded();
-    await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
-    const result = await this.store.updateMemory(
-      input.memory_id,
-      {
-        canonicalText: input.patch.text,
-        status: input.patch.status,
-        confidence: input.patch.confidence,
-        importance: input.patch.importance,
-        validFrom: input.patch.valid_from,
-        validUntil: input.patch.valid_until,
-        metadata: toJsonObject(input.patch.metadata),
-      },
-      {
-        actor: callerActor(context.caller, { type: "user", id: "memory_update" }),
-        reason: input.reason ?? "Updated through memory_update.",
-      },
-    );
+    return await this.withMemoryMutationLocks([input.memory_id], async () => {
+      await this.ensureSeeded();
+      await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
+      const result = await this.store.updateMemory(
+        input.memory_id,
+        {
+          canonicalText: input.patch.text,
+          status: input.patch.status,
+          confidence: input.patch.confidence,
+          importance: input.patch.importance,
+          validFrom: input.patch.valid_from,
+          validUntil: input.patch.valid_until,
+          metadata: toJsonObject(input.patch.metadata),
+        },
+        {
+          actor: callerActor(context.caller, { type: "user", id: "memory_update" }),
+          reason: input.reason ?? "Updated through memory_update.",
+        },
+      );
 
-    return {
-      memory: {
-        id: result.memory.id,
-        text: result.memory.canonicalText,
-        status: result.memory.status,
-      },
-      event_id: result.event.id,
-      warnings: input.supersede_conflicting ? ["supersede_conflicting is accepted but conflict merge is not automatic in the MVP"] : undefined,
+      return {
+        memory: {
+          id: result.memory.id,
+          text: result.memory.canonicalText,
+          status: result.memory.status,
+        },
+        event_id: result.event.id,
+        warnings: input.supersede_conflicting
+          ? ["supersede_conflicting is accepted but conflict merge is not automatic in the MVP"]
+          : undefined,
+      };
+    });
+  }
+
+  async resolveConflict(
+    input: MemoryResolveConflictInput,
+    context: MemoryServiceContext = {},
+  ): Promise<MemoryResolveConflictOutput> {
+    const request = MemoryResolveConflictInputSchema.parse(input);
+    return await this.withConflictResolutionLock(request.conflict_id, async () => {
+      return await this.resolveConflictLocked(request, context);
+    });
+  }
+
+  private async resolveConflictLocked(
+    request: MemoryResolveConflictInput,
+    context: MemoryServiceContext,
+  ): Promise<MemoryResolveConflictOutput> {
+    await this.ensureSeeded();
+    const initialConflict = await this.store.getConflict(request.conflict_id);
+    if (!initialConflict) {
+      throw new Error(`Memory conflict not found: ${request.conflict_id}`);
+    }
+    const linkedMemoryIds = [initialConflict.candidateMemoryId, initialConflict.existingMemoryId].filter(
+      (memoryId): memoryId is string => Boolean(memoryId),
+    );
+    return await this.withMemoryMutationLocks(linkedMemoryIds, async () => {
+      return await this.resolveConflictWithMemoryLocks(request, context);
+    });
+  }
+
+  private async resolveConflictWithMemoryLocks(
+    request: MemoryResolveConflictInput,
+    context: MemoryServiceContext,
+  ): Promise<MemoryResolveConflictOutput> {
+    const conflict = await this.store.getConflict(request.conflict_id);
+    if (!conflict) {
+      throw new Error(`Memory conflict not found: ${request.conflict_id}`);
+    }
+    const linked = await this.loadAuthorizedConflictMemories(
+      conflict,
+      context.caller,
+      "memory_resolve_conflict",
+    );
+    if (conflict.status !== "open") {
+      return terminalResolutionRetryOutput(conflict, request, linked);
+    }
+    await this.assertNoUnreconciledResolutionAttempt(conflict);
+    assertResolutionActionRequirements(request.action, linked);
+
+    const attemptId = randomUUID();
+    const actor = callerActor(context.caller, { type: "user", id: "memory_resolve_conflict" });
+    const mutationOptions = {
+      actor,
+      reason: request.reason,
+      metadata: toJsonObject({
+        conflict_id: conflict.id,
+        resolution_action: request.action,
+        resolution_attempt_id: attemptId,
+      }),
     };
+    const applied: AppliedResolutionMutation[] = [];
+
+    try {
+      await this.applyConflictResolutionAction(request, linked, mutationOptions, applied);
+      const changed = await this.reloadLinkedConflictMemories(conflict);
+      assertResolutionMemoryPostconditions(request, linked, changed);
+    } catch (error) {
+      await this.rollbackResolutionMutations(conflict, request.action, attemptId, actor, applied, error);
+      throw error;
+    }
+
+    const eventIds = applied
+      .map((mutation) => mutation.eventId)
+      .filter((eventId): eventId is string => Boolean(eventId));
+    const conflictStatus = request.action === "dismiss_conflict" ? "dismissed" : "resolved";
+    const resolution = toJsonObject({
+      action: request.action,
+      attempt_id: attemptId,
+      reason: request.reason,
+      merged_text: request.merged_text,
+      actor_type: actor.type,
+      actor_id: actor.id,
+      event_ids: eventIds,
+    }) ?? { action: request.action };
+
+    try {
+      await this.store.resolveConflict(conflict.id, resolution as { action: string } & JsonObject, {
+        status: conflictStatus,
+        actor,
+        reason: request.reason,
+        metadata: toJsonObject({
+          resolution_action: request.action,
+          resolution_attempt_id: attemptId,
+          resolution_actor_type: actor.type,
+          resolution_actor_id: actor.id,
+          resolution_event_ids: eventIds,
+        }),
+      });
+    } catch (error) {
+      const persisted = await this.store.getConflict(conflict.id);
+      if (isExpectedConflictResolution(persisted, request.action, conflictStatus, attemptId, eventIds)) {
+        const finalLinked = await this.reloadLinkedConflictMemories(conflict);
+        assertResolutionMemoryPostconditions(request, linked, finalLinked);
+        return resolutionOutput(persisted, request.action, finalLinked);
+      }
+
+      if (persisted?.status === "open") {
+        await this.rollbackResolutionMutations(conflict, request.action, attemptId, actor, applied, error);
+      }
+      throw error;
+    }
+
+    const persisted = await this.store.getConflict(conflict.id);
+    if (!isExpectedConflictResolution(persisted, request.action, conflictStatus, attemptId, eventIds)) {
+      if (persisted?.status === "open") {
+        await this.rollbackResolutionMutations(
+          conflict,
+          request.action,
+          attemptId,
+          actor,
+          applied,
+          new Error(`Memory conflict ${conflict.id} did not persist its resolution.`),
+        );
+      }
+      throw new Error(`Memory conflict ${conflict.id} did not persist a consistent resolution.`);
+    }
+
+    const finalLinked = await this.reloadLinkedConflictMemories(conflict);
+    assertResolutionMemoryPostconditions(request, linked, finalLinked);
+    return resolutionOutput(persisted, request.action, finalLinked);
+  }
+
+  private async withConflictResolutionLock<T>(conflictId: string, operation: () => Promise<T>): Promise<T> {
+    return await this.withKeyedLock(this.conflictResolutionLocks, conflictId, operation);
+  }
+
+  private async withMemoryMutationLocks<T>(memoryIds: string[], operation: () => Promise<T>): Promise<T> {
+    const orderedIds = [...new Set(memoryIds)].sort();
+    const acquire = async (index: number): Promise<T> => {
+      const memoryId = orderedIds[index];
+      if (!memoryId) {
+        return await operation();
+      }
+      return await this.withKeyedLock(this.memoryMutationLocks, memoryId, async () => {
+        return await acquire(index + 1);
+      });
+    };
+    return await acquire(0);
+  }
+
+  private async withKeyedLock<T>(
+    locks: Map<string, Promise<void>>,
+    key: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = locks.get(key) ?? Promise.resolve();
+    let release = () => {};
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    locks.set(key, tail);
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (locks.get(key) === tail) {
+        locks.delete(key);
+      }
+    }
   }
 
   async forget(input: MemoryForgetInput, context: MemoryServiceContext = {}): Promise<MemoryForgetOutput> {
-    await this.ensureSeeded();
-    await this.requireMutableMemory(input.memory_id, context.caller, "memory_forget");
-    const statusByMode: Record<MemoryForgetInput["mode"], MemoryStatus> = {
-      archive: "archived",
-      expire: "expired",
-      hard_delete: "deleted",
-      invalidate: "invalidated",
-    };
-    const status = statusByMode[input.mode];
-    const result =
-      input.mode === "hard_delete"
-        ? await this.store.deleteMemory(input.memory_id, {
-            actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
-            reason: input.reason,
-          })
-        : await this.store.updateMemory(
-            input.memory_id,
-            {
-              status,
-              validUntil: status === "expired" || status === "invalidated" ? new Date().toISOString() : undefined,
-            },
-            {
+    return await this.withMemoryMutationLocks([input.memory_id], async () => {
+      await this.ensureSeeded();
+      await this.requireMutableMemory(input.memory_id, context.caller, "memory_forget");
+      const statusByMode: Record<MemoryForgetInput["mode"], MemoryStatus> = {
+        archive: "archived",
+        expire: "expired",
+        hard_delete: "deleted",
+        invalidate: "invalidated",
+      };
+      const status = statusByMode[input.mode];
+      const result =
+        input.mode === "hard_delete"
+          ? await this.store.deleteMemory(input.memory_id, {
               actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
               reason: input.reason,
-            },
-          );
+            })
+          : await this.store.updateMemory(
+              input.memory_id,
+              {
+                status,
+                validUntil: status === "expired" || status === "invalidated" ? new Date().toISOString() : undefined,
+              },
+              {
+                actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
+                reason: input.reason,
+              },
+            );
 
-    return {
-      memory_id: result.memory.id,
-      mode: input.mode,
-      status: result.memory.status,
-      event_id: result.event.id,
-    };
+      return {
+        memory_id: result.memory.id,
+        mode: input.mode,
+        status: result.memory.status,
+        event_id: result.event.id,
+      };
+    });
   }
 
   async trace(input: MemoryTraceInput, context: MemoryServiceContext = {}): Promise<MemoryTraceOutput> {
@@ -457,23 +665,28 @@ export class ContinuityMemoryService implements MemoryService {
     input: MemoryResourceRequest,
     caller: CallerContext | undefined,
   ): Promise<unknown> {
-    const conflicts = await this.store.listConflicts({
+    const tenantConflicts = await this.store.listConflicts({
       tenantId: isAuthEnforced(caller) ? caller.tenantId : undefined,
       statuses: ["open"],
     });
-    const memoryIds = [
-      ...new Set(
-        conflicts.flatMap((conflict) =>
-          [conflict.candidateMemoryId, conflict.existingMemoryId].filter((id): id is string => Boolean(id)),
-        ),
-      ),
-    ];
-    const memories = await this.memoriesById(memoryIds);
-    const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
 
-    if (isAuthEnforced(caller)) {
-      for (const memory of memories) {
-        assertScopedRequestNarrowed(memory.scope, caller, "vault-conflicts resource");
+    const conflicts: MemoryConflictRecord[] = [];
+    const memoryById = new Map<string, MemoryRecord>();
+    for (const conflict of tenantConflicts) {
+      try {
+        const linked = await this.loadAuthorizedConflictMemories(conflict, caller, "vault-conflicts resource");
+        conflicts.push(conflict);
+        if (linked.candidate) {
+          memoryById.set(linked.candidate.id, linked.candidate);
+        }
+        if (linked.existing) {
+          memoryById.set(linked.existing.id, linked.existing);
+        }
+      } catch (error) {
+        if (error instanceof ScopeGuardError || error instanceof ConflictLinkError) {
+          continue;
+        }
+        throw error;
       }
     }
 
@@ -482,6 +695,207 @@ export class ContinuityMemoryService implements MemoryService {
       count: conflicts.length,
       conflicts: conflicts.map((conflict) => toConflictResourceItem(conflict, memoryById)),
     };
+  }
+
+  private async assertNoUnreconciledResolutionAttempt(conflict: MemoryConflictRecord): Promise<void> {
+    const linkedMemoryIds = new Set(
+      [conflict.candidateMemoryId, conflict.existingMemoryId].filter(
+        (memoryId): memoryId is string => Boolean(memoryId),
+      ),
+    );
+    const mutations = new Set<string>();
+    const rollbacks = new Set<string>();
+    const eventLists = await Promise.all(
+      [...linkedMemoryIds].map((memoryId) =>
+        this.store.listEvents({ tenantId: conflict.tenantId, memoryId }),
+      ),
+    );
+    for (const event of eventLists.flat()) {
+      if (!event.memoryId || event.metadata.conflict_id !== conflict.id) {
+        continue;
+      }
+      const attemptId = event.metadata.resolution_attempt_id;
+      if (typeof attemptId !== "string" || attemptId.length === 0) {
+        continue;
+      }
+      const key = `${attemptId}:${event.memoryId}`;
+      if (event.metadata.resolution_rollback === true) {
+        rollbacks.add(key);
+      } else {
+        mutations.add(key);
+      }
+    }
+
+    const unreconciled = [...mutations].filter((key) => !rollbacks.has(key));
+    if (unreconciled.length > 0) {
+      throw new Error(
+        `Memory conflict ${conflict.id} has an unreconciled prior resolution attempt; repair or roll it back before choosing another action.`,
+      );
+    }
+  }
+
+  private async loadAuthorizedConflictMemories(
+    conflict: MemoryConflictRecord,
+    caller: CallerContext | undefined,
+    operation: string,
+  ): Promise<LinkedConflictMemories> {
+    if (isAuthEnforced(caller) && conflict.tenantId !== caller.tenantId) {
+      throw new ScopeGuardError(`${operation} is not authorized for tenant ${conflict.tenantId}.`);
+    }
+
+    const linked = await this.reloadLinkedConflictMemories(conflict);
+    const memories = [linked.candidate, linked.existing].filter((memory): memory is MemoryRecord => Boolean(memory));
+    if (isAuthEnforced(caller) && memories.length === 0) {
+      throw new ScopeGuardError(`${operation} cannot verify caller user scope for conflict ${conflict.id}.`);
+    }
+
+    for (const memory of memories) {
+      if (memory.scope.tenantId !== conflict.tenantId) {
+        throw new ConflictLinkError(`Memory conflict ${conflict.id} has a tenant-inconsistent memory link.`);
+      }
+      assertScopedRequestNarrowed(memory.scope, caller, operation);
+    }
+
+    if (linked.candidate && linked.existing && linked.candidate.scope.userId !== linked.existing.scope.userId) {
+      throw new ConflictLinkError(`Memory conflict ${conflict.id} links memories from different users.`);
+    }
+    return linked;
+  }
+
+  private async reloadLinkedConflictMemories(conflict: MemoryConflictRecord): Promise<LinkedConflictMemories> {
+    const candidate = conflict.candidateMemoryId
+      ? await this.store.getMemory(conflict.candidateMemoryId)
+      : undefined;
+    const existing = conflict.existingMemoryId
+      ? await this.store.getMemory(conflict.existingMemoryId)
+      : undefined;
+
+    if (conflict.candidateMemoryId && !candidate) {
+      throw new ConflictLinkError(`Memory conflict ${conflict.id} references a missing candidate memory.`);
+    }
+    if (conflict.existingMemoryId && !existing) {
+      throw new ConflictLinkError(`Memory conflict ${conflict.id} references a missing existing memory.`);
+    }
+    return { candidate, existing };
+  }
+
+  private async applyConflictResolutionAction(
+    input: MemoryResolveConflictInput,
+    linked: LinkedConflictMemories,
+    options: { actor: MemoryActor; reason: string; metadata?: JsonObject },
+    applied: AppliedResolutionMutation[],
+  ): Promise<void> {
+    if (input.action === "dismiss_conflict") {
+      return;
+    }
+
+    const candidate = linked.candidate as MemoryRecord;
+    if (input.action === "accept_candidate" || input.action === "keep_both") {
+      await this.updateResolutionMemory(candidate, { status: "active" }, options, applied);
+      return;
+    }
+    if (input.action === "reject_candidate") {
+      await this.updateResolutionMemory(candidate, { status: "rejected" }, options, applied);
+      return;
+    }
+
+    const existing = linked.existing as MemoryRecord;
+    const candidatePatch: UpdateMemoryPatch = {
+      status: "active",
+      supersedes: [...new Set([...candidate.supersedes, existing.id])],
+    };
+    if (input.action === "merge") {
+      candidatePatch.canonicalText = input.merged_text;
+    }
+    await this.updateResolutionMemory(candidate, candidatePatch, options, applied);
+    await this.updateResolutionMemory(
+      existing,
+      { status: "superseded", supersededBy: candidate.id },
+      options,
+      applied,
+    );
+  }
+
+  private async updateResolutionMemory(
+    expectedBefore: MemoryRecord,
+    patch: UpdateMemoryPatch,
+    options: { actor: MemoryActor; reason: string; metadata?: JsonObject },
+    applied: AppliedResolutionMutation[],
+  ): Promise<MemoryUpdateResult> {
+    const observedBefore = await this.store.getMemory(expectedBefore.id);
+    if (!observedBefore) {
+      throw new ConflictLinkError(`Memory conflict resolution references missing memory ${expectedBefore.id}.`);
+    }
+    requireResolution(
+      matchesResolutionSnapshot(observedBefore, expectedBefore),
+      `Memory ${expectedBefore.id} changed after conflict authorization; retry the resolution against current state.`,
+    );
+    const mutation: AppliedResolutionMutation = {
+      before: observedBefore,
+      expected: applyMemoryPatch(observedBefore, patch),
+    };
+    applied.push(mutation);
+
+    const result = await this.store.updateMemory(expectedBefore.id, patch, options);
+    mutation.before = result.before;
+    mutation.expected = applyMemoryPatch(result.before, patch);
+    mutation.eventId = result.event.id;
+    return result;
+  }
+
+  private async rollbackResolutionMutations(
+    conflict: MemoryConflictRecord,
+    action: MemoryConflictResolutionAction,
+    attemptId: string,
+    actor: MemoryActor,
+    applied: AppliedResolutionMutation[],
+    originalError: unknown,
+  ): Promise<void> {
+    const rollbackErrors: unknown[] = [];
+    for (const mutation of [...applied].reverse()) {
+      try {
+        const current = await this.store.getMemory(mutation.before.id);
+        if (
+          !current ||
+          (!matchesResolutionSnapshot(current, mutation.before) &&
+            !matchesResolutionSnapshot(current, mutation.expected))
+        ) {
+          rollbackErrors.push(
+            new Error(`Memory ${mutation.before.id} changed outside the failed resolution attempt.`),
+          );
+          continue;
+        }
+        await this.store.updateMemory(mutation.before.id, restorationPatch(mutation.before), {
+          actor,
+          reason: `Rollback incomplete ${action} resolution for conflict ${conflict.id}.`,
+          metadata: {
+            conflict_id: conflict.id,
+            resolution_action: action,
+            resolution_attempt_id: attemptId,
+            resolution_rollback: true,
+          },
+        });
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+
+    for (const snapshot of uniqueMutationSnapshots(applied)) {
+      try {
+        const restored = await this.store.getMemory(snapshot.id);
+        if (!restored || !matchesResolutionSnapshot(restored, snapshot)) {
+          rollbackErrors.push(new Error(`Memory ${snapshot.id} was not restored after resolution failure.`));
+        }
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+
+    if (rollbackErrors.length > 0) {
+      throw new Error(`Conflict ${conflict.id} resolution failed and memory rollback was incomplete.`, {
+        cause: originalError,
+      });
+    }
   }
 
   private async memoriesById(ids: string[]): Promise<MemoryRecord[]> {
@@ -581,6 +995,347 @@ export class ContinuityMemoryService implements MemoryService {
     if (verified === 0) {
       throw new ScopeGuardError(`${operation} cannot verify caller user scope for trace ${trace.id}.`);
     }
+  }
+}
+
+function assertResolutionActionRequirements(
+  action: MemoryConflictResolutionAction,
+  linked: LinkedConflictMemories,
+): void {
+  if (action === "dismiss_conflict") {
+    requireResolution(
+      Boolean(linked.candidate || linked.existing),
+      "dismiss_conflict requires at least one linked memory.",
+    );
+    return;
+  }
+
+  const candidate = linked.candidate;
+  requireResolution(candidate, `${action} requires a candidate memory.`);
+  const allowedCandidateStatuses = action === "reject_candidate" ? ["pending", "rejected"] : ["pending", "active"];
+  requireResolution(
+    allowedCandidateStatuses.includes(candidate.status),
+    `${action} cannot be applied to candidate memory status ${candidate.status}.`,
+  );
+  if (action !== "reject_candidate") {
+    requireResolution(
+      candidate.supersededBy === undefined,
+      `${action} cannot activate a candidate that is already superseded.`,
+    );
+  }
+
+  if (action === "accept_candidate" || action === "reject_candidate") {
+    return;
+  }
+
+  const existing = linked.existing;
+  requireResolution(existing, `${action} requires an existing memory.`);
+  requireResolution(candidate.id !== existing.id, `${action} requires two distinct memories.`);
+
+  if (action === "keep_both") {
+    requireResolution(existing.status === "active", "keep_both requires the existing memory to remain active.");
+    requireResolution(existing.supersededBy === undefined, "keep_both cannot revive a superseded existing memory.");
+    return;
+  }
+
+  const existingIsActive = existing.status === "active" && existing.supersededBy === undefined;
+  const existingIsPartiallyApplied = existing.status === "superseded" && existing.supersededBy === candidate.id;
+  requireResolution(
+    existingIsActive || existingIsPartiallyApplied,
+    `${action} cannot replace an existing memory already superseded by another memory.`,
+  );
+}
+
+function assertResolutionMemoryPostconditions(
+  input: MemoryResolveConflictInput,
+  before: LinkedConflictMemories,
+  after: LinkedConflictMemories,
+): void {
+  assertLinkedMemoryProvenancePreserved(before.candidate, after.candidate, "candidate");
+  assertLinkedMemoryProvenancePreserved(before.existing, after.existing, "existing");
+
+  if (input.action === "dismiss_conflict") {
+    assertLinkedMemoryUnchanged(before.candidate, after.candidate, "candidate");
+    assertLinkedMemoryUnchanged(before.existing, after.existing, "existing");
+    return;
+  }
+
+  const candidateBefore = before.candidate as MemoryRecord;
+  const candidateAfter = after.candidate as MemoryRecord;
+  if (input.action === "reject_candidate") {
+    requireResolution(candidateAfter.status === "rejected", "Rejected candidate did not persist rejected status.");
+    assertMemoryFieldsUnchanged(candidateBefore, candidateAfter, ["status"]);
+    assertLinkedMemoryUnchanged(before.existing, after.existing, "existing");
+    return;
+  }
+
+  requireResolution(candidateAfter.status === "active", "Accepted candidate did not persist active status.");
+  if (input.action === "accept_candidate" || input.action === "keep_both") {
+    assertMemoryFieldsUnchanged(candidateBefore, candidateAfter, ["status"]);
+    assertLinkedMemoryUnchanged(before.existing, after.existing, "existing");
+    if (input.action === "keep_both") {
+      requireResolution(after.existing?.status === "active", "keep_both did not preserve the existing memory as active.");
+    }
+    return;
+  }
+
+  const existingBefore = before.existing as MemoryRecord;
+  const existingAfter = after.existing as MemoryRecord;
+  requireResolution(
+    candidateAfter.supersedes.includes(existingAfter.id),
+    `${input.action} did not link the candidate to the superseded memory.`,
+  );
+  requireResolution(existingAfter.status === "superseded", `${input.action} did not supersede the existing memory.`);
+  requireResolution(
+    existingAfter.supersededBy === candidateAfter.id,
+    `${input.action} did not link the existing memory to its replacement.`,
+  );
+  if (input.action === "merge") {
+    requireResolution(
+      candidateAfter.canonicalText === input.merged_text?.trim(),
+      "merge did not persist merged_text as the candidate canonical text.",
+    );
+    assertMemoryFieldsUnchanged(candidateBefore, candidateAfter, ["canonicalText", "status", "supersedes"]);
+  } else {
+    assertMemoryFieldsUnchanged(candidateBefore, candidateAfter, ["status", "supersedes"]);
+  }
+  assertMemoryFieldsUnchanged(existingBefore, existingAfter, ["status", "supersededBy"]);
+}
+
+function assertLinkedMemoryProvenancePreserved(
+  before: MemoryRecord | undefined,
+  after: MemoryRecord | undefined,
+  role: string,
+): void {
+  requireResolution(Boolean(before) === Boolean(after), `Conflict ${role} memory link changed during resolution.`);
+  if (!before || !after) {
+    return;
+  }
+  requireResolution(before.id === after.id, `Conflict ${role} memory id changed during resolution.`);
+  requireResolution(
+    JSON.stringify(before.scope) === JSON.stringify(after.scope),
+    `Conflict ${role} memory scope changed during resolution.`,
+  );
+  requireResolution(before.type === after.type, `Conflict ${role} memory type changed during resolution.`);
+  requireResolution(before.sourceKind === after.sourceKind, `Conflict ${role} memory source kind changed during resolution.`);
+  requireResolution(before.rawSource === after.rawSource, `Conflict ${role} memory raw source changed during resolution.`);
+  requireResolution(
+    JSON.stringify(before.metadata) === JSON.stringify(after.metadata),
+    `Conflict ${role} memory metadata changed during resolution.`,
+  );
+}
+
+function assertLinkedMemoryUnchanged(
+  before: MemoryRecord | undefined,
+  after: MemoryRecord | undefined,
+  role: string,
+): void {
+  if (!before && !after) {
+    return;
+  }
+  requireResolution(Boolean(before && after), `Conflict ${role} memory link changed during resolution.`);
+  requireResolution(
+    matchesResolutionSnapshot(after as MemoryRecord, before as MemoryRecord),
+    `Conflict ${role} memory changed unexpectedly during resolution.`,
+  );
+}
+
+function assertMemoryFieldsUnchanged(
+  before: MemoryRecord,
+  after: MemoryRecord,
+  allowedChanges: Array<keyof ReturnType<typeof resolutionSnapshot>>,
+): void {
+  const beforeSnapshot = resolutionSnapshot(before);
+  const afterSnapshot = resolutionSnapshot(after);
+  for (const field of allowedChanges) {
+    delete beforeSnapshot[field];
+    delete afterSnapshot[field];
+  }
+  requireResolution(
+    JSON.stringify(beforeSnapshot) === JSON.stringify(afterSnapshot),
+    `Memory ${before.id} changed outside the authorized lifecycle fields.`,
+  );
+}
+
+function restorationPatch(memory: MemoryRecord): UpdateMemoryPatch {
+  return {
+    type: memory.type,
+    canonicalText: memory.canonicalText,
+    rawSource: memory.rawSource ?? null,
+    sourceKind: memory.sourceKind,
+    status: memory.status,
+    confidence: memory.confidence,
+    importance: memory.importance,
+    validFrom: memory.validFrom ?? null,
+    validUntil: memory.validUntil ?? null,
+    supersedes: [...memory.supersedes],
+    supersededBy: memory.supersededBy ?? null,
+    metadata: memory.metadata,
+  };
+}
+
+function uniqueMutationSnapshots(applied: AppliedResolutionMutation[]): MemoryRecord[] {
+  const snapshots = new Map<string, MemoryRecord>();
+  for (const mutation of applied) {
+    if (!snapshots.has(mutation.before.id)) {
+      snapshots.set(mutation.before.id, mutation.before);
+    }
+  }
+  return [...snapshots.values()];
+}
+
+function matchesResolutionSnapshot(memory: MemoryRecord, snapshot: MemoryRecord): boolean {
+  return JSON.stringify(resolutionSnapshot(memory)) === JSON.stringify(resolutionSnapshot(snapshot));
+}
+
+function resolutionSnapshot(memory: MemoryRecord) {
+  return {
+    id: memory.id,
+    scope: memory.scope,
+    type: memory.type,
+    canonicalText: memory.canonicalText,
+    rawSource: memory.rawSource,
+    sourceKind: memory.sourceKind,
+    status: memory.status,
+    confidence: memory.confidence,
+    importance: memory.importance,
+    validFrom: memory.validFrom?.toISOString(),
+    validUntil: memory.validUntil?.toISOString(),
+    supersedes: memory.supersedes,
+    supersededBy: memory.supersededBy,
+    createdAt: memory.createdAt.toISOString(),
+    metadata: memory.metadata,
+  };
+}
+
+function terminalResolutionRetryOutput(
+  conflict: MemoryConflictRecord,
+  input: MemoryResolveConflictInput,
+  linked: LinkedConflictMemories,
+): MemoryResolveConflictOutput {
+  const expectedStatus = input.action === "dismiss_conflict" ? "dismissed" : "resolved";
+  requireResolution(
+    conflict.status === expectedStatus && conflict.resolution?.action === input.action,
+    `Memory conflict ${conflict.id} is already ${conflict.status} with a different resolution.`,
+  );
+  requireResolution(
+    conflict.resolution?.reason === input.reason,
+    `Memory conflict ${conflict.id} was resolved with a different reason.`,
+  );
+  if (input.action === "merge") {
+    requireResolution(
+      conflict.resolution?.merged_text === input.merged_text,
+      `Memory conflict ${conflict.id} was resolved with different merged text.`,
+    );
+  }
+  requireResolution(conflict.resolvedAt instanceof Date, `Memory conflict ${conflict.id} has no resolution time.`);
+  assertTerminalResolutionMemoryState(input, linked);
+  conflictResolutionEventIds(conflict);
+  return resolutionOutput(conflict as MemoryConflictRecord & { resolvedAt: Date }, input.action, linked);
+}
+
+function assertTerminalResolutionMemoryState(
+  input: MemoryResolveConflictInput,
+  linked: LinkedConflictMemories,
+): void {
+  if (input.action === "dismiss_conflict") {
+    return;
+  }
+  const candidate = linked.candidate;
+  requireResolution(candidate, `${input.action} requires a candidate memory.`);
+  if (input.action === "reject_candidate") {
+    requireResolution(candidate.status === "rejected", "Resolved rejection no longer matches candidate lifecycle state.");
+    return;
+  }
+  requireResolution(
+    candidate.status === "active" && candidate.supersededBy === undefined,
+    "Resolved acceptance no longer matches candidate lifecycle state.",
+  );
+  if (input.action === "accept_candidate") {
+    return;
+  }
+  const existing = linked.existing;
+  requireResolution(existing, `${input.action} requires an existing memory.`);
+  if (input.action === "keep_both") {
+    requireResolution(
+      existing.status === "active" && existing.supersededBy === undefined,
+      "Resolved keep_both no longer matches existing memory lifecycle state.",
+    );
+    return;
+  }
+  requireResolution(
+    candidate.supersedes.includes(existing.id) &&
+      existing.status === "superseded" &&
+      existing.supersededBy === candidate.id,
+    `Resolved ${input.action} no longer has consistent supersession links.`,
+  );
+  if (input.action === "merge") {
+    requireResolution(
+      candidate.canonicalText === input.merged_text,
+      "Resolved merge no longer matches the persisted candidate text.",
+    );
+  }
+}
+
+function isExpectedConflictResolution(
+  conflict: MemoryConflictRecord | undefined,
+  action: MemoryConflictResolutionAction,
+  status: "resolved" | "dismissed",
+  attemptId: string,
+  eventIds: string[],
+): conflict is MemoryConflictRecord & { resolvedAt: Date } {
+  return (
+    conflict?.status === status &&
+    conflict.resolution?.action === action &&
+    conflict.resolution?.attempt_id === attemptId &&
+    arraysEqual(conflictResolutionEventIds(conflict), eventIds) &&
+    conflict.resolvedAt instanceof Date
+  );
+}
+
+function resolutionOutput(
+  conflict: MemoryConflictRecord & { resolvedAt: Date },
+  action: MemoryConflictResolutionAction,
+  linked: LinkedConflictMemories,
+): MemoryResolveConflictOutput {
+  return {
+    conflict_id: conflict.id,
+    action,
+    conflict_status: conflict.status as "resolved" | "dismissed",
+    candidate_memory: linked.candidate ? toResolutionMemory(linked.candidate) : undefined,
+    existing_memory: linked.existing ? toResolutionMemory(linked.existing) : undefined,
+    event_ids: conflictResolutionEventIds(conflict),
+    resolved_at: conflict.resolvedAt.toISOString(),
+  };
+}
+
+function conflictResolutionEventIds(conflict: MemoryConflictRecord): string[] {
+  const eventIds = conflict.resolution?.event_ids;
+  requireResolution(
+    Array.isArray(eventIds) && eventIds.every((eventId) => typeof eventId === "string" && eventId.length > 0),
+    `Memory conflict ${conflict.id} has invalid resolution event ids.`,
+  );
+  return [...eventIds] as string[];
+}
+
+function arraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+function toResolutionMemory(memory: MemoryRecord): NonNullable<MemoryResolveConflictOutput["candidate_memory"]> {
+  return {
+    id: memory.id,
+    text: memory.canonicalText,
+    status: memory.status,
+    source_kind: memory.sourceKind,
+    supersedes: [...memory.supersedes],
+    superseded_by: memory.supersededBy,
+  };
+}
+
+function requireResolution(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
   }
 }
 

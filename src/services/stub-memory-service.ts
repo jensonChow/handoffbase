@@ -7,6 +7,8 @@ import type {
   MemoryRecallOutput,
   MemoryReflectInput,
   MemoryReflectOutput,
+  MemoryResolveConflictInput,
+  MemoryResolveConflictOutput,
   MemoryRememberInput,
   MemoryRememberOutput,
   MemoryStatus,
@@ -82,6 +84,16 @@ export class StubMemoryService implements MemoryService {
       },
       event_id: "event_stub_update",
       warnings: ["stub_memory_service_does_not_persist_updates"],
+    };
+  }
+
+  async resolveConflict(input: MemoryResolveConflictInput): Promise<MemoryResolveConflictOutput> {
+    return {
+      conflict_id: input.conflict_id,
+      action: input.action,
+      conflict_status: input.action === "dismiss_conflict" ? "dismissed" : "resolved",
+      event_ids: [],
+      resolved_at: new Date(0).toISOString(),
     };
   }
 
