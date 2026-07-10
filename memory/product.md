@@ -37,7 +37,11 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 
 当前 proof layer 包含 deterministic comparative subset（no-memory 与 HandoffBase）、真实 loopback HTTP/MCP cross-host E2E，以及 cleaned LongMemEval-format adapter/tiny fixture。它们证明 local regression 和 integration behavior，不构成 official benchmark score。只有完成 full official dataset run、official evaluator 和结果记录后才能公开 official score。
 
-当前产品完整性边界：HandoffBase 是 functional open-source memory infrastructure MVP，不是 production SaaS。代码支持 8-tool MCP、authorized conflict resolution、selectable Postgres runtime、server-backed dashboard、comparative/tiny/e2e product gates；credential-free default 仍是 mock + in-memory。Alibaba ECS proof 是 historical deployment proof and may be stopped for cost control；其 live truth 仍为 `storeMode=in-memory`。Managed durable deployment、TLS/domain/LB/monitoring、backup/restore 和 multi-process conflict atomicity 仍是 future work。
+当前产品完整性边界：HandoffBase 是 functional open-source memory infrastructure MVP，不是 production SaaS。代码支持 9-tool MCP、authorized conflict resolution、selectable Postgres runtime、经过 caller 认证和 scope 隔离的 server-backed Dashboard、真实 hard delete + 安全 tombstone、feedback-to-regression 闭环，以及 comparative/tiny/e2e product gates；credential-free default 仍是 mock + in-memory。
+
+Dashboard 的产品身份来自 HandoffBase API-key caller mapping，而不是固定 tenant/user 环境变量；登录只建立签名 HttpOnly session，所有 lifecycle 写操作都经 `ContinuityMemoryService`。`memory_feedback` 让用户对 memory 或 trace 标记 helpful/unhelpful，并可把纠正生成为 pending memory 和去标识化 regression fixture。该 fixture 必须经过显式 public-safe 人工确认，才可转换为额外的本地 benchmark case；它不会自动污染 tracked benchmark suite。
+
+Alibaba ECS proof 是 historical deployment proof and may be stopped for cost control；其 live truth 仍为 `authMode=api_key`、`providerMode=qwen`、`storeMode=in-memory`，并早于当前 9-tool build。Managed durable deployment、TLS/domain/LB/monitoring、backup/restore 和 multi-process conflict-resolution atomicity 仍是 future work。当前本地 17-case comparative benchmark 仍只是 deterministic synthetic regression，不是 official benchmark score。
 
 ## Submission Readiness
 

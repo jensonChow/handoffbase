@@ -1,9 +1,14 @@
 import {
   type AddMemoryConflictInput,
   type CreateMemoryInput,
+  type CreateMemoryFeedbackInput,
   type CreateRunInput,
   type CreateTraceInput,
   type MemoryEmbedding,
+  type MemoryFeedbackListFilter,
+  type MemoryFeedbackRecord,
+  type MemoryFeedbackWithCorrectionOptions,
+  type MemoryFeedbackWithCorrectionResult,
   type MemoryConflictListFilter,
   type MemoryConflictRecord,
   type MemoryConflictResolution,
@@ -13,6 +18,7 @@ import {
   type MemoryRecallQuery,
   type MemoryRecallResult,
   type MemoryRecord,
+  type MemoryDeleteResult,
   type MemoryScopeFilter,
   type MemoryTrace,
   type MemoryUpdateResult,
@@ -26,6 +32,7 @@ import {
 
 export interface EventListFilter {
   tenantId?: string;
+  scope?: MemoryScopeFilter;
   memoryId?: string;
   runId?: string;
   traceId?: string;
@@ -34,7 +41,7 @@ export interface EventListFilter {
 export interface MemoryStore {
   addMemory(input: CreateMemoryInput, options?: MutationOptions): Promise<MemoryWriteResult>;
   updateMemory(id: string, patch: UpdateMemoryPatch, options?: MutationOptions): Promise<MemoryUpdateResult>;
-  deleteMemory(id: string, options?: MutationOptions): Promise<MemoryUpdateResult>;
+  deleteMemory(id: string, options?: MutationOptions): Promise<MemoryDeleteResult>;
   supersedeMemory(
     id: string,
     replacement: CreateMemoryInput,
@@ -45,6 +52,14 @@ export interface MemoryStore {
   recallMemories(query: MemoryRecallQuery): Promise<MemoryRecallResult>;
   upsertEmbedding(embedding: MemoryEmbedding): Promise<MemoryEmbedding>;
   getEmbedding(memoryId: string): Promise<MemoryEmbedding | undefined>;
+  addFeedback(input: CreateMemoryFeedbackInput, options?: MutationOptions): Promise<MemoryFeedbackRecord>;
+  addFeedbackWithCorrection?(
+    feedback: CreateMemoryFeedbackInput,
+    correction: CreateMemoryInput,
+    options?: MemoryFeedbackWithCorrectionOptions
+  ): Promise<MemoryFeedbackWithCorrectionResult>;
+  getFeedback(id: string): Promise<MemoryFeedbackRecord | undefined>;
+  listFeedback(filter?: MemoryFeedbackListFilter): Promise<MemoryFeedbackRecord[]>;
   addRun(input: CreateRunInput): Promise<RunRecord>;
   getRun(id: string): Promise<RunRecord | undefined>;
   addTrace(input: CreateTraceInput): Promise<MemoryTrace>;

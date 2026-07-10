@@ -63,7 +63,7 @@ Voiceover:
 
 On-screen proof points:
 
-- 7 MCP tools.
+- 9 MCP tools.
 - 9 `memory://` resources.
 - 4 memory-aware prompts.
 - Qwen-backed extraction and reasoning path.

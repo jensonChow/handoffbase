@@ -51,27 +51,31 @@ reasoning provider and powers the cloud validation path.
 
 The memory model is intentionally more governed than ordinary retrieval.
 HandoffBase tracks typed memory records, lifecycle status, scope, events, runs,
-traces, and conflict records. If a candidate memory contradicts an existing
+traces, feedback, and conflict records. If a candidate memory contradicts an existing
 preference, it can remain pending and create a conflict record instead of
 silently overwriting the older fact. If a context pack uses or ignores memory,
 the host receives a trace id. Users and operators can later ask what shaped the
-agent's context and why. That makes memory auditable, not just convenient.
+agent's context and why, mark the result helpful or unhelpful, and route a
+correction through pending review. That makes memory auditable and iterative,
+not just convenient.
 
-The current implementation is a runnable MVP. The MCP server exposes eight
+The current implementation is a runnable MVP. The MCP server exposes nine
 tools, nine `memory://` resources, and four reusable prompts. The memory core
-includes validation, sensitive-data rejection, trace records, conflict records,
-an in-memory default, and an explicit Postgres/pgvector runtime after migration.
+includes validation, sensitive-data rejection, trace/feedback/conflict records,
+physical hard delete with content-redacted audit tombstones, an in-memory
+default, and an explicit Postgres/pgvector runtime after migration.
 The local developer path uses a deterministic
 `MockMemoryProvider`, so contributors can run checks without Qwen credentials or
 paid cloud access. The repository also includes a deterministic AI Opportunity
 Scout eval pack that exercises recall, bootstrap traces, token-budget behavior,
 candidate creation, controlled conflicts, and forgetting.
 
-HandoffBase also includes a Memory Vault dashboard. Same-origin server APIs are
-the default, and Postgres mode can share the MCP runtime database under an
-explicit private tenant/user scope. The dashboard
-shows vault records, pending review, trace inspection, and conflict review for a
-demo scenario where an opportunity-scouting agent learns a user's hackathon
+HandoffBase also includes a Memory Vault dashboard. API-key sign-in creates a
+signed HttpOnly caller session, production state-changing requests require
+same origin, and mutation routes use the same service governance boundary as MCP. Postgres
+mode can share the MCP runtime database. The dashboard shows vault records,
+deletion audit, pending review, trace feedback, and all six conflict actions for
+a demo scenario where an opportunity-scouting agent learns a user's hackathon
 preferences and later applies them across sessions. The dashboard is not a full
 production admin console yet, but it demonstrates the user-facing governance
 loop that makes memory trustworthy.
@@ -186,14 +190,18 @@ multiple hosts can use.
 ## What Is Implemented Now
 
 - Remote Streamable HTTP MCP server at `/mcp`.
-- Eight MCP tools, nine `memory://` resources, and four prompts.
+- Nine MCP tools, nine `memory://` resources, and four prompts.
 - `@handoffbase/memory-core` with records, lifecycle statuses, traces, events,
-  conflict records, validation, and sensitive-data rejection.
+  feedback/conflict records, validation, physical hard delete, and
+  sensitive-data rejection.
+- Governed helpful/unhelpful feedback, pending corrections, and explicit
+  feedback-fixture conversion into runnable benchmark regressions.
 - `QwenMemoryProvider`, `MockMemoryProvider`, and the provider boundary.
 - In-memory runtime store by default.
 - `PostgresMemoryStore`, explicit migration, and opt-in runtime selection.
 - API-key auth for the deployed server path.
-- Same-origin server-backed Memory Vault dashboard with explicit mock mode.
+- Authenticated, same-origin, service-governed Memory Vault dashboard with
+  explicit mock mode.
 - AI Opportunity Scout demo and example JSON-RPC/HTTP payloads.
 - Deterministic local eval pack.
 - Alibaba Cloud ECS + Docker deployment proof.

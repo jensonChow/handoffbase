@@ -5,6 +5,7 @@ import {
   type MemoryConflictRecord as CoreMemoryConflictRecord,
   type MemoryEvent as CoreMemoryEvent,
   type MemoryEventType as CoreMemoryEventType,
+  type MemoryFeedbackRecord as CoreMemoryFeedbackRecord,
   type MemoryRecord as CoreMemoryRecord,
   type MemorySourceKind as CoreMemorySourceKind,
   type MemoryStatus as CoreMemoryStatus,
@@ -20,6 +21,7 @@ import type {
   MemoryRecord as DashboardMemoryRecord,
   MemoryStatus as DashboardMemoryStatus,
   MemoryTrace as DashboardMemoryTrace,
+  TraceFeedback,
   SourceKind as DashboardSourceKind,
   TraceMemoryRef
 } from "@/lib/memory-client";
@@ -38,6 +40,7 @@ type DashboardSnapshotInput = {
   events: CoreMemoryEvent[];
   traces: CoreMemoryTrace[];
   conflicts: CoreMemoryConflictRecord[];
+  feedback: CoreMemoryFeedbackRecord[];
   now?: Date;
 };
 
@@ -59,10 +62,6 @@ export function toDashboardSnapshot(input: DashboardSnapshotInput): DashboardSna
       toDashboardMemory(memory, eventCounts.get(memory.id) ?? 0, now)
     ),
     events: input.events.flatMap((event) => {
-      if (!event.memoryId || !memoryById.has(event.memoryId)) {
-        return [];
-      }
-
       const mapped = toDashboardEvent(event);
       return mapped ? [mapped] : [];
     }),
@@ -70,7 +69,8 @@ export function toDashboardSnapshot(input: DashboardSnapshotInput): DashboardSna
     conflicts: input.conflicts.flatMap((conflict) => {
       const mapped = toDashboardConflict(conflict, memoryById);
       return mapped ? [mapped] : [];
-    })
+    }),
+    feedback: input.feedback.map(toDashboardFeedback)
   };
 }
 
@@ -120,6 +120,8 @@ export function toDashboardEvent(event: CoreMemoryEvent): DashboardMemoryEvent |
     return undefined;
   }
 
+  const deletion = event.eventType === "delete" ? deletionDetails(event.after) : undefined;
+
   return {
     id: event.id,
     memoryId: event.memoryId,
@@ -127,7 +129,24 @@ export function toDashboardEvent(event: CoreMemoryEvent): DashboardMemoryEvent |
     actorType: toDashboardActorType(event.actor.type),
     actorId: event.actor.id ?? event.actor.type,
     reason: event.reason ?? formatToken(event.eventType),
-    createdAt: event.createdAt.toISOString()
+    createdAt: event.createdAt.toISOString(),
+    hardDeleted: deletion?.hardDeleted,
+    scopeLabel: deletion?.scopeLabel
+  };
+}
+
+export function toDashboardFeedback(feedback: CoreMemoryFeedbackRecord): TraceFeedback {
+  return {
+    id: feedback.id,
+    traceId: feedback.traceId ?? "",
+    memoryId: feedback.memoryId,
+    rating: feedback.signal,
+    reason: feedback.reason,
+    correction: stringMetadata(feedback.regressionFixture, "correction"),
+    correctionMemoryId: feedback.correctionMemoryId,
+    runId: feedback.runId,
+    createdAt: feedback.createdAt.toISOString(),
+    regressionFixture: feedback.regressionFixture
   };
 }
 
@@ -137,8 +156,6 @@ export function toCoreMemoryPatch(
 ): CoreUpdateMemoryPatch {
   const update: CoreUpdateMemoryPatch = {};
 
-  if (patch.type !== undefined) update.type = patch.type;
-  if (patch.status !== undefined) update.status = patch.status;
   if (patch.confidence !== undefined) update.confidence = patch.confidence;
   if (patch.importance !== undefined) update.importance = patch.importance;
   if (patch.canonicalText !== undefined) update.canonicalText = patch.canonicalText;
@@ -239,9 +256,31 @@ function toDashboardConflict(
     recommendation: conflict.reason
       ? `${formatToken(conflict.recommendedAction)}: ${conflict.reason}`
       : formatToken(conflict.recommendedAction),
+    recommendedAction: toDashboardConflictAction(conflict.recommendedAction),
     memoryType: candidate?.type ?? existing?.type ?? "project_fact",
     scopeLabel: coreScopeLabel(scopeMemory)
   };
+}
+
+function toDashboardConflictAction(
+  action: CoreMemoryConflictRecord["recommendedAction"]
+): ConflictCandidate["recommendedAction"] {
+  switch (action) {
+    case "accept":
+      return "accept_candidate";
+    case "reject":
+      return "reject_candidate";
+    case "supersede":
+    case "supersede_existing":
+      return "supersede_existing";
+    case "merge":
+      return "merge";
+    case "ask_user":
+    case "keep_both":
+      return "keep_both";
+    case "ignore":
+      return "dismiss_conflict";
+  }
 }
 
 function toVisibleTraceMemoryRefs(
@@ -336,6 +375,21 @@ function toDashboardEventType(event: CoreMemoryEvent): DashboardMemoryEvent["eve
     return "invalidated";
   }
 
+  if (
+    event.eventType === "update" &&
+    stringMetadata(event.before ?? {}, "status") === "pending" &&
+    stringMetadata(event.after ?? {}, "status") === "active"
+  ) {
+    return "approved";
+  }
+
+  if (
+    event.eventType === "update" &&
+    stringMetadata(event.after ?? {}, "status") === "invalidated"
+  ) {
+    return "invalidated";
+  }
+
   return eventTypeMap(event.eventType);
 }
 
@@ -416,6 +470,31 @@ function stringArrayMetadata(metadata: JsonObject, key: string): string[] {
 function objectMetadata(metadata: JsonObject, key: string): JsonObject | undefined {
   const value = metadata[key];
   return isJsonObject(value) ? value : undefined;
+}
+
+function deletionDetails(after: JsonObject | undefined): {
+  hardDeleted: true;
+  scopeLabel?: string;
+} | undefined {
+  if (after?.hardDeleted !== true) {
+    return undefined;
+  }
+  const scope = objectMetadata(after, "scope");
+  const dimensions = scope
+    ? [
+        ["userId", "user"],
+        ["projectId", "project"],
+        ["agentProfileId", "agent profile"],
+        ["hostId", "host"],
+        ["toolId", "tool"]
+      ]
+        .filter(([key]) => stringMetadata(scope, key) !== undefined)
+        .map(([, label]) => label)
+    : [];
+  return {
+    hardDeleted: true,
+    scopeLabel: dimensions.length > 0 ? dimensions.join(" / ") : undefined
+  };
 }
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {

@@ -5,11 +5,13 @@ import {
   MEMORY_CONFLICT_STATUSES,
   MEMORY_CONFLICT_TYPES,
   MEMORY_EVENT_TYPES,
+  MEMORY_FEEDBACK_SIGNALS,
   MEMORY_SOURCE_KINDS,
   MEMORY_STATUSES,
   MEMORY_TYPES,
   type MemoryConflictRecord,
   type MemoryEvent,
+  type MemoryFeedbackRecord,
   type MemoryRecord,
   type MemoryScope
 } from "./types.js";
@@ -141,6 +143,41 @@ export function validateMemoryEvent(value: unknown): ValidationResult {
   };
 }
 
+export function validateMemoryFeedbackRecord(value: unknown): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  if (!isPlainObject(value)) {
+    return issueResult("feedback", "invalid_type", "Memory feedback record must be an object.");
+  }
+
+  requireString(value.id, "id", issues);
+  issues.push(...validateMemoryScope(value.scope, "scope"));
+  optionalString(value.memoryId, "memoryId", issues);
+  optionalString(value.traceId, "traceId", issues);
+  optionalString(value.runId, "runId", issues);
+  requireEnum(value.signal, MEMORY_FEEDBACK_SIGNALS, "signal", issues);
+  optionalString(value.reason, "reason", issues);
+  optionalString(value.correctionMemoryId, "correctionMemoryId", issues);
+  validateActor(value.actor, "actor", issues);
+  requirePlainObject(value.regressionFixture, "regressionFixture", issues);
+  requireDate(value.createdAt, "createdAt", issues);
+  requirePlainObject(value.metadata, "metadata", issues);
+
+  if (typeof value.memoryId !== "string" && typeof value.traceId !== "string") {
+    issues.push({
+      path: "memoryId",
+      code: "missing_feedback_target",
+      message: "Memory feedback must reference a memory or trace."
+    });
+  }
+
+  if (typeof value.reason === "string") {
+    addSensitiveIssues(value.reason, "reason", issues);
+  }
+
+  return { ok: issues.length === 0, issues };
+}
+
 export function validateMemoryConflictRecord(value: unknown): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -209,6 +246,13 @@ export function assertValidMemoryEvent(value: unknown): asserts value is MemoryE
   const result = validateMemoryEvent(value);
   if (!result.ok) {
     throw new ValidationError("Invalid memory event.", result.issues);
+  }
+}
+
+export function assertValidMemoryFeedbackRecord(value: unknown): asserts value is MemoryFeedbackRecord {
+  const result = validateMemoryFeedbackRecord(value);
+  if (!result.ok) {
+    throw new ValidationError("Invalid memory feedback record.", result.issues);
   }
 }
 

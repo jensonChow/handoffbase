@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyMigration,
+  applyVersionedMigration,
   MigrationConfigError,
   runMemoryCoreMigration,
 } from "../scripts/db/migrate.mjs";
@@ -24,18 +25,50 @@ test("migration command requires DATABASE_URL before constructing a pool", async
   assert.equal(poolFactoryCalls, 0);
 });
 
-test("migration command applies the canonical memory-core SQL explicitly and closes the pool", async () => {
-  const events: string[] = [];
-  let migrationSql = "";
-  const pool = migrationPool(events, (sql) => {
-    migrationSql = sql;
-  });
+test("migration command records checksums and skips already applied files", async () => {
+  const harness = versionedMigrationPool();
 
-  await runMemoryCoreMigration("postgresql://runtime.invalid/handoffbase_test", () => pool);
+  const first = await runMemoryCoreMigration(
+    "postgresql://runtime.invalid/handoffbase_test",
+    () => harness.pool,
+  );
+  const second = await runMemoryCoreMigration(
+    "postgresql://runtime.invalid/handoffbase_test",
+    () => harness.pool,
+  );
 
-  assert.match(migrationSql, /create extension if not exists vector;/);
-  assert.match(migrationSql, /create table if not exists memories/);
-  assert.deepEqual(events, ["CONNECT", "BEGIN", "MIGRATION", "COMMIT", "RELEASE", "END"]);
+  assert.deepEqual(first.map((result) => result.status), ["applied", "applied"]);
+  assert.deepEqual(second.map((result) => result.status), ["skipped", "skipped"]);
+  assert.equal(harness.appliedSql.length, 2);
+  assert.match(harness.appliedSql[0], /create extension if not exists vector;/);
+  assert.match(harness.appliedSql[0], /create table if not exists memories/);
+  assert.match(harness.appliedSql[1], /create table if not exists memory_feedback/);
+  assert.deepEqual([...harness.ledger.keys()], [
+    "0001_memory_core.sql",
+    "0002_feedback_hard_delete.sql",
+  ]);
+  assert.equal(harness.endCount(), 2);
+});
+
+test("versioned migration rejects checksum drift without replaying SQL", async () => {
+  const harness = versionedMigrationPool(
+    new Map([["0001_memory_core.sql", "already-applied-checksum"]]),
+  );
+
+  await assert.rejects(
+    () =>
+      applyVersionedMigration(harness.pool, {
+        name: "0001_memory_core.sql",
+        sql: "changed sql must not run",
+        checksum: "changed-checksum",
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof MigrationConfigError);
+      assert.equal(error.message, "Applied migration checksum mismatch: 0001_memory_core.sql.");
+      return true;
+    },
+  );
+  assert.deepEqual(harness.appliedSql, []);
 });
 
 test("migration transaction rolls back and releases its client on failure", async () => {
@@ -95,4 +128,47 @@ function migrationPool(
       events.push("END");
     },
   };
+}
+
+function versionedMigrationPool(
+  initialLedger: Map<string, string> = new Map(),
+) {
+  const ledger = new Map(initialLedger);
+  const appliedSql: string[] = [];
+  let ends = 0;
+  const pool = {
+    async connect() {
+      return {
+        async query(sql: string, values: unknown[] = []) {
+          if (
+            sql === "BEGIN" ||
+            sql === "COMMIT" ||
+            sql === "ROLLBACK" ||
+            sql.includes("pg_advisory_xact_lock") ||
+            sql.startsWith("create table if not exists handoffbase_schema_migrations")
+          ) {
+            return { rows: [], rowCount: 0 };
+          }
+          if (sql.startsWith("select checksum from handoffbase_schema_migrations")) {
+            const checksum = ledger.get(String(values[0]));
+            return {
+              rows: checksum === undefined ? [] : [{ checksum }],
+              rowCount: checksum === undefined ? 0 : 1,
+            };
+          }
+          if (sql.startsWith("insert into handoffbase_schema_migrations")) {
+            ledger.set(String(values[0]), String(values[1]));
+            return { rows: [], rowCount: 1 };
+          }
+          appliedSql.push(sql);
+          return { rows: [], rowCount: 0 };
+        },
+        release() {},
+      };
+    },
+    async end() {
+      ends += 1;
+    },
+  };
+  return { pool, ledger, appliedSql, endCount: () => ends };
 }

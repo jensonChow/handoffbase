@@ -9,7 +9,7 @@ or a live remote endpoint.
 Use Node.js 22 or newer.
 
 ```bash
-npm install
+npm ci
 npm run check
 npm run eval:memory
 npm run bench:memory
@@ -42,7 +42,8 @@ What each command covers:
   dashboard path.
 - `npm run dashboard:dev` starts the HandoffBase Memory Vault dashboard
   using same-origin server APIs and a seeded in-memory backend by default. Set
-  `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` only for fixture-only mock mode.
+  `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` only for fixture-only mock mode. The
+  dashboard listens on `http://localhost:3001`, leaving port `3000` for MCP.
 
 These commands need no Qwen key, database, Docker daemon, remote endpoint, or
 cloud resource.
@@ -61,6 +62,15 @@ Then set one backend provider key in `.env.local` or in your shell:
 - `QWEN_API_KEY`
 - `DASHSCOPE_API_KEY`
 
+`npm run dev:server` and `npm run start:server` automatically pass `.env.local`
+to Node when the file exists. When it does not exist, they use the current shell
+or cloud environment without failing. The launcher never prints values.
+
+If `HANDOFFBASE_AUTH_MODE=api_key` is also used for the dashboard, configure a
+server-only `HANDOFFBASE_DASHBOARD_SESSION_SECRET` of at least 32 characters.
+The dashboard uses it to sign an HttpOnly session cookie after API-key sign-in;
+never commit or expose the secret through `NEXT_PUBLIC_*`.
+
 Do not commit `.env.*` files. Do not share Qwen keys with judges, MCP hosts, or
 public docs. Qwen and DashScope credentials stay on the backend only.
 
@@ -75,9 +85,9 @@ DATABASE_URL=<postgres-url> npm run db:migrate
 STORE_MODE=postgres DATABASE_URL=<postgres-url> npm run dev:server
 ```
 
-The dashboard uses the same `STORE_MODE` and `DATABASE_URL`; Postgres mode also
-requires private server-side `HANDOFFBASE_DASHBOARD_TENANT_ID` and
-`HANDOFFBASE_DASHBOARD_USER_ID` scope values.
+The dashboard uses the same `STORE_MODE` and `DATABASE_URL`. Its signed caller
+session derives tenant/user identity from the HandoffBase API-key mapping;
+optional server-only `HANDOFFBASE_DASHBOARD_*` values only narrow that grant.
 
 `TEST_DATABASE_URL=<dedicated-test-database-url> npm run test:postgres:integration`
 runs the optional database integration case. Without that variable, the case
@@ -117,17 +127,31 @@ Once the deployment is reactivated, judges can validate the remote MCP service
 with temporary HandoffBase access credentials:
 
 ```bash
-MCP_ENDPOINT=<deployed-mcp-url>
-MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key>
+MCP_VALIDATION_PROFILE=alibaba-demo \
+MCP_ENDPOINT=<deployed-mcp-url> \
+MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key> \
 npm run mcp:validate-remote
 ```
 
-The remote validator checks:
+The `alibaba-demo` profile asserts `api_key` auth, Qwen provider mode, and the
+in-memory store. Omit the profile for mode discovery, or set
+`EXPECTED_AUTH_MODE`, `EXPECTED_PROVIDER_MODE`, and `EXPECTED_STORE_MODE`
+individually for another deployment. Every profile checks the exact current
+nine-tool manifest.
+
+The remote validator also checks:
 
 - `/health`
+- `/ready` returns HTTP 200 for live store/provider dependencies
 - MCP `tools/list`
 - authenticated `memory_recall`
 - authenticated Qwen-backed `memory_remember`
+
+The store readiness check runs on every request. Qwen readiness uses a live
+one-token probe on the first request and caches it for five minutes so polling
+cannot repeatedly consume model quota. Use `MCP_SKIP_READINESS=1` only for a
+legacy deployment that does not yet expose `/ready`; it does not skip the
+current tool-manifest checks.
 
 The Qwen API key is never shared with judges. The HandoffBase API key is
 separate from the Qwen key; it only protects the HandoffBase MCP endpoint and

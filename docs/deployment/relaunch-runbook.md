@@ -84,6 +84,7 @@ Check health first:
 
 ```sh
 curl -sS http://<public-ip>/health
+curl -sS http://<public-ip>/ready
 ```
 
 Expected non-secret health fields:
@@ -100,8 +101,13 @@ Then run the remote MCP validator with the endpoint and token supplied only
 through the shell environment:
 
 ```sh
-MCP_ENDPOINT=http://<public-ip>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=http://<public-ip>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
 ```
+
+`/health` proves liveness; `/ready` probes the configured dependencies and must
+return HTTP 200. The store check runs every time. In Qwen mode the first
+provider check uses one token, then the result is cached for five minutes so
+polling cannot repeatedly consume model quota.
 
 Verify:
 

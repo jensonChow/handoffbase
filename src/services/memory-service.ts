@@ -3,6 +3,8 @@ import type {
   ContinuityBootstrapOutput,
   MemoryForgetInput,
   MemoryForgetOutput,
+  MemoryFeedbackInput,
+  MemoryFeedbackOutput,
   MemoryRecallInput,
   MemoryRecallOutput,
   MemoryReflectInput,
@@ -47,6 +49,7 @@ export interface MemoryService {
   update(input: MemoryUpdateInput, context?: MemoryServiceContext): Promise<MemoryUpdateOutput>;
   resolveConflict(input: MemoryResolveConflictInput, context?: MemoryServiceContext): Promise<MemoryResolveConflictOutput>;
   forget(input: MemoryForgetInput, context?: MemoryServiceContext): Promise<MemoryForgetOutput>;
+  feedback(input: MemoryFeedbackInput, context?: MemoryServiceContext): Promise<MemoryFeedbackOutput>;
   trace(input: MemoryTraceInput, context?: MemoryServiceContext): Promise<MemoryTraceOutput>;
   readResource(input: MemoryResourceRequest, context?: MemoryServiceContext): Promise<MemoryResourceResult>;
   getRuntimeInfo?(): MemoryServiceRuntimeInfo;
@@ -62,6 +65,7 @@ export function withCallerContext(service: MemoryService, caller: CallerContext)
     update: (input) => service.update(input, context),
     resolveConflict: (input) => service.resolveConflict(input, context),
     forget: (input) => service.forget(input, context),
+    feedback: (input) => service.feedback(input, context),
     trace: (input) => service.trace(input, context),
     readResource: (input) => service.readResource(input, context),
     getRuntimeInfo: () =>

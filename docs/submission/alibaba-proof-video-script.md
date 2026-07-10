@@ -80,12 +80,14 @@ Commands to show:
 MCP_ENDPOINT=<deployed-mcp-url>
 MCP_AUTH_TOKEN=<redacted>
 curl -s <deployed-health-url>
-MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+curl -s <deployed-ready-url>
+MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
 ```
 
 Expected safe output to point at:
 
 - `/health` returns `ok: true`.
+- `/ready` returns HTTP 200 and only dependency status metadata.
 - `/health` reports `authMode: "api_key"`.
 - `/health` reports `providerMode: "qwen"`.
 - `/health` reports `storeMode: "in-memory"`.

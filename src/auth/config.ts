@@ -85,6 +85,8 @@ function parseCallerConfig(value: unknown, index: number): ApiKeyCallerConfig {
   if (!isRecord(value)) {
     throw new Error(`${source} must be an object.`);
   }
+  assertAllowedCallerKeys(value, source);
+  assertNoDuplicateCallerAliases(value, source);
 
   const tenantId = readString(value, "tenantId") ?? readString(value, "tenant_id");
   const userId = readString(value, "userId") ?? readString(value, "user_id");
@@ -103,8 +105,11 @@ function parseCallerConfig(value: unknown, index: number): ApiKeyCallerConfig {
       DEFAULT_ACTOR_TYPE,
     actorId: readString(value, "actorId") ?? readString(value, "actor_id") ?? userId,
     allowedAgentProfileIds:
-      readStringList(value, "allowedAgentProfileIds") ?? readStringList(value, "allowed_agent_profile_ids"),
-    allowedProjectIds: readStringList(value, "allowedProjectIds") ?? readStringList(value, "allowed_project_ids"),
+      readStringList(value, "allowedAgentProfileIds", source) ??
+      readStringList(value, "allowed_agent_profile_ids", source),
+    allowedProjectIds:
+      readStringList(value, "allowedProjectIds", source) ??
+      readStringList(value, "allowed_project_ids", source),
   };
 }
 
@@ -130,20 +135,70 @@ function readString(value: Record<string, unknown>, key: string): string | undef
   return typeof item === "string" && item.trim() ? item.trim() : undefined;
 }
 
-function readStringList(value: Record<string, unknown>, key: string): string[] | undefined {
+function readStringList(
+  value: Record<string, unknown>,
+  key: string,
+  source: string,
+): string[] | undefined {
+  if (!(key in value)) {
+    return undefined;
+  }
   const item = value[key];
   if (typeof item === "string") {
-    return normalizeStringList(item.split(","));
+    return normalizeStrictStringList(item.split(","), source, key);
   }
   if (Array.isArray(item)) {
-    return normalizeStringList(item);
+    return normalizeStrictStringList(item, source, key);
   }
-  return undefined;
+  throw new Error(`${source} ${key} must be a string or an array of strings.`);
 }
 
 function normalizeStringList(items: unknown[]): string[] | undefined {
   const output = [...new Set(items.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))];
   return output.length > 0 ? output : undefined;
+}
+
+function normalizeStrictStringList(items: unknown[], source: string, key: string): string[] {
+  if (items.some((item) => typeof item !== "string")) {
+    throw new Error(`${source} ${key} must contain strings only.`);
+  }
+  return [...new Set((items as string[]).map((item) => item.trim()).filter(Boolean))];
+}
+
+function assertAllowedCallerKeys(value: Record<string, unknown>, source: string): void {
+  const allowed = new Set([
+    "tenantId",
+    "tenant_id",
+    "userId",
+    "user_id",
+    "actorType",
+    "actor_type",
+    "actorId",
+    "actor_id",
+    "allowedAgentProfileIds",
+    "allowed_agent_profile_ids",
+    "allowedProjectIds",
+    "allowed_project_ids",
+  ]);
+  const unsupported = Object.keys(value).find((key) => !allowed.has(key));
+  if (unsupported) {
+    throw new Error(`${source} contains unsupported field ${unsupported}.`);
+  }
+}
+
+function assertNoDuplicateCallerAliases(value: Record<string, unknown>, source: string): void {
+  for (const [camel, snake] of [
+    ["tenantId", "tenant_id"],
+    ["userId", "user_id"],
+    ["actorType", "actor_type"],
+    ["actorId", "actor_id"],
+    ["allowedAgentProfileIds", "allowed_agent_profile_ids"],
+    ["allowedProjectIds", "allowed_project_ids"],
+  ] as const) {
+    if (camel in value && snake in value) {
+      throw new Error(`${source} must not set both ${camel} and ${snake}.`);
+    }
+  }
 }
 
 function requireEnv(value: string | undefined, name: string): string {

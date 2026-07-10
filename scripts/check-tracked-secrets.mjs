@@ -1,18 +1,29 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const rootDir = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
+const trackedFiles = listGitFiles(["ls-files", "--cached", "-z"]);
+const untrackedCandidateFiles = listGitFiles([
+  "ls-files",
+  "--others",
+  "--exclude-standard",
+  "-z",
+]);
+const candidateFiles = [...new Set([...trackedFiles, ...untrackedCandidateFiles])].sort();
+
+function listGitFiles(args) {
+  return execFileSync("git", args, {
   cwd: rootDir,
   encoding: "utf8",
-})
-  .split("\0")
-  .filter(Boolean);
+  })
+    .split("\0")
+    .filter(Boolean);
+}
 
-const forbiddenEnvFiles = trackedFiles.filter(
+const forbiddenEnvFiles = candidateFiles.filter(
   (file) => /(^|\/)\.env(?:\.|$)/.test(file) && !file.endsWith(".env.example") && file !== ".env.example",
 );
 const findings = forbiddenEnvFiles.map((file) => `${file}: tracked environment file is not allowed`);
@@ -33,12 +44,12 @@ const intentionalSensitiveFixtureFiles = new Set([
   "packages/memory-core/test/sensitive.test.mjs",
 ]);
 
-for (const file of trackedFiles) {
+for (const file of candidateFiles) {
   if (forbiddenEnvFiles.includes(file)) {
     continue;
   }
 
-  const bytes = readFileSync(path.join(rootDir, file));
+  const bytes = readCandidateBytes(file);
   if (bytes.includes(0)) {
     continue;
   }
@@ -75,8 +86,20 @@ if (findings.length > 0) {
   process.exitCode = 1;
 } else {
   process.stdout.write(
-    `Tracked-file secret scan: PASS (${trackedFiles.length} tracked files, ${textFilesScanned} text files scanned; no real .env.* files opened).\n`,
+    `Tracked-file secret scan: PASS (${trackedFiles.length} tracked files, ${untrackedCandidateFiles.length} untracked candidates, ${textFilesScanned} text files scanned; no real .env.* files opened).\n`,
   );
+}
+
+function readCandidateBytes(file) {
+  const worktreePath = path.join(rootDir, file);
+  if (existsSync(worktreePath)) {
+    return readFileSync(worktreePath);
+  }
+
+  return execFileSync("git", ["show", `:${file}`], {
+    cwd: rootDir,
+    maxBuffer: 20 * 1024 * 1024,
+  });
 }
 
 function isClearlyNonSecret(value) {

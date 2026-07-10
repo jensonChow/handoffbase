@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
-import { ValidationError } from "@handoffbase/memory-core";
 import {
+  MemoryMutationPreconditionError,
+  SensitiveDataError,
+  ValidationError
+} from "@handoffbase/memory-core";
+import { ScopeGuardError } from "../../../../../src/auth/scope";
+import { MemoryConflictResolutionError } from "../../../../../src/services/continuity-memory-service";
+import {
+  DashboardAuthorizationError,
+  DashboardConflictNotFoundError,
+  DashboardInvalidMemoryStateError,
   DashboardMemoryConfigurationError,
-  DashboardMemoryNotFoundError
+  DashboardMemoryNotFoundError,
+  DashboardTraceNotFoundError
 } from "./dashboard-memory-store";
+import { DashboardSessionError } from "./dashboard-session";
 
 export class DashboardRequestError extends Error {
   constructor(message: string) {
@@ -21,6 +32,13 @@ export async function readJsonBody<T>(request: Request): Promise<T> {
 }
 
 export function dashboardErrorResponse(error: unknown): NextResponse {
+  if (error instanceof DashboardSessionError) {
+    return NextResponse.json(
+      { code: error.code, error: error.message },
+      { status: error.statusCode }
+    );
+  }
+
   if (error instanceof DashboardMemoryConfigurationError) {
     return NextResponse.json(
       {
@@ -35,6 +53,72 @@ export function dashboardErrorResponse(error: unknown): NextResponse {
     return NextResponse.json(
       { code: "memory_not_found", error: error.message },
       { status: 404 }
+    );
+  }
+
+  if (error instanceof DashboardInvalidMemoryStateError) {
+    return NextResponse.json(
+      { code: "memory_precondition_failed", error: error.message },
+      { status: 409 }
+    );
+  }
+
+  if (error instanceof MemoryMutationPreconditionError) {
+    return NextResponse.json(
+      {
+        code: "memory_precondition_failed",
+        error: "Memory lifecycle changed before this action completed. Refresh and retry.",
+        expectedStatus: error.expectedStatus,
+        actualStatus: error.actualStatus
+      },
+      { status: 409 }
+    );
+  }
+
+  if (error instanceof MemoryConflictResolutionError) {
+    return NextResponse.json(
+      {
+        code: "conflict_action_not_applicable",
+        error: "The conflict state does not allow this action. Refresh and choose an applicable resolution."
+      },
+      { status: 409 }
+    );
+  }
+
+  if (
+    error instanceof DashboardConflictNotFoundError ||
+    error instanceof DashboardTraceNotFoundError
+  ) {
+    return NextResponse.json(
+      { code: "dashboard_record_not_found", error: error.message },
+      { status: 404 }
+    );
+  }
+
+  if (error instanceof DashboardAuthorizationError) {
+    return NextResponse.json(
+      { code: "dashboard_scope_forbidden", error: error.message },
+      { status: 403 }
+    );
+  }
+
+  if (error instanceof ScopeGuardError) {
+    return NextResponse.json(
+      {
+        code: "handoffbase_scope_forbidden",
+        error: "This dashboard request is outside the authenticated caller scope."
+      },
+      { status: 403 }
+    );
+  }
+
+  if (error instanceof SensitiveDataError) {
+    return NextResponse.json(
+      {
+        code: "sensitive_data_rejected",
+        error: "Remove credentials or secrets from the feedback and try again."
+      },
+      { status: 400 }
     );
   }
 

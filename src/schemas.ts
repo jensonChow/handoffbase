@@ -1,5 +1,10 @@
 import * as z from "zod/v4";
-import { MEMORY_SOURCE_KINDS, MEMORY_STATUSES, MEMORY_TYPES } from "@handoffbase/memory-core";
+import {
+  MEMORY_FEEDBACK_SIGNALS,
+  MEMORY_SOURCE_KINDS,
+  MEMORY_STATUSES,
+  MEMORY_TYPES,
+} from "@handoffbase/memory-core";
 
 export const memoryTypes = MEMORY_TYPES;
 export const memoryStatuses = MEMORY_STATUSES;
@@ -8,6 +13,7 @@ export const memorySourceKinds = MEMORY_SOURCE_KINDS;
 export const MemoryTypeSchema = z.enum(memoryTypes);
 export const MemoryStatusSchema = z.enum(memoryStatuses);
 export const MemorySourceKindSchema = z.enum(memorySourceKinds);
+export const MemoryFeedbackSignalSchema = z.enum(MEMORY_FEEDBACK_SIGNALS);
 
 export const JsonObjectSchema = z.record(z.string(), z.unknown());
 
@@ -144,6 +150,7 @@ export const memoryReflectOutputShape = {
 
 export const memoryUpdateInputShape = {
   memory_id: z.string().min(1),
+  expected_status: MemoryStatusSchema.optional(),
   patch: z.object({
     text: z.string().min(1).optional(),
     status: MemoryStatusSchema.optional(),
@@ -178,6 +185,45 @@ export const memoryForgetOutputShape = {
   mode: z.enum(["invalidate", "archive", "expire", "hard_delete"]),
   status: MemoryStatusSchema,
   event_id: z.string().min(1),
+};
+
+export const MemoryFeedbackRegressionFixtureSchema = z.object({
+  schema_version: z.literal("1"),
+  target: z.enum(["memory", "trace", "memory_and_trace"]),
+  signal: MemoryFeedbackSignalSchema,
+  memory_type: MemoryTypeSchema.optional(),
+  memory_status: MemoryStatusSchema.optional(),
+  scope_dimensions: z.array(z.string().min(1)),
+  trace_query: z.string().optional(),
+  run_task_hint: z.string().optional(),
+  reason: z.string().optional(),
+  correction: z.string().optional(),
+});
+
+export const memoryFeedbackInputShape = {
+  memory_id: z.string().min(1).optional(),
+  trace_id: z.string().min(1).optional(),
+  signal: MemoryFeedbackSignalSchema,
+  reason: z.string().trim().min(1).max(2000).optional(),
+  correction: z.string().trim().min(1).max(4000).optional(),
+  run_id: z.string().min(1).optional(),
+};
+
+export const memoryFeedbackOutputShape = {
+  feedback_id: z.string().min(1),
+  memory_id: z.string().min(1).optional(),
+  trace_id: z.string().min(1).optional(),
+  signal: MemoryFeedbackSignalSchema,
+  created_at: z.string().min(1),
+  correction_memory: z
+    .object({
+      id: z.string().min(1),
+      text: z.string().min(1),
+      type: MemoryTypeSchema,
+      status: z.literal("pending"),
+    })
+    .optional(),
+  regression_fixture: MemoryFeedbackRegressionFixtureSchema,
 };
 
 export const memoryTraceInputShape = {
@@ -224,6 +270,23 @@ export const MemoryUpdateInputSchema = z.object(memoryUpdateInputShape);
 export const MemoryUpdateOutputSchema = z.object(memoryUpdateOutputShape);
 export const MemoryForgetInputSchema = z.object(memoryForgetInputShape);
 export const MemoryForgetOutputSchema = z.object(memoryForgetOutputShape);
+export const MemoryFeedbackInputSchema = z.object(memoryFeedbackInputShape).superRefine((input, context) => {
+  if (!input.memory_id && !input.trace_id) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory_id"],
+      message: "memory_id or trace_id is required.",
+    });
+  }
+  if (input.correction && input.signal !== "unhelpful") {
+    context.addIssue({
+      code: "custom",
+      path: ["correction"],
+      message: "correction is only allowed for unhelpful feedback.",
+    });
+  }
+});
+export const MemoryFeedbackOutputSchema = z.object(memoryFeedbackOutputShape);
 export const MemoryTraceInputSchema = z.object(memoryTraceInputShape);
 export const MemoryTraceOutputSchema = z.object(memoryTraceOutputShape);
 export const MemoryResolveConflictInputSchema = z.object(memoryResolveConflictInputShape).superRefine((input, context) => {
@@ -249,6 +312,9 @@ export type MemoryUpdateInput = z.infer<typeof MemoryUpdateInputSchema>;
 export type MemoryUpdateOutput = z.infer<typeof MemoryUpdateOutputSchema>;
 export type MemoryForgetInput = z.infer<typeof MemoryForgetInputSchema>;
 export type MemoryForgetOutput = z.infer<typeof MemoryForgetOutputSchema>;
+export type MemoryFeedbackInput = z.infer<typeof MemoryFeedbackInputSchema>;
+export type MemoryFeedbackOutput = z.infer<typeof MemoryFeedbackOutputSchema>;
+export type MemoryFeedbackRegressionFixture = z.infer<typeof MemoryFeedbackRegressionFixtureSchema>;
 export type MemoryTraceInput = z.infer<typeof MemoryTraceInputSchema>;
 export type MemoryTraceOutput = z.infer<typeof MemoryTraceOutputSchema>;
 export type MemoryResolveConflictInput = z.infer<typeof MemoryResolveConflictInputSchema>;

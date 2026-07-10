@@ -38,7 +38,8 @@ Status: prepared
 | `DATABASE_URL` | optional | Required only for `STORE_MODE=postgres`; keep it server-side and apply `npm run db:migrate` explicitly first. No database URL is recorded here. |
 | `STORE_MODE` | optional | Defaults to `in-memory`; current code also accepts `postgres`. The historical ECS proof remains in-memory. |
 | `HANDOFFBASE_DASHBOARD_CLIENT_MODE` | optional | Browser uses same-origin HTTP by default; set server-only value `mock` only for fixture mode. |
-| `HANDOFFBASE_DASHBOARD_TENANT_ID` / `HANDOFFBASE_DASHBOARD_USER_ID` | required only for Postgres dashboard | Private server-side vault scope; never expose through `NEXT_PUBLIC_*`. |
+| `HANDOFFBASE_DASHBOARD_SESSION_SECRET` | required when dashboard auth is `api_key` | Server-only random value of at least 32 characters for signing the HttpOnly caller-session cookie. |
+| `HANDOFFBASE_DASHBOARD_TENANT_ID` / `HANDOFFBASE_DASHBOARD_USER_ID` | optional dashboard allowlist | Can narrow the authenticated caller grant but cannot establish identity; never expose through `NEXT_PUBLIC_*`. |
 
 ## Qwen / DashScope Material
 
@@ -144,7 +145,8 @@ Live Qwen-backed MCP validation:
 - Secret handling: Qwen key and local auth key were loaded only from
   `.env.hackathon.local`; values were not printed
 
-Historical remote ECS MCP validation (before the current 8-tool integration):
+Historical remote ECS MCP validation from 2026-07-07 (before the current
+9-tool integration):
 
 - Command path: `npm run mcp:validate-remote`
 - Endpoint: `http://123.56.244.157/mcp`
@@ -152,7 +154,7 @@ Historical remote ECS MCP validation (before the current 8-tool integration):
 - `GET /health`: reported `authMode=api_key`, `providerMode=qwen`, and
   `storeMode=in-memory`
 - `tools/list`: returned the then-current 7 tools; the stopped ECS image has not
-  been rebuilt or revalidated against the current 8-tool manifest
+  been rebuilt or revalidated against the current 9-tool manifest
 - `memory_recall`: returned 5 memories and a trace id
 - `memory_remember`: returned 2 pending candidate memories through the
   Qwen-backed provider path
@@ -182,7 +184,8 @@ Reasoning:
 - `docs/hackathon-resource-support.md` records non-secret hackathon resource
   status, including Devpost deadlines, Qwen free-quota status, coupon/voucher
   submission and verification state, and Alibaba Cloud cost guardrails.
-- `npm run mcp:validate-remote` validates `/health`, `tools/list`,
+- `MCP_VALIDATION_PROFILE=alibaba-demo npm run mcp:validate-remote` validates
+  `/health`, requires `/ready` HTTP 200, checks the exact current tool manifest,
   authenticated `memory_recall`, and Qwen-backed `memory_remember` against a
   deployed endpoint using `MCP_ENDPOINT` and an auth token supplied only through
   the shell environment.
@@ -236,8 +239,9 @@ Status: runtime implemented locally; cloud provisioning remains prepare only
 - Runtime code: `PostgresMemoryStore`, the `pg` query client, graceful pool
   shutdown, explicit migration, and `STORE_MODE=postgres` selection are
   implemented. `InMemoryMemoryStore` remains the default.
-- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL` and
-  requires private tenant/user scope before opening the shared vault.
+- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL`; its
+  signed caller session derives tenant/user identity from the HandoffBase API-key
+  mapping, while optional dashboard variables only narrow that grant.
 - Local compose and a disposable restart harness are present, but Docker was
   unavailable during the Product Proof integration, so no container-restart
   pass is claimed.

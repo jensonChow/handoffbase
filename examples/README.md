@@ -12,7 +12,7 @@ transport.
 Local mock mode works without Qwen or DashScope credentials:
 
 ```bash
-npm install
+npm ci
 npm run check
 npm run dev:server
 npm run smoke
@@ -61,6 +61,9 @@ DASHSCOPE_API_KEY=
 
 Never commit `.env.*` files.
 
+`npm run dev:server` and `npm run start:server` automatically pass `.env.local`
+to Node when it exists; otherwise they use the inherited shell environment.
+
 HandoffBase API keys and Qwen/DashScope keys are different:
 
 - A HandoffBase API key protects the MCP endpoint.
@@ -78,17 +81,22 @@ export MCP_AUTH_TOKEN=
 npm run mcp:validate-remote
 ```
 
-The validator checks `/health`, `tools/list`, `memory_recall`, and
-`memory_remember`. It reads the HandoffBase auth token from `MCP_AUTH_TOKEN`;
-set that value only in your shell or secret manager, and do not put real tokens
-into tracked files.
+The generic validator checks `/health`, requires `/ready` to return HTTP 200,
+checks the exact current tool manifest, and exercises `memory_recall` and
+`memory_remember` without fixing one runtime-mode combination. Add
+`MCP_VALIDATION_PROFILE=alibaba-demo` for the documented
+Qwen/API-key/in-memory proof, or use `EXPECTED_AUTH_MODE`,
+`EXPECTED_PROVIDER_MODE`, and `EXPECTED_STORE_MODE`. It reads the HandoffBase
+auth token from `MCP_AUTH_TOKEN`; set that value only in your shell or secret
+manager, and do not put real tokens into tracked files.
 
 For the redacted live deployment proof, see
 [`docs/deployment/alibaba-cloud-proof.md`](../docs/deployment/alibaba-cloud-proof.md).
 
 ## Example Areas
 
-- [`mcp/`](mcp/) has MCP host config snippets with placeholders.
+- [`mcp/`](mcp/) has canonical Codex `config.toml` examples for local and
+  Bearer-authenticated remote servers.
 - [`http/`](http/) has JSON-RPC and direct HTTP examples.
 - [`quickstart/remember-preference.md`](quickstart/remember-preference.md)
   stores a durable preference candidate.

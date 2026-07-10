@@ -35,7 +35,7 @@ QWEN_TIMEOUT_MS=30000
 Set only one Qwen credential in cloud secret configuration; leave both blank to
 use the mock provider for non-credentialed deployment checks.
 
-Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Postgres uses `STORE_MODE=postgres` plus `DATABASE_URL` after `npm run db:migrate`; the dashboard additionally requires private tenant/user scope. See `docs/deployment.md`.
+Optional API key auth variables are `HANDOFFBASE_AUTH_MODE=api_key` plus either `HANDOFFBASE_API_KEYS_JSON` or the single-key `HANDOFFBASE_API_KEY`, `HANDOFFBASE_TENANT_ID`, and `HANDOFFBASE_USER_ID` set. Postgres uses `STORE_MODE=postgres` plus `DATABASE_URL` after `npm run db:migrate`; the dashboard caller session derives tenant/user identity from that API-key mapping. See `docs/deployment.md`.
 
 Security expectations:
 

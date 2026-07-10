@@ -15,7 +15,8 @@ const emptySnapshot: DashboardSnapshot = {
   memories: [],
   events: [],
   traces: [],
-  conflicts: []
+  conflicts: [],
+  feedback: []
 };
 
 test("MemoryClient defaults to same-origin HTTP and mock mode is explicit", async () => {
@@ -111,6 +112,102 @@ test("HTTP failures preserve safe API error classification", async () => {
   );
 });
 
+test("session, conflict, and feedback calls use same-origin cookies and runtime JSON", async () => {
+  const calls: Array<{
+    url: string;
+    method: string;
+    body?: string;
+    credentials?: RequestCredentials;
+    headers: Headers;
+  }> = [];
+  const client = new HttpMemoryClient({
+    fetcher: async (input, init = {}) => {
+      const url = String(input);
+      calls.push({
+        url,
+        method: init.method ?? "GET",
+        body: typeof init.body === "string" ? init.body : undefined,
+        credentials: init.credentials,
+        headers: new Headers(init.headers)
+      });
+      if (init.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      if (url.endsWith("/session")) {
+        return Response.json({
+          authenticated: true,
+          authMode: "api_key",
+          caller: {
+            tenantId: "tenant-a",
+            userId: "user-a",
+            actorType: "dashboard",
+            actorId: "user-a"
+          }
+        });
+      }
+      if (url.includes("/conflicts/")) {
+        return Response.json({
+          conflictId: "conflict 1",
+          action: "keep_both",
+          status: "resolved",
+          eventIds: [],
+          resolvedAt: "2026-07-10T00:00:00.000Z"
+        });
+      }
+      return Response.json({
+        id: "feedback-1",
+        traceId: "trace 1",
+        rating: "unhelpful",
+        correction: "Use the verified constraint.",
+        createdAt: "2026-07-10T00:00:00.000Z",
+        regressionFixture: {
+          schema_version: "1",
+          target: "trace",
+          signal: "unhelpful",
+          scope_dimensions: ["tenant", "user"],
+          correction: "Use the verified constraint."
+        }
+      });
+    }
+  });
+
+  await client.getSession();
+  await client.login("private-api-key");
+  await client.logout();
+  await client.resolveConflict("conflict 1", {
+    action: "keep_both",
+    reason: "Both facts remain valid in distinct contexts."
+  });
+  await client.submitTraceFeedback("trace 1", {
+    rating: "unhelpful",
+    correction: "Use the verified constraint."
+  });
+
+  assert.deepEqual(
+    calls.map(({ url, method }) => ({ url, method })),
+    [
+      { url: "/api/dashboard/session", method: "GET" },
+      { url: "/api/dashboard/session", method: "POST" },
+      { url: "/api/dashboard/session", method: "DELETE" },
+      { url: "/api/dashboard/conflicts/conflict%201/resolve", method: "POST" },
+      { url: "/api/dashboard/traces/trace%201/feedback", method: "POST" }
+    ]
+  );
+  assert.equal(calls.every((call) => call.credentials === "same-origin"), true);
+  assert.equal(calls.every((call) => !call.headers.has("authorization")), true);
+  assert.deepEqual(JSON.parse(calls[1]?.body ?? "{}"), {
+    apiKey: "private-api-key"
+  });
+  assert.deepEqual(JSON.parse(calls[3]?.body ?? "{}"), {
+    action: "keep_both",
+    reason: "Both facts remain valid in distinct contexts."
+  });
+  assert.deepEqual(JSON.parse(calls[4]?.body ?? "{}"), {
+    rating: "unhelpful",
+    correction: "Use the verified constraint."
+  });
+});
+
 test("browser client source contains no public auth or database configuration", async () => {
   const source = await readFile(
     new URL("../src/lib/memory-client.ts", import.meta.url),
@@ -119,4 +216,5 @@ test("browser client source contains no public auth or database configuration", 
 
   assert.equal(source.includes("NEXT_PUBLIC_"), false);
   assert.equal(/authorization|database_url|postgres_url|auth_token/i.test(source), false);
+  assert.equal(/localStorage|sessionStorage/.test(source), false);
 });

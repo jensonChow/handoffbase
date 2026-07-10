@@ -2,11 +2,16 @@ import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Express, Response } from "express";
 import type { Server as NodeHttpServer } from "node:http";
+import { isIP } from "node:net";
 import { authConfigFromEnv } from "./auth/config.js";
 import { resolveCallerContext } from "./auth/request.js";
 import { AuthError, type AuthConfig } from "./auth/types.js";
-import { SERVER_NAME, SERVER_TRANSPORT, SERVER_VERSION } from "./config.js";
+import { ConfigError, SERVER_NAME, SERVER_TRANSPORT, SERVER_VERSION } from "./config.js";
 import { createContinuityMcpServer } from "./mcp/server.js";
+import {
+  createRuntimeReadinessCheck,
+  type RuntimeReadinessCheck,
+} from "./readiness.js";
 import {
   createMemoryRuntime,
   type MemoryRuntime,
@@ -16,10 +21,12 @@ import { createDefaultMemoryService } from "./services/continuity-memory-service
 import { withCallerContext, type MemoryService, type MemoryServiceRuntimeInfo } from "./services/memory-service.js";
 
 export interface HttpAppOptions {
+  allowInsecureRemote?: boolean;
   allowedHosts?: string[];
   authConfig?: AuthConfig;
   host?: string;
   mcpPath?: string;
+  readinessCheck?: RuntimeReadinessCheck;
   service?: MemoryService;
 }
 
@@ -38,7 +45,13 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
   const mcpPath = options.mcpPath ?? "/mcp";
   const service = options.service ?? createDefaultMemoryService();
   const authConfig = options.authConfig ?? authConfigFromEnv();
+  assertRemoteAuthConfigured(
+    host,
+    authConfig,
+    options.allowInsecureRemote ?? (process.env.HANDOFFBASE_ALLOW_INSECURE_REMOTE === "1"),
+  );
   const runtime = runtimeInfoForService(service);
+  const readinessCheck = options.readinessCheck ?? createAppReadinessCheck(service, runtime);
   const app = createMcpExpressApp({ host, allowedHosts: options.allowedHosts });
 
   app.get("/health", (_req, res) => {
@@ -52,6 +65,53 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
       providerMode: runtime.providerMode,
       storeMode: runtime.storeMode,
     });
+  });
+
+  app.get("/ready", async (req, res) => {
+    try {
+      if (
+        runtime.providerMode === "qwen" &&
+        authConfig.mode !== "api_key" &&
+        !isLoopbackHost(host)
+      ) {
+        res.status(503).json({
+          ok: false,
+          name: SERVER_NAME,
+          version: SERVER_VERSION,
+          code: "readiness_auth_configuration_required",
+        });
+        return;
+      }
+      if (authConfig.mode === "api_key") {
+        resolveCallerContext(req, authConfig);
+      }
+      const readiness = await readinessCheck();
+      res.status(readiness.ok ? 200 : 503).json({
+        ok: readiness.ok,
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+        checks: {
+          store: readiness.store,
+          provider: readiness.provider,
+        },
+      });
+    } catch (error) {
+      if (error instanceof AuthError) {
+        res.status(error.statusCode).json({
+          ok: false,
+          name: SERVER_NAME,
+          version: SERVER_VERSION,
+          code: "readiness_auth_required",
+        });
+        return;
+      }
+      res.status(503).json({
+        ok: false,
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+        code: "readiness_check_failed",
+      });
+    }
   });
 
   app.post(mcpPath, async (req, res) => {
@@ -104,11 +164,23 @@ export async function startHttpServer(options: HttpServerOptions = {}): Promise<
   const port = options.port ?? 3000;
   const mcpPath = options.mcpPath ?? "/mcp";
   const runtime: MemoryRuntime = options.service
-    ? { service: options.service, close: async () => undefined }
+    ? {
+        service: options.service,
+        checkReadiness:
+          options.readinessCheck ??
+          createAppReadinessCheck(options.service, runtimeInfoForService(options.service)),
+        close: async () => undefined,
+      }
     : createMemoryRuntime(options);
 
   try {
-    const app = createHttpApp({ ...options, host, mcpPath, service: runtime.service });
+    const app = createHttpApp({
+      ...options,
+      host,
+      mcpPath,
+      service: runtime.service,
+      readinessCheck: runtime.checkReadiness,
+    });
     const server = await listen(app, port, host);
     const address = server.address();
     const actualPort = typeof address === "object" && address ? address.port : port;
@@ -198,4 +270,40 @@ function runtimeInfoForService(service: MemoryService): MemoryServiceRuntimeInfo
     providerMode: "custom",
     storeMode: "custom",
   };
+}
+
+function assertRemoteAuthConfigured(
+  host: string,
+  authConfig: AuthConfig,
+  allowInsecureRemote: boolean,
+): void {
+  if (authConfig.mode === "api_key" || isLoopbackHost(host) || allowInsecureRemote) {
+    return;
+  }
+  throw new ConfigError(
+    "HANDOFFBASE_AUTH_MODE=api_key is required for a non-loopback bind. " +
+      "Set HANDOFFBASE_ALLOW_INSECURE_REMOTE=1 only for an explicitly isolated demo.",
+  );
+}
+
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (normalized === "localhost" || normalized === "::1") {
+    return true;
+  }
+  return isIP(normalized) === 4 && normalized.split(".")[0] === "127";
+}
+
+function createAppReadinessCheck(
+  service: MemoryService,
+  runtime: MemoryServiceRuntimeInfo,
+): RuntimeReadinessCheck {
+  return createRuntimeReadinessCheck({
+    service,
+    storeProbe: async () => {
+      if (runtime.storeMode !== "in-memory") {
+        throw new Error("The HTTP app does not own this store dependency.");
+      }
+    },
+  });
 }

@@ -6,7 +6,7 @@ procedure, correction, or project fact.
 ## Start Local Mock Mode
 
 ```bash
-npm install
+npm ci
 npm run dev:server
 ```
 
@@ -31,6 +31,9 @@ DASHSCOPE_API_KEY=
 ```
 
 Never commit `.env.*` files.
+
+The root server launcher loads `.env.local` automatically when it exists and
+never prints its values.
 
 ## Call The Tool
 

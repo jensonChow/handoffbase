@@ -14,7 +14,7 @@ The default proof is intentionally credential-free and deterministic:
 - no environment-file reads, network services, Qwen calls, or cloud resources.
 
 The runner validates the JSON-RPC authentication error envelope, the current
-eight-tool surface (including `memory_resolve_conflict`), MCP tool
+nine-tool surface (including `memory_feedback` and `memory_resolve_conflict`), MCP tool
 text/structured response parity, Host B context packs, storage-scope filtering
 plus API-key project authorization for Host C, raw context/retrieval trace
 contents, `memory_trace` explanations, and lifecycle invalidation. Host C's
@@ -33,8 +33,8 @@ npm run demo:cross-host
 The integrated server now provides a transactional `pg` adapter and selects
 `PostgresMemoryStore` with `STORE_MODE=postgres` plus `DATABASE_URL`; schema
 application remains explicit through `npm run db:migrate`. The same environment
-values select the dashboard's shared Postgres backend after private tenant/user
-scope is supplied.
+values select the dashboard's shared Postgres backend; its authenticated caller
+session supplies tenant/user identity from the HandoffBase API-key mapping.
 
 The cross-host CI gate intentionally remains in-memory so it is deterministic,
 credential-free, and independent of Docker. The optional

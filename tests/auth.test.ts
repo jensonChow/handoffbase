@@ -37,6 +37,20 @@ test("api_key auth mode rejects missing and invalid API keys at the HTTP boundar
   });
 
   try {
+    const missingReadiness = await fetch(new URL("/ready", started.url));
+    assert.equal(missingReadiness.status, 401);
+    assert.deepEqual(await missingReadiness.json(), {
+      ok: false,
+      name: "handoffbase-mcp-server",
+      version: "0.1.0",
+      code: "readiness_auth_required",
+    });
+
+    const allowedReadiness = await fetch(new URL("/ready", started.url), {
+      headers: { authorization: "Bearer dev-key" },
+    });
+    assert.equal(allowedReadiness.status, 200);
+
     const missing = await postJsonRpc(started.url, {});
     assert.equal(missing.status, 401);
     assert.match(await missing.text(), /Missing Handoffbase API key/);
@@ -92,6 +106,26 @@ test("api_key auth mode resolves callers from bearer, custom header, JSON env, a
       authMode: "api_key",
     },
   );
+});
+
+test("explicit empty API-key grants remain deny-all instead of becoming unrestricted", () => {
+  const config = authConfigFromEnv({
+    HANDOFFBASE_AUTH_MODE: "api_key",
+    HANDOFFBASE_API_KEYS_JSON: JSON.stringify({
+      "deny-all-key": {
+        tenantId: "tenant-a",
+        userId: "user-a",
+        allowedProjectIds: [],
+        allowedAgentProfileIds: [],
+      },
+    }),
+  });
+  const caller = resolveCallerContext(
+    requestWithHeaders({ authorization: "Bearer deny-all-key" }),
+    config,
+  );
+  assert.deepEqual(caller.allowedProjectIds, []);
+  assert.deepEqual(caller.allowedAgentProfileIds, []);
 });
 
 test("memory_resolve_conflict preserves API-key caller scope through the HTTP MCP wrapper", async () => {
@@ -192,6 +226,43 @@ test("HANDOFFBASE_API_KEYS_JSON entry errors never reveal raw API keys", () => {
       label: "invalid-actor-type",
       caller: (rawApiKey) => ({ tenantId: "tenant-a", userId: "user-a", actorType: rawApiKey }),
       expectedMessage: /entry 1 has unsupported actorType/,
+    },
+    {
+      label: "unknown-grant-field",
+      caller: () => ({
+        tenantId: "tenant-a",
+        userId: "user-a",
+        allowedProjecIds: ["project-a"],
+      }),
+      expectedMessage: /entry 1 contains unsupported field allowedProjecIds/,
+    },
+    {
+      label: "invalid-grant-type",
+      caller: () => ({
+        tenantId: "tenant-a",
+        userId: "user-a",
+        allowedProjectIds: { project: "project-a" },
+      }),
+      expectedMessage: /allowedProjectIds must be a string or an array of strings/,
+    },
+    {
+      label: "invalid-grant-element",
+      caller: () => ({
+        tenantId: "tenant-a",
+        userId: "user-a",
+        allowedAgentProfileIds: ["agent-a", 42],
+      }),
+      expectedMessage: /allowedAgentProfileIds must contain strings only/,
+    },
+    {
+      label: "duplicate-grant-aliases",
+      caller: () => ({
+        tenantId: "tenant-a",
+        userId: "user-a",
+        allowedProjectIds: ["project-a"],
+        allowed_project_ids: ["project-b"],
+      }),
+      expectedMessage: /must not set both allowedProjectIds and allowed_project_ids/,
     },
   ];
 

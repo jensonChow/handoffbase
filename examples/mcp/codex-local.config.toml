@@ -1,0 +1,6 @@
+# Copy this table into ~/.codex/config.toml or a trusted project's .codex/config.toml.
+[mcp_servers.handoffbase_local]
+url = "http://127.0.0.1:3000/mcp"
+required = true
+startup_timeout_sec = 10
+tool_timeout_sec = 60

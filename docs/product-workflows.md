@@ -11,15 +11,16 @@ HandoffBase is not a hidden chat-log store. The product loop is:
 2. Review or govern that candidate when needed.
 3. Bootstrap or recall scoped memory in a later session.
 4. Use trace records to explain what affected the context pack.
-5. Update, supersede, or forget stale memory so future behavior changes.
+5. Record feedback and turn reviewed corrections into regression cases.
+6. Update, supersede, or forget stale memory so future behavior changes.
 
 The current runnable MVP proves this loop with Remote Streamable HTTP MCP tools,
 Qwen-backed or mock-provider reasoning, lifecycle records, trace records,
 conflict records, and a Memory Vault dashboard. The historical live proof
 used an in-memory runtime store. Current code adds explicit Postgres runtime
-selection, a server-backed dashboard, conflict resolution, comparative proof,
-and real HTTP/MCP cross-host E2E; production deployment remains a later
-milestone.
+selection, an authenticated server-backed dashboard, six-action conflict
+resolution, feedback-to-regression conversion, comparative proof, and real
+HTTP/MCP cross-host E2E; production deployment remains a later milestone.
 
 ## Workflow 1: Capture Durable Memory
 
@@ -179,7 +180,26 @@ excluded because it is out of scope or no longer valid.
 Product result: the user can ask "why did the agent act this way?" and get an
 audit trail instead of guessing which old context was injected.
 
-## Workflow 6: Update Or Forget
+## Workflow 6: Feed Failures Back Into Iteration
+
+The user can mark a memory or trace helpful or unhelpful with
+`memory_feedback` or the Memory Vault trace view. An unhelpful judgment can
+include a reason and correction. HandoffBase persists the feedback and creates
+the correction as a `pending` `user_correction` memory instead of immediately
+changing active memory.
+
+When a correction exists, HandoffBase also returns a sanitized fixture draft.
+The operator must review that draft for contextual identifiers and pass
+`--public-safe-confirmed` before `npm run feedback:to-benchmark` converts it to
+the long-memory benchmark schema. The converter does not silently modify the
+tracked benchmark suite; the resulting fixture is run explicitly with
+`npm run bench:memory -- --fixture <path>`.
+
+Product result: a real failure can become governed product data and then a
+repeatable regression, without automatically publishing user content or
+promoting an unreviewed correction.
+
+## Workflow 7: Update Or Forget
 
 Memory must keep changing when the user's preferences, project facts, or
 procedures change.
@@ -200,14 +220,15 @@ Use `memory_forget` when:
 - the user wants it invalidated, archived, expired, or deleted.
 
 After update or forget, future bootstrap and recall paths should stop using the
-old memory. If the record is retained for audit, traces should explain that it
-was excluded because it is superseded, invalidated, archived, expired, or
-deleted.
+old memory. Invalidated, archived, expired, or superseded records can remain as
+excluded lifecycle history. In `hard_delete` mode, the memory row and embedding
+are physically removed; linked historical content is redacted and only a safe
+audit tombstone remains.
 
 Product result: the user can correct the memory layer itself. A bad memory does
 not have to keep poisoning future sessions.
 
-## Workflow 7: Cross-Host Handoff
+## Workflow 8: Cross-Host Handoff
 
 Cross-host handoff is the core product promise.
 
@@ -304,7 +325,8 @@ bounded to the deployment context where they are relevant.
    of silently overwriting the old memory.
 6. The user reviews the conflict through Memory Vault or
    `memory://vault/conflicts`.
-7. The user chooses supersede, merge, reject, or keep both.
+7. The user chooses accept candidate, reject candidate, supersede existing,
+   merge, keep both, or dismiss.
 8. The host calls `memory_resolve_conflict` with that explicit decision.
 9. Future recall uses the resolved active memory and trace excludes the old
    memory if it was superseded.
@@ -317,8 +339,9 @@ memory evolves.
 The current product loop is implemented enough to demonstrate the workflow, but
 some pieces should stay framed as future work:
 
-- The Memory Vault uses same-origin server APIs by default and can share the MCP
-  runtime's Postgres database, but it is not a production admin console.
+- The Memory Vault uses API-key-backed signed caller sessions, production
+  same-origin mutation checks, and service-governed mutations, and it can share the MCP
+  runtime's Postgres database. It is still not a production admin console.
 - Postgres migration and runtime selection exist, but no durable cloud database
   was provisioned; the Docker restart harness was not executed here.
 - `npm run e2e:cross-host` now provides the Host A→B→C HTTP/MCP walkthrough with

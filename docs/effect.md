@@ -47,6 +47,8 @@ A working memory layer should:
 - Produce a context pack or recall result that helps the agent answer or act
   more correctly.
 - Explain which memories were used, ignored, or excluded.
+- Let users mark a memory or trace helpful/unhelpful and route corrections
+  through pending review and explicit regression-fixture conversion.
 - Let users update, supersede, expire, archive, delete, or reject memory.
 - Treat contradictions as conflicts to review, not silent overwrites.
 - Refuse to persist sensitive values such as API keys, tokens, cookies, private
@@ -60,7 +62,7 @@ A working memory layer should:
 | Use memory in future tasks | Later sessions receive memory that changes answer or action quality. | Task outcome comparisons with and without memory, trace ids, used/ignored memory lists. |
 | Handoff across hosts, sessions, and projects | Different MCP hosts can bootstrap from the same governed memory layer without moving to a new runtime. | `continuity_bootstrap`, `memory_recall`, `memory://` resources, host-neutral examples. |
 | Avoid stale, conflicting, or unsafe memory | Invalidated, superseded, expired, deleted, out-of-scope, sensitive, or contradictory memories do not silently guide behavior. | Lifecycle-status tests, conflict records, negative tests, trace exclusions. |
-| Let users inspect and govern memory | Users can review pending memories, inspect traces, resolve conflicts, update records, and forget memory. | Memory Vault views, `memory_trace`, `memory_update`, `memory_forget`, pending/conflict resources. |
+| Let users inspect and govern memory | Users can review pending memories, inspect traces, submit feedback/corrections, resolve conflicts, update records, and forget memory. | Authenticated Memory Vault views, `memory_trace`, `memory_feedback`, `memory_resolve_conflict`, `memory_update`, `memory_forget`, pending/conflict resources. |
 
 ## Behavior-Level Examples
 
@@ -122,11 +124,13 @@ A correct update flow is:
 3. HandoffBase writes a pending candidate or conflict record when review is
    needed.
 4. `memory_update` supersedes or merges the old memory, or `memory_forget`
-   invalidates, archives, expires, or deletes it.
+   invalidates, archives, expires, or physically hard-deletes it.
 5. Later `memory_recall` and `continuity_bootstrap` do not use the invalidated
-   or superseded record as active guidance.
-6. `memory_trace` explains why the current memory was used and the old one was
-   ignored or excluded.
+   or superseded record as active guidance; hard-deleted records no longer
+   exist in the store.
+6. For retained lifecycle history, `memory_trace` explains why the old memory
+   was ignored or excluded. Hard delete instead redacts linked historical
+   content and leaves only the safe deletion tombstone.
 
 ## Metrics
 
@@ -175,16 +179,18 @@ HandoffBase should include tests or review checks that prove it does not:
 | `memory_remember` | Extracts candidate memories from corrections, notes, and observations. | Supports memory creation; sensitive-data rejection and review flow remain critical negative tests. |
 | `memory_reflect` | Turns run outcomes into durable procedure, tool, failure, decision, or outcome memories. | Supports learning from completed tasks; should be judged by later task improvement. |
 | `memory_update` | Edits, merges, or supersedes stale memory. | Supports update correctness and conflict governance. |
-| `memory_forget` | Invalidates, archives, expires, or deletes memory records. | Supports forget correctness; recall must stop using forgotten memory. |
+| `memory_forget` | Invalidates, archives, expires, or physically hard-deletes memory records. | Supports forget correctness; hard delete also redacts linked historical content while preserving a safe audit tombstone. |
 | `memory_trace` and `memory://traces/{trace_id}` | Explain used, ignored, and excluded memories for a context pack. | Supports auditability and trace coverage. |
+| `memory_feedback` | Records helpful/unhelpful judgment and can propose a pending correction plus sanitized fixture draft. | Supports a governed feedback loop; fixture conversion still requires explicit human public-safety confirmation. |
+| `memory_resolve_conflict` | Applies accept, reject, supersede, merge, keep-both, or dismiss decisions. | Supports authorized, auditable terminal conflict resolution rather than a display-only conflict queue. |
 | `memory://vault/pending` | Exposes candidate memories awaiting review. | Supports user governance before activation. |
 | `memory://vault/conflicts` | Exposes open memory conflicts with reason and recommended action. | Supports conflict correctness and avoids silent overwrite. |
 | Other `memory://` resources | Provide readable scoped views of user, agent, project, run, and tool memory. | Supports host-neutral inspection through MCP resources. |
 | MCP prompts | Guide memory-aware start, post-run reflection, memory review, and conflict resolution workflows. | Helps hosts use memory consistently without replacing the host runtime. |
 | `QwenMemoryProvider` | Powers reasoning-heavy extraction, classification, conflict detection, reflection, and context packing for the hackathon path. | Qwen sits behind `MemoryReasoningProvider`; local/CI validation must remain credential-free through `MockMemoryProvider`. |
-| Lifecycle statuses and event records | Distinguish pending, active, invalidated, expired, superseded, archived, deleted, and rejected memories. | Supports currentness, update, forget, and audit metrics. |
+| Lifecycle statuses and event records | Distinguish pending, active, invalidated, expired, superseded, archived, deleted, and rejected outcomes. | Supports currentness, update, forget, and audit metrics; hard-delete does not retain the original memory record. |
 | Conflict records | Preserve contradictions, duplicates, supersedes, and scope overlaps for review. | Supports conflict correctness; users or review flows must resolve them. |
-| Memory Vault dashboard prototype | Lets users inspect vault entries, traces, pending candidates, and conflicts. | Governance prototype, not a production admin console. |
+| Memory Vault dashboard prototype | Uses API-key-backed signed caller sessions for vault, deletion audit, pending review, trace feedback, and six-action conflict resolution. | Service-governed governance UI with caller-scoped reads; still not a production admin console. |
 | Deterministic eval pack | Exercises Opportunity Scout recall, bootstrap traces, token-budget ignored memories, remember candidates, controlled conflicts, and forget invalidation. | Regression/demo pack only; not LoCoMo, LongMemEval, Mem2ActBench, MemBench, MemEvoBench, LifeBench, or an official benchmark score. |
 | Alibaba ECS proof | Shows a Remote Streamable HTTP MCP deployment with API-key auth, Qwen provider mode, and in-memory store mode. | Historical deployment proof; ECS may be stopped and must be revalidated before live endpoint claims. It is not production SaaS or durable storage proof. |
 
