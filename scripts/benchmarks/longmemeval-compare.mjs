@@ -72,7 +72,7 @@ export function parseCompareArgs(argv) {
   options.embeddingMode ??= "off";
   options.judgeMode ??= "deterministic";
   if (!LONGMEMEVAL_READER_MODES.includes(options.readerMode)) {
-    throw new LongMemEvalValidationError("--reader must be deterministic or qwen.");
+    throw new LongMemEvalValidationError("--reader must be deterministic, qwen, or openai.");
   }
   if (!LONGMEMEVAL_MEMORY_PROVIDER_MODES.includes(options.memoryProviderMode)) {
     throw new LongMemEvalValidationError("--memory-provider must be mock or qwen.");
@@ -81,10 +81,10 @@ export function parseCompareArgs(argv) {
     throw new LongMemEvalValidationError("--embeddings must be off, mock, or qwen.");
   }
   if (!LONGMEMEVAL_JUDGE_MODES.includes(options.judgeMode)) {
-    throw new LongMemEvalValidationError("--judge must be deterministic or qwen.");
+    throw new LongMemEvalValidationError("--judge must be deterministic, qwen, or openai.");
   }
-  if (options.judgeModel !== undefined && options.judgeMode !== "qwen") {
-    throw new LongMemEvalValidationError("--judge-model requires --judge qwen.");
+  if (options.judgeModel !== undefined && !["qwen", "openai"].includes(options.judgeMode)) {
+    throw new LongMemEvalValidationError("--judge-model requires --judge qwen or --judge openai.");
   }
   if (options.limit !== undefined) {
     if (!/^[1-9]\d*$/.test(options.limit)) {
@@ -160,16 +160,18 @@ function helpText() {
   node scripts/benchmarks/longmemeval-compare.mjs \\
     --dataset /path/to/longmemeval_s.json \\
     --output-dir /path/to/results \\
-    [--reader deterministic|qwen] [--memory-provider mock|qwen] \\
-    [--embeddings off|mock|qwen] [--judge deterministic|qwen] [--judge-model qwen-max] \\
+    [--reader deterministic|qwen|openai] [--memory-provider mock|qwen] \\
+    [--embeddings off|mock|qwen] [--judge deterministic|qwen|openai] [--judge-model NAME] \\
     [--limit N] [--backends no-memory,handoffbase,raw-history]
 
 Runs each backend over the same dataset selection, scores every run with one
 judge, and writes a markdown comparison table (comparison.md) plus each backend's
 hypotheses/scoring under --output-dir. Defaults are fully deterministic and
-credential-free. For a real number use --reader qwen --embeddings qwen --judge
-qwen and export QWEN_API_KEY/DASHSCOPE_API_KEY. This never writes into a tracked
-doc; review comparison.md before publishing any figure.
+credential-free. Recommended Qwen-hackathon headline: --reader qwen --embeddings
+qwen --judge openai (Qwen product, gpt-4o judge to match the official evaluator);
+export DASHSCOPE_API_KEY and OPENAI_API_KEY. Use --reader openai for a secondary
+cross-vendor comparability run. This never writes into a tracked doc; review
+comparison.md before publishing any figure.
 `;
 }
 

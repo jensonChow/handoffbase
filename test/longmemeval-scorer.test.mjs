@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import {
   buildAnswerCheckPrompt,
   createDeterministicJudge,
+  createOpenAIJudge,
   createQwenJudge,
   parseHypothesesJsonl,
   parseJudgeVerdict,
   scoreLongMemEval
 } from "../benchmarks/longmemeval/scorer.mjs";
+import { createOpenAIChatReader } from "../benchmarks/longmemeval/local-runtime.mjs";
 
 function question(overrides) {
   return {
@@ -137,4 +139,42 @@ test("Qwen judge posts to chat completions, defaults to qwen-max, and redacts th
     assert.doesNotMatch(error.message, /secret-key/);
     return true;
   });
+});
+
+test("OpenAI judge posts to the OpenAI endpoint and defaults to gpt-4o", async () => {
+  const calls = [];
+  const okFetch = async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body), auth: init.headers.Authorization });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "yes" } }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+  const judge = createOpenAIJudge({ env: { OPENAI_API_KEY: "sk-test" }, fetch: okFetch });
+  assert.equal(judge.label, "openai-judge/gpt-4o");
+  assert.deepEqual(await judge.judge(question({ hypothesis: "dark" })), { correct: true });
+  assert.match(calls[0].url, /api\.openai\.com\/v1\/chat\/completions$/);
+  assert.equal(calls[0].body.model, "gpt-4o");
+  assert.equal(calls[0].auth, "Bearer sk-test");
+});
+
+test("OpenAI chat reader posts a hypothesis request and returns the answer", async () => {
+  const calls = [];
+  const okFetch = async (url, init) => {
+    calls.push({ url, auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: "dark mode" } }], usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+  const reader = createOpenAIChatReader({ env: { OPENAI_API_KEY: "sk-test" }, fetch: okFetch });
+  assert.equal(reader.modelLabel, "openai-chat/gpt-4o");
+  const result = await reader.generate({
+    question: { question: "What theme?", question_date: "2026/01/01 (Thu) 10:00" },
+    context: { text: "user: I like dark mode" }
+  });
+  assert.equal(result.hypothesis, "dark mode");
+  assert.equal(result.usage.total_tokens, 7);
+  assert.match(calls[0].url, /api\.openai\.com\/v1\/chat\/completions$/);
+  assert.equal(calls[0].auth, "Bearer sk-test");
 });

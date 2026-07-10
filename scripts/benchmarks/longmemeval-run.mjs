@@ -14,6 +14,7 @@ import {
   LongMemEvalRuntimeConfigurationError,
   createDeterministicExtractiveReader,
   createLocalHandoffBaseBoundary,
+  createOpenAIChatReader,
   createQwenChatReader
 } from "../../benchmarks/longmemeval/local-runtime.mjs";
 
@@ -122,7 +123,9 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
 
   const reader = args.readerMode === "qwen"
     ? createQwenChatReader({ env: runtime.env, fetch: runtime.fetch })
-    : createDeterministicExtractiveReader();
+    : args.readerMode === "openai"
+      ? createOpenAIChatReader({ env: runtime.env, fetch: runtime.fetch })
+      : createDeterministicExtractiveReader();
   const memoryBoundary = args.backend === "handoffbase"
     ? await createLocalHandoffBaseBoundary({
         rootDir,
@@ -173,7 +176,7 @@ function helpText() {
     --dataset /path/to/longmemeval_s_cleaned.json \\
     --output-dir /path/to/output \\
     --backend no-memory|raw-history|handoffbase \\
-    [--reader deterministic|qwen] \\
+    [--reader deterministic|qwen|openai] \\
     [--memory-provider mock|qwen] \\
     [--embeddings off|mock|qwen] \\
     [--limit N] [--question-id ID] [--resume]

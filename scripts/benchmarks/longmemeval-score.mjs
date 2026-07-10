@@ -10,6 +10,7 @@ import {
   LONGMEMEVAL_JUDGE_MODES,
   LongMemEvalScoringError,
   createDeterministicJudge,
+  createOpenAIJudge,
   createQwenJudge,
   parseHypothesesJsonl,
   scoreLongMemEval
@@ -61,10 +62,10 @@ export function parseScoreArgs(argv) {
   }
   options.judgeMode ??= "deterministic";
   if (!LONGMEMEVAL_JUDGE_MODES.includes(options.judgeMode)) {
-    throw new LongMemEvalValidationError("--judge must be deterministic or qwen.");
+    throw new LongMemEvalValidationError("--judge must be deterministic, qwen, or openai.");
   }
-  if (options.judgeModel !== undefined && options.judgeMode !== "qwen") {
-    throw new LongMemEvalValidationError("--judge-model requires --judge qwen.");
+  if (options.judgeModel !== undefined && !["qwen", "openai"].includes(options.judgeMode)) {
+    throw new LongMemEvalValidationError("--judge-model requires --judge qwen or --judge openai.");
   }
   return options;
 }
@@ -82,7 +83,9 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
 
   const judge = args.judgeMode === "qwen"
     ? createQwenJudge({ env: runtime.env, fetch: runtime.fetch, model: args.judgeModel })
-    : createDeterministicJudge();
+    : args.judgeMode === "openai"
+      ? createOpenAIJudge({ env: runtime.env, fetch: runtime.fetch, model: args.judgeModel })
+      : createDeterministicJudge();
 
   const scoring = await scoreLongMemEval({
     questions: dataset.questions,
@@ -128,14 +131,16 @@ function helpText() {
     --dataset /path/to/longmemeval_s.json \\
     --hypotheses /path/to/output/hypotheses.jsonl \\
     [--output /path/to/output/scoring.json] \\
-    [--judge deterministic|qwen] [--judge-model qwen-max]
+    [--judge deterministic|qwen|openai] [--judge-model qwen-max|gpt-4o]
 
 Scores LongMemEval hypotheses against gold answers. Default --judge
 deterministic is credential-free and network-free (a coarse substring/abstention
-proxy, NOT the official metric). --judge qwen uses the QWEN_*/DASHSCOPE_*
-environment (default judge model qwen-max) to reproduce the official yes/no
-correctness check in spirit; it is still an independent reimplementation, not the
-official GPT-4o evaluator. The scorer never loads an .env file or downloads data.
+proxy, NOT the official metric). --judge qwen uses QWEN_/DASHSCOPE_ (default
+qwen-max); --judge openai uses OPENAI_API_KEY (default gpt-4o, which matches the
+model the official evaluator uses, so a Qwen-reader run judged by gpt-4o is more
+comparable to published numbers). All judge modes are independent
+reimplementations of the correctness check, not the official evaluator harness.
+The scorer never loads an .env file or downloads data.
 `;
 }
 

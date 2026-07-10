@@ -1,10 +1,11 @@
 import { LONGMEMEVAL_QUESTION_TYPES } from "./adapter.mjs";
-import { resolveQwenRuntimeConfig } from "./local-runtime.mjs";
+import { resolveOpenAIRuntimeConfig, resolveQwenRuntimeConfig } from "./local-runtime.mjs";
 
 export const LONGMEMEVAL_SCORER_VERSION = "1.0.0";
-export const LONGMEMEVAL_JUDGE_MODES = Object.freeze(["deterministic", "qwen"]);
+export const LONGMEMEVAL_JUDGE_MODES = Object.freeze(["deterministic", "qwen", "openai"]);
 const SCORING_SCHEMA_VERSION = "1";
 const DEFAULT_JUDGE_MODEL = "qwen-max";
+const DEFAULT_OPENAI_JUDGE_MODEL = "gpt-4o";
 const DEFAULT_JUDGE_TIMEOUT_MS = 30_000;
 
 export class LongMemEvalScoringError extends Error {
@@ -187,6 +188,78 @@ export function createQwenJudge(options = {}) {
           throw new LongMemEvalScoringError(`Qwen judge request timed out after ${timeoutMs}ms.`);
         }
         throw new LongMemEvalScoringError("Qwen judge request failed before receiving a response.");
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  };
+}
+
+/**
+ * OpenAI GPT-4o judge (default gpt-4o via OPENAI_JUDGE_MODEL). Using GPT-4o here
+ * matches the model the official LongMemEval evaluator uses, so a Qwen-reader
+ * run judged by GPT-4o is more directly comparable to published numbers. It is
+ * still an independent reimplementation of the correctness check, not the
+ * official evaluator harness.
+ */
+export function createOpenAIJudge(options = {}) {
+  const base = resolveOpenAIRuntimeConfig(options.env ?? process.env);
+  const model = firstNonEmpty(
+    options.model,
+    (options.env ?? process.env).OPENAI_JUDGE_MODEL
+  ) ?? DEFAULT_OPENAI_JUDGE_MODEL;
+  const timeoutMs = options.timeoutMs ?? base.timeoutMs ?? DEFAULT_JUDGE_TIMEOUT_MS;
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new LongMemEvalScoringError("OpenAI judge mode requires a Fetch API implementation.");
+  }
+
+  return {
+    label: `openai-judge/${model}`,
+    async judge(input) {
+      const prompt = buildAnswerCheckPrompt(input);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(chatCompletionsEndpoint(base.baseUrl), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${base.apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0,
+            messages: [{ role: "user", content: prompt }]
+          }),
+          signal: controller.signal
+        });
+        if (!response?.ok) {
+          const status = Number.isSafeInteger(response?.status) ? response.status : undefined;
+          throw new LongMemEvalScoringError(
+            status === undefined ? "OpenAI judge request failed." : `OpenAI judge request failed with HTTP ${status}.`,
+            { status }
+          );
+        }
+        let payload;
+        try {
+          payload = JSON.parse(await response.text());
+        } catch {
+          throw new LongMemEvalScoringError("OpenAI judge response was not valid JSON.");
+        }
+        const content = payload?.choices?.[0]?.message?.content;
+        if (typeof content !== "string" || content.trim().length === 0) {
+          throw new LongMemEvalScoringError("OpenAI judge response did not include a verdict.");
+        }
+        return { correct: parseJudgeVerdict(content) };
+      } catch (error) {
+        if (error instanceof LongMemEvalScoringError) {
+          throw error;
+        }
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new LongMemEvalScoringError(`OpenAI judge request timed out after ${timeoutMs}ms.`);
+        }
+        throw new LongMemEvalScoringError("OpenAI judge request failed before receiving a response.");
       } finally {
         clearTimeout(timeout);
       }

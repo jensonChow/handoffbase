@@ -9,14 +9,28 @@ import {
 import {
   createDeterministicExtractiveReader,
   createLocalHandoffBaseBoundary,
+  createOpenAIChatReader,
   createQwenChatReader
 } from "./local-runtime.mjs";
 import {
   createDeterministicJudge,
+  createOpenAIJudge,
   createQwenJudge,
   parseHypothesesJsonl,
   scoreLongMemEval
 } from "./scorer.mjs";
+
+function createReader(readerMode, env, fetch) {
+  if (readerMode === "qwen") return createQwenChatReader({ env, fetch });
+  if (readerMode === "openai") return createOpenAIChatReader({ env, fetch });
+  return createDeterministicExtractiveReader();
+}
+
+function createJudge(judgeMode, env, fetch, model) {
+  if (judgeMode === "qwen") return createQwenJudge({ env, fetch, model });
+  if (judgeMode === "openai") return createOpenAIJudge({ env, fetch, model });
+  return createDeterministicJudge();
+}
 
 export const LONGMEMEVAL_DEFAULT_BACKENDS = Object.freeze(["no-memory", "handoffbase", "raw-history"]);
 
@@ -55,16 +69,12 @@ export async function runLongMemEvalComparison(options) {
 
   const dataset = await loadLongMemEvalDataset(datasetPath);
   const selected = selectLongMemEvalQuestions(dataset.questions, limit === undefined ? {} : { limit });
-  const judge = judgeMode === "qwen"
-    ? createQwenJudge({ env, fetch, model: judgeModel })
-    : createDeterministicJudge();
+  const judge = createJudge(judgeMode, env, fetch, judgeModel);
 
   const results = [];
   for (const backend of backends) {
     const backendOutputDir = path.join(outputDir, backend);
-    const reader = readerMode === "qwen"
-      ? createQwenChatReader({ env, fetch })
-      : createDeterministicExtractiveReader();
+    const reader = createReader(readerMode, env, fetch);
     const memoryBoundary = backend === "handoffbase"
       ? await createLocalHandoffBaseBoundary({ rootDir, memoryProviderMode, embeddingMode, env, fetch, fixedNow })
       : undefined;
