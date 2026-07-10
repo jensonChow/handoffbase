@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import test from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { convertFeedbackFixtures } from "../scripts/feedback-fixture-to-benchmark.mjs";
 import {
   IMPLEMENTED_BASELINES,
   assertIdsAbsentOrContextExcluded
@@ -157,8 +159,47 @@ test("conflict fixtures cover terminal supersede, merge, and keep-both postcondi
   assert.equal(keepBoth.expect.existingSupersededBy, null);
 });
 
-function runJsonBenchmark() {
-  return execFileSync(process.execPath, [runnerPath, "--json"], {
+test("benchmark runner consumes an explicit generated feedback fixture outside the family directory", () => {
+  const fixture = convertFeedbackFixtures(
+    {
+      schema_version: "1",
+      target: "trace",
+      signal: "unhelpful",
+      memory_type: "failure_memory",
+      scope_dimensions: ["tenant", "user", "project"],
+      trace_query: "What confirmed correction should guide the retry?",
+      correction: "Ask for the missing constraint before proposing a retry.",
+    },
+    { publicSafeConfirmed: true },
+  );
+  const directory = mkdtempSync(path.join(tmpdir(), "handoffbase-explicit-benchmark-"));
+  const fixturePath = path.join(directory, "generated-feedback.json");
+  try {
+    writeFileSync(fixturePath, JSON.stringify(fixture), "utf8");
+    const report = JSON.parse(runJsonBenchmark(["--fixture", fixturePath]));
+    assert.equal(report.fixtureCaseCount, 1);
+    assert.equal(report.baselineExecutionCount, 2);
+    assert.equal(report.errors.length, 0);
+    assert.equal(report.summary.harness.ok, true);
+    assert.deepEqual(
+      report.results.map((result) => result.baseline).sort(),
+      ["handoffbase-memory-context", "no-memory"],
+    );
+    assert.equal(
+      report.results.find((result) => result.baseline === "handoffbase-memory-context")?.observedPass,
+      true,
+    );
+    assert.equal(
+      report.results.find((result) => result.baseline === "no-memory")?.observedPass,
+      false,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+function runJsonBenchmark(extraArgs = []) {
+  return execFileSync(process.execPath, [runnerPath, "--json", ...extraArgs], {
     cwd: repositoryRoot,
     encoding: "utf8",
     env: {

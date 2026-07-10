@@ -35,6 +35,12 @@ export const toolRegistrations = [
     description: "Explain which memories were used, ignored, or excluded.",
   },
   {
+    name: "memory_feedback",
+    title: "Memory Feedback",
+    description:
+      "Record helpful or unhelpful feedback for a memory or trace and optionally create a pending correction memory.",
+  },
+  {
     name: "memory_resolve_conflict",
     title: "Resolve Memory Conflict",
     description:

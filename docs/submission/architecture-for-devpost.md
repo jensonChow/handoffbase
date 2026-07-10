@@ -47,6 +47,7 @@ flowchart LR
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
+    Feedback["Memory feedback records"]
   end
 
   subgraph DashboardLayer["Memory Vault dashboard"]
@@ -81,9 +82,11 @@ flowchart LR
   Core --> Events
   Core --> Trace
   Core --> Conflicts
+  Core --> Feedback
 
   Dashboard --> DashboardAPI
-  DashboardAPI -->|same MemoryStore selection| Store
+  DashboardAPI -->|caller-bound mutations| Service
+  DashboardAPI -->|caller-scoped snapshots| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView
@@ -141,10 +144,12 @@ how users and operators inspect memory, review pending candidates, inspect
 trace decisions, and resolve conflicts instead of letting agent memory mutate
 silently.
 
-The browser uses same-origin server APIs by default. Its server backend follows
-the MCP runtime's `STORE_MODE` and `DATABASE_URL`; Postgres mode requires private
-tenant/user scope and disables demo seeding. It is not yet a production admin
-console.
+The browser uses same-origin server APIs by default. An API-key sign-in creates
+a signed HttpOnly caller session; mutation routes then call the same
+`ContinuityMemoryService` governance boundary as MCP, while direct store access
+is limited to caller-scoped snapshots and audit reads. The backend follows the
+MCP runtime's `STORE_MODE` and `DATABASE_URL`, and Postgres mode disables demo
+seeding. It is not yet a production admin console.
 
 ## Current Limitations
 

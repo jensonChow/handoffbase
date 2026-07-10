@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./sensitive.js";
 export * from "./validation.js";
 export * from "./events.js";
+export * from "./feedback.js";
 export * from "./lifecycle.js";
 export * from "./storage.js";
 export * from "./in-memory-store.js";

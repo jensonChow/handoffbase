@@ -5,6 +5,8 @@ import {
   continuityBootstrapOutputShape,
   memoryForgetInputShape,
   memoryForgetOutputShape,
+  memoryFeedbackInputShape,
+  memoryFeedbackOutputShape,
   memoryRecallInputShape,
   memoryRecallOutputShape,
   memoryReflectInputShape,
@@ -132,6 +134,18 @@ export function registerContinuityMcp(server: McpServer, service: MemoryService)
       outputSchema: memoryTraceOutputShape,
     },
     async (input) => structuredToolResult(await service.trace(input)),
+  );
+
+  const feedback = toolMetadata("memory_feedback");
+  server.registerTool(
+    feedback.name,
+    {
+      title: feedback.title,
+      description: feedback.description,
+      inputSchema: memoryFeedbackInputShape,
+      outputSchema: memoryFeedbackOutputShape,
+    },
+    async (input) => structuredToolResult(await service.feedback(input)),
   );
 
   const resolveConflict = toolMetadata("memory_resolve_conflict");

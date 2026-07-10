@@ -42,7 +42,7 @@ try {
   const resourceTemplates = await client.listResourceTemplates();
   const resourceCount = resources.resources.length + resourceTemplates.resourceTemplates.length;
 
-  assert.equal(tools.tools.length, 8, "smoke expects 8 MCP tools");
+  assert.equal(tools.tools.length, 9, "smoke expects 9 MCP tools");
   assert.equal(resourceCount, 9, "smoke expects 9 MCP resources");
   assert.equal(prompts.prompts.length, 4, "smoke expects 4 MCP prompts");
 
@@ -150,6 +150,39 @@ try {
     ignored_memories?: Array<{ memory_id: string; reason: string }>;
   };
   assert.ok(tracePayload.used_memories?.length, "trace explains used memories");
+
+  const feedbackResult = await client.callTool({
+    name: "memory_feedback",
+    arguments: {
+      trace_id: recallPayload.trace_id,
+      signal: "helpful",
+      reason: "The recalled context improved the smoke response.",
+    },
+  });
+  const feedbackPayload = feedbackResult.structuredContent as {
+    feedback_id?: string;
+    trace_id?: string;
+    signal?: string;
+    correction_memory?: unknown;
+    regression_fixture?: { target?: string; signal?: string };
+  };
+  assert.ok(feedbackPayload.feedback_id, "feedback returns a durable id");
+  assert.equal(feedbackPayload.trace_id, recallPayload.trace_id, "feedback targets the trace");
+  assert.equal(feedbackPayload.signal, "helpful", "feedback preserves the signal");
+  assert.equal(feedbackPayload.correction_memory, undefined, "helpful feedback creates no correction");
+  assert.equal(feedbackPayload.regression_fixture?.target, "trace", "feedback emits a regression fixture");
+  assert.equal(feedbackPayload.regression_fixture?.signal, "helpful", "fixture preserves the signal");
+
+  const invalidHelpfulCorrection = await client.callTool({
+    name: "memory_feedback",
+    arguments: {
+      trace_id: recallPayload.trace_id,
+      signal: "helpful",
+      correction: "A helpful signal cannot include a correction.",
+    },
+  });
+  assert.equal(invalidHelpfulCorrection.isError, true, "feedback schema rejects helpful corrections");
+  assert.match(renderToolText(invalidHelpfulCorrection), /correction is only allowed for unhelpful feedback/);
 
   const tightRecallResult = await client.callTool({
     name: "memory_recall",

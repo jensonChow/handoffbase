@@ -73,6 +73,8 @@ export type MemoryEvent = {
   actorId: string;
   reason: string;
   createdAt: string;
+  hardDeleted?: boolean;
+  scopeLabel?: string;
 };
 
 export type TraceMemoryRef = {
@@ -105,8 +107,64 @@ export type ConflictCandidate = {
   incoming: string;
   existing: string;
   recommendation: string;
+  recommendedAction: ConflictResolutionAction;
   memoryType: MemoryType;
   scopeLabel: string;
+};
+
+export type ConflictResolutionAction =
+  | "accept_candidate"
+  | "reject_candidate"
+  | "supersede_existing"
+  | "merge"
+  | "keep_both"
+  | "dismiss_conflict";
+
+export type ConflictResolutionInput = {
+  action: ConflictResolutionAction;
+  reason: string;
+  mergedText?: string;
+};
+
+export type ConflictResolutionResult = {
+  conflictId: string;
+  action: ConflictResolutionAction;
+  status: "resolved" | "dismissed";
+  eventIds: string[];
+  resolvedAt: string;
+};
+
+export type TraceFeedbackInput = {
+  rating: "helpful" | "unhelpful";
+  reason?: string;
+  correction?: string;
+  outcome?: string;
+};
+
+export type TraceFeedback = {
+  id: string;
+  traceId: string;
+  memoryId?: string;
+  rating: "helpful" | "unhelpful";
+  reason?: string;
+  correction?: string;
+  correctionMemoryId?: string;
+  runId?: string;
+  createdAt: string;
+  regressionFixture: Record<string, unknown>;
+};
+
+export type DashboardSession = {
+  authenticated: boolean;
+  authMode: "disabled" | "api_key";
+  caller?: {
+    tenantId: string;
+    userId: string;
+    actorType: "user" | "agent" | "system" | "dashboard" | "mcp_host";
+    actorId: string;
+    allowedAgentProfileIds?: string[];
+    allowedProjectIds?: string[];
+  };
 };
 
 export type DashboardRuntimeMode =
@@ -122,21 +180,33 @@ export type DashboardSnapshot = {
   events: MemoryEvent[];
   traces: MemoryTrace[];
   conflicts: ConflictCandidate[];
+  feedback: TraceFeedback[];
 };
 
 export type MemoryPatch = Partial<
   Pick<
     MemoryRecord,
-    "type" | "status" | "confidence" | "importance" | "canonicalText" | "validity"
+    "confidence" | "importance" | "canonicalText" | "validity"
   >
 >;
 
 export interface MemoryClient {
+  getSession(): Promise<DashboardSession>;
+  login(apiKey: string): Promise<DashboardSession>;
+  logout(): Promise<void>;
   listDashboard(): Promise<DashboardSnapshot>;
   updateMemory(memoryId: string, patch: MemoryPatch): Promise<MemoryRecord>;
   approveMemory(memoryId: string): Promise<MemoryRecord>;
   invalidateMemory(memoryId: string, reason: string): Promise<MemoryRecord>;
   deleteMemory(memoryId: string, reason: string): Promise<void>;
+  resolveConflict(
+    conflictId: string,
+    input: ConflictResolutionInput
+  ): Promise<ConflictResolutionResult>;
+  submitTraceFeedback(
+    traceId: string,
+    input: TraceFeedbackInput
+  ): Promise<TraceFeedback>;
 }
 
 export type MemoryClientMode = "mock" | "http";
@@ -172,6 +242,21 @@ export class HttpMemoryClient implements MemoryClient {
     this.baseUrl = options.baseUrl?.replace(/\/$/, "") ?? "";
     this.fetcher = options.fetcher ?? fetch;
     this.headers = options.headers;
+  }
+
+  getSession(): Promise<DashboardSession> {
+    return this.request<DashboardSession>("/api/dashboard/session");
+  }
+
+  login(apiKey: string): Promise<DashboardSession> {
+    return this.request<DashboardSession>("/api/dashboard/session", {
+      method: "POST",
+      body: JSON.stringify({ apiKey })
+    });
+  }
+
+  async logout(): Promise<void> {
+    await this.request<void>("/api/dashboard/session", { method: "DELETE" });
   }
 
   listDashboard(): Promise<DashboardSnapshot> {
@@ -211,6 +296,32 @@ export class HttpMemoryClient implements MemoryClient {
     });
   }
 
+  resolveConflict(
+    conflictId: string,
+    input: ConflictResolutionInput
+  ): Promise<ConflictResolutionResult> {
+    return this.request<ConflictResolutionResult>(
+      `/api/dashboard/conflicts/${encodeURIComponent(conflictId)}/resolve`,
+      {
+        method: "POST",
+        body: JSON.stringify(input)
+      }
+    );
+  }
+
+  submitTraceFeedback(
+    traceId: string,
+    input: TraceFeedbackInput
+  ): Promise<TraceFeedback> {
+    return this.request<TraceFeedback>(
+      `/api/dashboard/traces/${encodeURIComponent(traceId)}/feedback`,
+      {
+        method: "POST",
+        body: JSON.stringify(input)
+      }
+    );
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(this.headers);
 
@@ -224,6 +335,7 @@ export class HttpMemoryClient implements MemoryClient {
 
     const response = await this.fetcher(`${this.baseUrl}${path}`, {
       ...init,
+      credentials: init.credentials ?? "same-origin",
       headers
     });
 

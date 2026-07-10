@@ -82,7 +82,7 @@ Revalidate the demo and record only non-secret facts:
 
 ```sh
 curl -sS http://123.56.244.157/health
-MCP_ENDPOINT=http://123.56.244.157/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=http://123.56.244.157/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
 ```
 
 Record:
@@ -142,7 +142,7 @@ recording, availability, and teardown checklist. The short version is:
 
    ```sh
    curl -sS http://<public-ip>/health
-   MCP_ENDPOINT=http://<public-ip>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+   MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=http://<public-ip>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
    ```
 
 6. Update `docs/deployment/alibaba-cloud-proof.md` only if the public endpoint

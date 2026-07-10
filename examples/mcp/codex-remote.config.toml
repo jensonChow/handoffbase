@@ -1,0 +1,8 @@
+# Replace the URL, export HANDOFFBASE_MCP_TOKEN, then copy this table into
+# ~/.codex/config.toml or a trusted project's .codex/config.toml.
+[mcp_servers.handoffbase_remote]
+url = "https://handoffbase.example.com/mcp"
+bearer_token_env_var = "HANDOFFBASE_MCP_TOKEN"
+required = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60

@@ -59,6 +59,7 @@ Every connected agent can:
 - recall relevant long-term memories for a task,
 - remember new durable facts, procedures, preferences, and failures,
 - reflect on completed runs,
+- record helpful or unhelpful feedback and propose governed corrections,
 - update, supersede, expire, or forget outdated memories,
 - resolve governed conflicts with explicit lifecycle actions,
 - explain which memories were used, ignored, or excluded.
@@ -68,7 +69,7 @@ Every connected agent can:
 | Area | Current implementation |
 | --- | --- |
 | MCP transport | Remote Streamable HTTP server at `/mcp` |
-| MCP surface | 8 tools, 9 `memory://` resources, and 4 reusable prompts |
+| MCP surface | 9 tools, 9 `memory://` resources, and 4 reusable prompts |
 | Memory core | `@handoffbase/memory-core` with records, scopes, lifecycle, events, traces, validation, and sensitive-data rejection |
 | Providers | `MemoryReasoningProvider`, `QwenMemoryProvider`, and deterministic `MockMemoryProvider` |
 | Store | Credential-free in-memory default; opt-in `PostgresMemoryStore` runtime selected by `STORE_MODE=postgres` after an explicit migration |
@@ -82,10 +83,15 @@ Every connected agent can:
 Requires Node.js 22 or newer.
 
 ```bash
-npm install
+npm ci
 npm run check
 npm run dev:server
 ```
+
+`npm run dev:server` and `npm run start:server` automatically pass a root
+`.env.local` file to Node when that file exists. If it does not exist, startup
+uses the current shell or cloud environment normally. The launcher never prints
+environment values.
 
 The local MCP server listens at:
 
@@ -102,8 +108,10 @@ PORT=3333 npm run dev:server
 Call a local tool with the included Opportunity Scout payload:
 
 ```bash
-MCP_ENDPOINT=http://127.0.0.1:3333/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
+MCP_ENDPOINT=http://127.0.0.1:3000/mcp npm run mcp:call -- memory_recall examples/http/payloads/memory-recall-rank-opportunities.json
 ```
+
+If you selected port `3333`, use that same port in `MCP_ENDPOINT`.
 
 Useful commands:
 
@@ -119,6 +127,9 @@ npm run bench:longmemeval:tiny
 npm run e2e:cross-host
 ```
 
+The dashboard uses `http://localhost:3001` by default, so it can run beside the
+MCP server on port `3000`.
+
 `npm run check` is the CI-parity command. It typechecks, builds the server and
 workspaces, runs deterministic unit/integration gates, the MCP registration
 smoke test, the local eval and comparative benchmark, the LongMemEval tiny
@@ -130,6 +141,27 @@ database, Docker, or network access.
 fixture subset without Qwen credentials or network access. Its recorded
 comparative result is HandoffBase 17/17 versus no-memory 0/17, with 34/34
 expectation conformance. This is not an official benchmark score.
+
+## Health And Dependency Readiness
+
+- `GET /health` is a liveness and configured-mode check. It does not contact
+  Postgres or Qwen.
+- `GET /ready` is dependency readiness. Postgres mode runs a real schema query
+  that verifies the connection and current migrated `memories` and
+  `memory_feedback` tables; Qwen mode makes a live one-token provider probe.
+  In-memory and mock modes complete their corresponding checks locally.
+- The store check runs on every request. Qwen readiness performs one live token
+  probe on the first request, then reuses that result for five minutes by
+  default; concurrent cache misses share one in-flight request.
+
+The live Qwen probe has a very small token cost. Use `/health` for frequent
+liveness polling and `/ready` before sending traffic or recording deployment
+proof. In `api_key` mode, `/ready` requires the same Bearer or HandoffBase key
+header as `/mcp`. The default loopback-only local server may probe Qwen with
+auth disabled so a local `.env.local` setup can verify itself. A non-loopback
+Qwen runtime with auth disabled, including the explicit insecure demo override,
+fails closed before a model call. Readiness responses contain status metadata,
+not provider response text.
 
 ## Qwen Setup
 
@@ -151,9 +183,13 @@ Optional Qwen/DashScope settings:
 - `QWEN_MODEL` or `DASHSCOPE_MODEL`
 - `QWEN_TIMEOUT_MS`
 
+The root server launcher loads `.env.local` automatically when present. Values
+already exported by the shell or supplied by a cloud runtime remain available,
+so production deployment does not require a local env file.
+
 Never commit `.env.*` files. Keep Qwen keys, DashScope keys, HandoffBase API
-keys, database URLs, cloud credentials, cookies, and auth headers in local or
-cloud secret configuration only.
+keys, dashboard session secrets, database URLs, cloud credentials, cookies, and
+auth headers in local or cloud secret configuration only.
 
 Qwen is used for the reasoning-heavy memory work:
 
@@ -209,32 +245,71 @@ http://127.0.0.1:3000/mcp
 For deployed environments, put HTTPS and API-key auth in front of the service
 before using it with real data. Remote clients can authenticate with either a
 bearer token or `X-Handoffbase-Api-Key`; keep the key value in the host's secret
-configuration, not in tracked project files.
+configuration, not in tracked project files. An auth-disabled server may bind
+loopback only; a non-loopback bind fails startup unless the isolated-demo
+override is explicitly enabled.
+
+API-key caller mappings are strict: unknown authorization fields or malformed
+grant lists fail configuration. A missing `allowedProjectIds` or
+`allowedAgentProfileIds` field means unrestricted within that dimension, while
+an explicit empty list means deny-all.
 
 The MCP server exposes tools for memory actions, resources for readable vault
 views, and prompts for memory-aware workflows. Local stdio is intentionally not
 the MVP path because the product value comes from one shared memory layer across
 hosts and sessions.
 
+For Codex, copy the canonical local or remote `config.toml` table from the
+[MCP host examples](examples/mcp/README.md). The remote example reads its Bearer
+token from `HANDOFFBASE_MCP_TOKEN`; it never stores the token in Codex config.
+
 ## Remote MCP Validation
 
-The repo includes a remote validator:
+The repo includes a remote validator. The default `generic` profile discovers
+the deployed auth/provider/store modes instead of requiring one fixed
+combination:
 
 ```bash
+MCP_ENDPOINT=https://handoffbase.example.com/mcp \
+MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
 npm run mcp:validate-remote
 ```
 
-Before running it, set `MCP_ENDPOINT` to a deployed `/mcp` URL and set
-`MCP_AUTH_TOKEN` in your shell or secret manager. Do not paste token values into
-tracked files or command logs.
+Use the Alibaba demo profile when the deployment is expected to be API-key
+protected, Qwen-backed, and in-memory:
 
-The validator checks:
+```bash
+MCP_VALIDATION_PROFILE=alibaba-demo \
+MCP_ENDPOINT=<deployed-mcp-url> \
+MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
+npm run mcp:validate-remote
+```
 
-- `GET /health` reports `authMode=api_key`, `providerMode=qwen`, and
-  `storeMode=in-memory`,
-- MCP `tools/list` returns the registered tools,
-- authenticated `memory_recall` returns memories and a trace id,
-- authenticated `memory_remember` exercises the Qwen-backed provider path.
+For another runtime, set one or more explicit assertions:
+
+```bash
+EXPECTED_AUTH_MODE=api_key \
+EXPECTED_PROVIDER_MODE=qwen \
+EXPECTED_STORE_MODE=postgres \
+MCP_ENDPOINT=<deployed-mcp-url> \
+MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
+npm run mcp:validate-remote
+```
+
+Keep `MCP_AUTH_TOKEN` in the shell or secret manager. Do not paste token values
+into tracked files or command logs.
+
+The validator always checks:
+
+- `GET /health` identifies HandoffBase over Streamable HTTP,
+- `GET /ready` returns HTTP 200 for current dependency readiness,
+- MCP `tools/list` exactly matches the current nine-tool manifest,
+- `memory_recall` returns a trace id,
+- `memory_remember` exercises the configured provider path.
+
+Only for a legacy deployment that does not expose `/ready`, set
+`MCP_SKIP_READINESS=1` explicitly. This skips only readiness; the current tool
+manifest and MCP behavior checks still run.
 
 The current deployment evidence is recorded in
 [`docs/deployment/alibaba-cloud-proof.md`](docs/deployment/alibaba-cloud-proof.md).
@@ -250,8 +325,9 @@ TLS endpoint or managed SaaS service.
 | `memory_remember` | Create durable memory candidates from corrections, notes, or observations. |
 | `memory_reflect` | Reflect on a completed agent run and propose durable memories. |
 | `memory_update` | Edit, merge, or supersede an existing memory record. |
-| `memory_forget` | Invalidate, archive, expire, or delete an existing memory record. |
+| `memory_forget` | Invalidate, archive, expire, or physically hard-delete an existing memory while retaining only a redacted audit tombstone. |
 | `memory_trace` | Explain which memories were used, ignored, or excluded. |
+| `memory_feedback` | Record helpful or unhelpful feedback for a memory or trace and optionally propose a pending correction. |
 | `memory_resolve_conflict` | Apply an authorized conflict decision and persist its lifecycle and audit effects. |
 
 ## MCP Resources
@@ -287,9 +363,10 @@ TLS endpoint or managed SaaS service.
 | Bootstrap | `continuity_bootstrap` builds a token-budgeted context pack for a new host/session. |
 | Reflect | `memory_reflect` turns run outcomes into procedure, decision, tool, failure, or outcome memories. |
 | Trace | `memory_trace` and `memory://traces/{trace_id}` explain selected, ignored, and excluded memories. |
+| Feedback | `memory_feedback` records user judgment and can create a pending correction memory for review. |
 | Resolve | `memory_resolve_conflict` accepts or rejects a candidate, supersedes an existing memory, merges, keeps both, or dismisses the conflict. |
 | Update | `memory_update` edits, merges, or supersedes stale or conflicting memories. |
-| Forget | `memory_forget` invalidates, archives, expires, or deletes memory records. |
+| Forget | `memory_forget` invalidates, archives, expires, or physically hard-deletes memory records while keeping a content-redacted audit tombstone. |
 
 Memory types currently modeled:
 
@@ -317,13 +394,47 @@ answers:
 - `memory://vault/conflicts` exposes open conflict records.
 - The Memory Vault dashboard shows vault, pending review, trace, and
   conflict-review views through same-origin server API routes by default.
+- Its default `server_in_memory` backend belongs to the separate Next.js process;
+  it is seeded for the dashboard demo and does not expose the MCP server's
+  process-local in-memory store.
+- With `HANDOFFBASE_AUTH_MODE=api_key`, dashboard sign-in exchanges a
+  HandoffBase API key for a signed, same-origin HttpOnly session cookie. Set the
+  server-only `HANDOFFBASE_DASHBOARD_SESSION_SECRET` to a random value of at
+  least 32 characters; never expose it through `NEXT_PUBLIC_*` or commit it.
+  Production Dashboard requests fail closed when auth is disabled, and
+  production mutations require a matching same-origin `Origin` header.
 - In `STORE_MODE=postgres`, its server backend uses the same `DATABASE_URL` as
-  the MCP runtime and requires private tenant/user scope before opening the
-  vault. `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` selects fixture-only mock mode.
+  the MCP runtime. The signed dashboard session derives tenant/user identity
+  from the authenticated HandoffBase API-key mapping; optional server-only
+  `HANDOFFBASE_DASHBOARD_*` values can narrow, but never replace, that caller
+  grant. `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` selects fixture-only mock mode.
 
 This is not only retrieval. The memory lifecycle is meant to be governed:
 pending approval, conflict review, supersession, expiry, deletion, and trace
 inspection are first-class behaviors.
+
+### Turn feedback into a runnable regression
+
+For unhelpful feedback with a correction, `memory_feedback` and the Dashboard
+produce a sanitized regression fixture. Copy that JSON to a local file, convert
+it into the existing long-memory benchmark schema, then run only that fixture:
+
+```bash
+npm run feedback:to-benchmark -- \
+  /tmp/handoffbase-feedback-fixture.json \
+  --public-safe-confirmed \
+  --output /tmp/handoffbase-feedback-benchmark.json
+
+npm run bench:memory -- \
+  --fixture /tmp/handoffbase-feedback-benchmark.json
+```
+
+The converter rejects helpful-only records, missing corrections, unknown
+identity/scope fields, UUIDs, and detected secret material. It emits a
+deterministic synthetic scope and never edits the tracked benchmark suite. The
+explicit `--public-safe-confirmed` flag records that a human reviewed the draft
+for names or other contextual identifiers that automated checks cannot reliably
+detect. The `--output` path must not already exist.
 
 ## Architecture
 
@@ -339,7 +450,9 @@ flowchart LR
   Store --> Memory["In-memory default"]
   Store --> Postgres["Postgres + pgvector runtime"]
   Dashboard["Memory Vault dashboard"] --> API["Same-origin dashboard API"]
-  API --> Store
+  API --> Session["Signed caller session + scope guard"]
+  Session -->|governed mutations| Service
+  Session -->|caller-scoped snapshots| Store
 ```
 
 More detail:

@@ -7,11 +7,8 @@ import {
   type SqlQueryClient,
   type SqlQueryResult
 } from "@handoffbase/memory-core";
-import { GET } from "../src/app/api/dashboard/memory/route";
 import {
   createDashboardMemoryStoreBindingFromEnvironment,
-  DashboardMemoryConfigurationError,
-  resetDashboardMemoryBackendForTest
 } from "../src/lib/server/dashboard-memory-store";
 import {
   DashboardPgSqlQueryClient,
@@ -34,10 +31,7 @@ test("dashboard defaults to credential-free server memory without constructing P
 
   assert.equal(binding.store instanceof InMemoryMemoryStore, true);
   assert.equal(binding.mode, "server_in_memory");
-  assert.deepEqual(binding.scope, {
-    tenantId: "tenant_demo",
-    userId: "user_demo"
-  });
+  assert.equal(binding.scope, undefined);
   assert.equal(binding.seedDemoData, true);
   assert.equal(clientFactoryCalls, 0);
 });
@@ -105,50 +99,25 @@ test("Postgres dashboard binding uses DATABASE_URL, explicit scope, and real sco
   ]);
 });
 
-test("Postgres dashboard configuration requires private tenant and user scope", async () => {
+test("Postgres dashboard identity comes from the caller and deployment scope is optional", async () => {
   const databaseUrl = "postgresql://runtime.invalid/handoffbase_test";
   let clientFactoryCalls = 0;
 
-  await assert.rejects(
-    createDashboardMemoryStoreBindingFromEnvironment(
-      {
-        STORE_MODE: "postgres",
-        DATABASE_URL: databaseUrl,
-        NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_TENANT_ID: "public-tenant",
-        NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_USER_ID: "public-user"
-      },
-      () => {
-        clientFactoryCalls += 1;
-        return new FakeSqlQueryClient();
-      }
-    ),
-    (error: unknown) => {
-      assert.equal(error instanceof DashboardMemoryConfigurationError, true);
-      assert.equal(
-        (error as Error).message,
-        "HANDOFFBASE_DASHBOARD_TENANT_ID is required when STORE_MODE=postgres."
-      );
-      assert.equal((error as Error).message.includes(databaseUrl), false);
-      return true;
-    }
-  );
-  assert.equal(clientFactoryCalls, 0);
-
-  resetDashboardMemoryBackendForTest(() =>
-    createDashboardMemoryStoreBindingFromEnvironment({
+  const binding = await createDashboardMemoryStoreBindingFromEnvironment(
+    {
       STORE_MODE: "postgres",
       DATABASE_URL: databaseUrl,
-      HANDOFFBASE_DASHBOARD_TENANT_ID: "tenant-shared"
-    })
+      NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_TENANT_ID: "public-tenant",
+      NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_USER_ID: "public-user"
+    },
+    () => {
+      clientFactoryCalls += 1;
+      return new FakeSqlQueryClient();
+    }
   );
-  const response = await GET();
-  assert.equal(response.status, 503);
-  const body = (await response.json()) as { code: string; error: string };
-  assert.deepEqual(body, {
-    code: "dashboard_configuration_error",
-    error: "The dashboard memory store is not configured."
-  });
-  assert.equal(JSON.stringify(body).includes(databaseUrl), false);
+  assert.equal(clientFactoryCalls, 1);
+  assert.deepEqual(binding.scope, {});
+  assert.equal(binding.mode, "shared_persistent_store");
 });
 
 test("dashboard pg query client commits and rolls back transactions with fake pools", async () => {

@@ -12,6 +12,8 @@ import { assertValidMemoryEvent } from "./validation.js";
 import { cloneJsonObject, generateUuid, stringifyDate } from "./utils.js";
 
 const SYSTEM_ACTOR: MemoryActor = { type: "system", id: "memory-core" };
+export const HARD_DELETE_EVENT_REASON = "User requested hard deletion.";
+export const HARD_DELETE_REDACTED_EVENT_REASON = "Content redacted after hard deletion.";
 
 interface EventInput {
   id?: string;
@@ -84,20 +86,25 @@ export function createUpdateEvent(
 
 export function createDeleteEvent(
   before: MemoryRecord,
-  after: MemoryRecord,
   options: MutationOptions = {}
 ): MemoryEvent {
   return createMemoryEvent({
-    tenantId: after.scope.tenantId,
-    memoryId: after.id,
+    tenantId: before.scope.tenantId,
+    memoryId: before.id,
     runId: options.runId,
     eventType: "delete",
     actor: options.actor,
-    reason: options.reason,
-    before: memorySnapshot(before),
-    after: memorySnapshot(after),
+    reason: HARD_DELETE_EVENT_REASON,
+    after: {
+      deletedMemoryId: before.id,
+      status: "deleted",
+      hardDeleted: true,
+      scope: { ...before.scope }
+    },
     now: options.now,
-    metadata: options.metadata
+    metadata: {
+      hard_delete: true
+    }
   });
 }
 

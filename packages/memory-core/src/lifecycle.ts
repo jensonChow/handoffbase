@@ -7,6 +7,7 @@ import {
   type MemoryConflictResolution,
   type MemoryRecord,
   type MemoryScope,
+  type MemoryStatus,
   type ResolveMemoryConflictOptions,
   type RunRecord,
   type UpdateMemoryPatch
@@ -26,6 +27,29 @@ import {
 
 export const DEFAULT_CONFIDENCE = 0.8;
 export const DEFAULT_IMPORTANCE = 0.5;
+
+export class MemoryMutationPreconditionError extends Error {
+  readonly memoryId: string;
+  readonly expectedStatus: MemoryStatus;
+  readonly actualStatus: MemoryStatus;
+
+  constructor(memoryId: string, expectedStatus: MemoryStatus, actualStatus: MemoryStatus) {
+    super(`Memory ${memoryId} expected status ${expectedStatus}, but found ${actualStatus}.`);
+    this.name = "MemoryMutationPreconditionError";
+    this.memoryId = memoryId;
+    this.expectedStatus = expectedStatus;
+    this.actualStatus = actualStatus;
+  }
+}
+
+export function assertMemoryExpectedStatus(
+  memory: MemoryRecord,
+  expectedStatus: MemoryStatus | undefined
+): void {
+  if (expectedStatus !== undefined && memory.status !== expectedStatus) {
+    throw new MemoryMutationPreconditionError(memory.id, expectedStatus, memory.status);
+  }
+}
 
 export function createMemoryRecord(input: CreateMemoryInput, now: Date = new Date()): MemoryRecord {
   const memory: MemoryRecord = {
@@ -283,9 +307,9 @@ export function mergeMetadata(base: JsonObject, next: JsonObject | undefined): J
 }
 
 function scopedDimensionMatches(memoryValue: string | undefined, filterValue: string | undefined): boolean {
-  if (memoryValue === undefined) {
+  if (filterValue === undefined) {
     return true;
   }
 
-  return filterValue !== undefined && memoryValue === filterValue;
+  return memoryValue === undefined || memoryValue === filterValue;
 }

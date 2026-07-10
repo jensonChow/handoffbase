@@ -4,7 +4,8 @@ import {
   createMemoryRecord,
   filterRecallableMemories,
   getEffectiveMemoryStatus,
-  InMemoryMemoryStore
+  InMemoryMemoryStore,
+  MemoryMutationPreconditionError
 } from "../dist/index.js";
 
 const scope = {
@@ -188,4 +189,314 @@ test("in-memory conflict lifecycle creates, filters, and resolves conflict recor
     reviewed: true
   });
   assert.deepEqual(await store.listConflicts({ statuses: ["open"] }), []);
+});
+
+test("in-memory feedback is scoped and hard delete removes content while retaining an authorized tombstone", async () => {
+  const now = new Date("2026-07-07T14:00:00.000Z");
+  const sentinel = "HARD_DELETE_SENTINEL_CONTENT";
+  const store = new InMemoryMemoryStore({ clock: () => now });
+  await store.addMemory(
+    {
+      id: "feedback-target",
+      scope,
+      type: "failure_memory",
+      canonicalText: `Never expose ${sentinel} in an answer.`,
+      rawSource: `Raw source contains ${sentinel}.`,
+      sourceKind: "user_correction",
+      metadata: { private_note: sentinel }
+    },
+    { reason: `Added because ${sentinel}.`, metadata: { private_note: sentinel } }
+  );
+  await store.upsertEmbedding({
+    memoryId: "feedback-target",
+    embedding: [0.1, 0.2],
+    embeddingModel: "test",
+    createdAt: now
+  });
+  const trace = await store.addTrace({
+    id: "feedback-trace",
+    tenantId: scope.tenantId,
+    query: `Why did ${sentinel} appear?`,
+    selectedMemoryIds: ["feedback-target"],
+    contextPack: `Never expose ${sentinel} in an answer.`,
+    selectionReasons: { "feedback-target": `Selected because ${sentinel}.` },
+    metadata: { private_note: sentinel }
+  });
+  await store.addConflict({
+    id: "feedback-conflict",
+    tenantId: scope.tenantId,
+    candidateMemoryId: "feedback-target",
+    conflictType: "contradiction",
+    recommendedAction: "ask_user",
+    status: "resolved",
+    reason: `Conflict reason ${sentinel}.`,
+    resolution: { action: "merge", mergedText: `Merged ${sentinel}.`, note: sentinel },
+    resolvedAt: now,
+    metadata: { private_note: sentinel }
+  });
+  const feedback = await store.addFeedback({
+    id: "feedback-1",
+    scope,
+    memoryId: "feedback-target",
+    traceId: trace.id,
+    signal: "unhelpful",
+    reason: `The remembered instruction exposed ${sentinel}.`,
+    regressionFixture: {
+      schema_version: "1",
+      target: "memory_and_trace",
+      signal: "unhelpful",
+      correction: `Use the corrected policy without ${sentinel}.`,
+      scope_dimensions: ["tenant", "user", "project", "agent_profile"]
+    },
+    metadata: { private_note: sentinel }
+  });
+  await store.addFeedback({
+    id: "feedback-trace-only",
+    scope,
+    traceId: trace.id,
+    signal: "unhelpful",
+    reason: `Trace-only feedback contains ${sentinel}.`,
+    regressionFixture: {
+      schema_version: "1",
+      target: "trace",
+      signal: "unhelpful",
+      correction: `Trace-only correction contains ${sentinel}.`,
+      scope_dimensions: ["tenant", "user", "project", "agent_profile"]
+    },
+    metadata: { private_note: sentinel }
+  });
+  assert.equal(feedback.signal, "unhelpful");
+  assert.deepEqual(
+    (await store.listFeedback({ scope })).map((item) => item.id).sort(),
+    ["feedback-1", "feedback-trace-only"]
+  );
+  assert.deepEqual(
+    await store.listFeedback({ scope: { tenantId: scope.tenantId, userId: "other-user" } }),
+    []
+  );
+
+  const deleted = await store.deleteMemory("feedback-target", {
+    reason: `User deletion reason contains ${sentinel}.`,
+    metadata: { private_note: sentinel }
+  });
+  assert.equal(deleted.event.eventType, "delete");
+  assert.equal(deleted.deletedMemoryId, "feedback-target");
+  assert.equal(JSON.stringify(deleted).includes(sentinel), false);
+  assert.equal(await store.getMemory("feedback-target"), undefined);
+  assert.equal(await store.getEmbedding("feedback-target"), undefined);
+  const redactedTrace = await store.getTrace("feedback-trace");
+  assert.deepEqual(redactedTrace.selectedMemoryIds, []);
+  assert.equal(redactedTrace.query, undefined);
+  assert.equal(redactedTrace.contextPack, undefined);
+  assert.deepEqual(redactedTrace.selectionReasons, {});
+  assert.deepEqual(redactedTrace.metadata, { hard_deleted_content_redacted: true });
+
+  const events = await store.listEvents({ memoryId: "feedback-target" });
+  assert.equal(events.length, 2);
+  assert.equal(JSON.stringify(events).includes(sentinel), false);
+  const tombstone = events.find((event) => event.eventType === "delete");
+  assert.equal(tombstone.reason, "User requested hard deletion.");
+  assert.equal(tombstone.after.deletedMemoryId, "feedback-target");
+  assert.deepEqual(tombstone.after.scope, scope);
+  assert.equal((await store.listEvents({ scope })).length, 1);
+  assert.equal(
+    (await store.listEvents({ scope: { tenantId: scope.tenantId, userId: "other-user" } })).length,
+    0
+  );
+
+  const redactedFeedback = await store.getFeedback("feedback-1");
+  assert.equal(redactedFeedback.reason, undefined);
+  assert.equal(JSON.stringify(redactedFeedback.regressionFixture).includes(sentinel), false);
+  assert.equal(redactedFeedback.regressionFixture.hard_deleted_content_redacted, true);
+  const traceOnlyFeedback = await store.getFeedback("feedback-trace-only");
+  assert.equal(traceOnlyFeedback.reason, undefined);
+  assert.equal(traceOnlyFeedback.regressionFixture.hard_deleted_content_redacted, true);
+  const redactedConflict = await store.getConflict("feedback-conflict");
+  assert.equal(redactedConflict.reason, undefined);
+  assert.equal(redactedConflict.resolution, undefined);
+  assert.deepEqual(redactedConflict.metadata, { hard_deleted_content_redacted: true });
+
+  const allReadableState = {
+    memories: await store.listMemories(),
+    events: await store.listEvents(),
+    feedback: await store.listFeedback(),
+    traces: [await store.getTrace("feedback-trace")],
+    conflicts: await store.listConflicts()
+  };
+  assert.equal(JSON.stringify(allReadableState).includes(sentinel), false);
+  await assert.rejects(
+    () => store.addFeedback({
+      id: "feedback-after-delete-memory",
+      scope,
+      memoryId: "feedback-target",
+      signal: "helpful",
+      regressionFixture: { schema_version: "1", target: "memory", signal: "helpful", scope_dimensions: ["tenant", "user"] }
+    }),
+    /feedback target not found/
+  );
+  await assert.rejects(
+    () => store.addFeedback({
+      id: "feedback-after-delete-trace",
+      scope,
+      traceId: "feedback-trace",
+      signal: "helpful",
+      regressionFixture: { schema_version: "1", target: "trace", signal: "helpful", scope_dimensions: ["tenant", "user"] }
+    }),
+    /trace target was hard deleted/
+  );
+});
+
+test("in-memory feedback scope filters match Postgres vault semantics", async () => {
+  const store = new InMemoryMemoryStore();
+  const base = {
+    tenantId: "tenant-feedback-scope",
+    userId: "user-feedback-scope"
+  };
+  await store.addMemory({
+    id: "global-memory",
+    scope: base,
+    type: "failure_memory",
+    canonicalText: "Global feedback fixture.",
+    sourceKind: "agent_observation"
+  });
+  await store.addMemory({
+    id: "project-memory",
+    scope: { ...base, projectId: "project-a", agentProfileId: "agent-a" },
+    type: "failure_memory",
+    canonicalText: "Project feedback fixture.",
+    sourceKind: "agent_observation"
+  });
+  await store.addFeedback({
+    id: "feedback-global",
+    scope: base,
+    signal: "helpful",
+    memoryId: "global-memory",
+    regressionFixture: { schema_version: "1", target: "memory", signal: "helpful", scope_dimensions: ["tenant", "user"] }
+  });
+  await store.addFeedback({
+    id: "feedback-project-a",
+    scope: { ...base, projectId: "project-a", agentProfileId: "agent-a" },
+    signal: "helpful",
+    memoryId: "project-memory",
+    regressionFixture: { schema_version: "1", target: "memory", signal: "helpful", scope_dimensions: ["tenant", "user", "project", "agent_profile"] }
+  });
+
+  assert.deepEqual(
+    (await store.listFeedback({ scope: base })).map((item) => item.id).sort(),
+    ["feedback-global", "feedback-project-a"]
+  );
+  assert.deepEqual(
+    (await store.listFeedback({ scope: { ...base, projectId: "project-a" } })).map((item) => item.id).sort(),
+    ["feedback-global", "feedback-project-a"]
+  );
+  assert.deepEqual(
+    (await store.listFeedback({ scope: { ...base, projectId: "project-b" } })).map((item) => item.id),
+    ["feedback-global"]
+  );
+});
+
+test("in-memory updates enforce expected status atomically", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "pending-approval",
+    scope,
+    type: "procedure",
+    canonicalText: "Pending approval memory.",
+    sourceKind: "user_correction",
+    status: "pending"
+  });
+  const approved = await store.updateMemory(
+    "pending-approval",
+    { status: "active" },
+    { expectedStatus: "pending" }
+  );
+  assert.equal(approved.memory.status, "active");
+
+  await assert.rejects(
+    () => store.updateMemory(
+      "pending-approval",
+      { status: "rejected" },
+      { expectedStatus: "pending" }
+    ),
+    (error) => {
+      assert.ok(error instanceof MemoryMutationPreconditionError);
+      assert.equal(error.memoryId, "pending-approval");
+      assert.equal(error.expectedStatus, "pending");
+      assert.equal(error.actualStatus, "active");
+      return true;
+    }
+  );
+  assert.equal((await store.getMemory("pending-approval")).status, "active");
+  assert.equal((await store.listEvents({ memoryId: "pending-approval" })).length, 2);
+});
+
+test("in-memory feedback and correction commit as one unit", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "atomic-feedback-target",
+    scope,
+    type: "failure_memory",
+    canonicalText: "Atomic feedback target.",
+    sourceKind: "agent_observation"
+  });
+  const trace = await store.addTrace({
+    id: "atomic-feedback-trace",
+    tenantId: scope.tenantId,
+    selectedMemoryIds: ["atomic-feedback-target"]
+  });
+  const result = await store.addFeedbackWithCorrection(
+    {
+      id: "atomic-feedback",
+      scope,
+      memoryId: "atomic-feedback-target",
+      traceId: trace.id,
+      signal: "unhelpful",
+      regressionFixture: {
+        schema_version: "1",
+        target: "memory_and_trace",
+        signal: "unhelpful",
+        scope_dimensions: ["tenant", "user", "project", "agent_profile"]
+      }
+    },
+    {
+      id: "atomic-correction",
+      scope,
+      type: "failure_memory",
+      canonicalText: "Corrected atomic guidance.",
+      sourceKind: "user_correction",
+      status: "pending"
+    }
+  );
+  assert.equal(result.feedback.correctionMemoryId, "atomic-correction");
+  assert.equal(result.correction.memory.status, "pending");
+  assert.equal((await store.getMemory("atomic-correction")).canonicalText, "Corrected atomic guidance.");
+
+  const eventCount = (await store.listEvents()).length;
+  await assert.rejects(
+    () => store.addFeedbackWithCorrection(
+      {
+        id: "atomic-feedback",
+        scope,
+        memoryId: "atomic-feedback-target",
+        signal: "unhelpful",
+        regressionFixture: {
+          schema_version: "1",
+          target: "memory",
+          signal: "unhelpful",
+          scope_dimensions: ["tenant", "user"]
+        }
+      },
+      {
+        id: "atomic-correction-rollback",
+        scope,
+        type: "failure_memory",
+        canonicalText: "This correction must not commit.",
+        sourceKind: "user_correction",
+        status: "pending"
+      }
+    ),
+    /feedback already exists/
+  );
+  assert.equal(await store.getMemory("atomic-correction-rollback"), undefined);
+  assert.equal((await store.listEvents()).length, eventCount);
 });

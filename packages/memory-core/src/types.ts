@@ -81,6 +81,10 @@ export const MEMORY_SOURCE_KINDS = [
 
 export type MemorySourceKind = (typeof MEMORY_SOURCE_KINDS)[number];
 
+export const MEMORY_FEEDBACK_SIGNALS = ["helpful", "unhelpful"] as const;
+
+export type MemoryFeedbackSignal = (typeof MEMORY_FEEDBACK_SIGNALS)[number];
+
 export const MEMORY_EVENT_TYPES = [
   "add",
   "update",
@@ -161,6 +165,21 @@ export interface MemoryEvent {
   reason?: string;
   before?: JsonObject;
   after?: JsonObject;
+  createdAt: Date;
+  metadata: JsonObject;
+}
+
+export interface MemoryFeedbackRecord {
+  id: string;
+  scope: MemoryScope;
+  memoryId?: string;
+  traceId?: string;
+  runId?: string;
+  signal: MemoryFeedbackSignal;
+  reason?: string;
+  correctionMemoryId?: string;
+  actor: MemoryActor;
+  regressionFixture: JsonObject;
   createdAt: Date;
   metadata: JsonObject;
 }
@@ -287,6 +306,27 @@ export interface AddMemoryConflictInput {
   metadata?: JsonObject;
 }
 
+export interface CreateMemoryFeedbackInput {
+  id?: string;
+  scope: MemoryScope;
+  memoryId?: string;
+  traceId?: string;
+  runId?: string;
+  signal: MemoryFeedbackSignal;
+  reason?: string;
+  correctionMemoryId?: string;
+  regressionFixture: JsonObject;
+  metadata?: JsonObject;
+}
+
+export interface MemoryFeedbackListFilter {
+  scope?: MemoryScopeFilter;
+  memoryId?: string;
+  traceId?: string;
+  runId?: string;
+  signals?: MemoryFeedbackSignal[];
+}
+
 export interface MemoryConflictListFilter {
   tenantId?: string;
   candidateMemoryId?: string;
@@ -300,6 +340,7 @@ export interface MutationOptions {
   reason?: string;
   now?: Date;
   runId?: string;
+  expectedStatus?: MemoryStatus;
   metadata?: JsonObject;
 }
 
@@ -348,6 +389,22 @@ export interface MemoryUpdateResult {
   before: MemoryRecord;
   memory: MemoryRecord;
   event: MemoryEvent;
+}
+
+export interface MemoryDeleteResult {
+  deletedMemoryId: string;
+  scope: MemoryScope;
+  event: MemoryEvent;
+}
+
+export interface MemoryFeedbackWithCorrectionResult {
+  feedback: MemoryFeedbackRecord;
+  correction: MemoryWriteResult;
+}
+
+export interface MemoryFeedbackWithCorrectionOptions {
+  feedback?: MutationOptions;
+  correction?: MutationOptions;
 }
 
 export interface MemoryConflictResolutionResult {

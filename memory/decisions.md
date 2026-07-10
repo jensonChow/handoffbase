@@ -100,7 +100,7 @@
 
 - Decision: Product Proof integration exposes eight typed MCP tools, with `memory_resolve_conflict` as the explicit authorized conflict lifecycle operation.
 - Rationale: Conflict governance is incomplete if callers can only create and inspect conflicts. A typed service boundary preserves caller authorization and makes accept, reject, supersede, merge, keep-both, and dismiss auditable.
-- Status: active.
+- Status: superseded by the nine-tool feedback decision below; the conflict tool remains active.
 
 ## 2026-07-10
 
@@ -112,16 +112,52 @@
 
 - Decision: The dashboard server must follow the same `STORE_MODE` and `DATABASE_URL` as the MCP runtime, and Postgres dashboard access requires explicit private tenant/user scope.
 - Rationale: A separately seeded dashboard is not product truth. Shared storage makes dashboard mutations and runtime memories coherent, while explicit scope prevents cross-user visibility.
-- Status: active.
+- Status: superseded by authenticated caller-derived Dashboard scope below; shared storage remains active.
 
 ## 2026-07-10
 
 - Decision: `npm run check` owns every credential-free deterministic product gate: core/runtime/dashboard tests, 8-tool smoke, local eval, comparative benchmark, LongMemEval tiny matrix, real loopback cross-host E2E, Markdown links, and tracked-secret scanning.
 - Rationale: Contributors and CI should have one authoritative command that proves the integrated product without Qwen credentials, Docker, cloud access, or external datasets.
-- Status: active.
+- Status: superseded only in count by the nine-tool surface below; the one-command gate remains active.
 
 ## 2026-07-10
 
 - Decision: The LongMemEval adapter may provide explicit Qwen reader/provider modes, but no official score can be claimed until a full official dataset run and separate official evaluator run are completed and recorded.
 - Rationale: Adapter compatibility, internal retrieval metrics, tiny synthetic fixtures, and model-generated hypotheses are different artifacts from an official benchmark score.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: The current MCP surface has nine typed tools; `memory_feedback` is the product feedback boundary for helpful/unhelpful judgment, optional pending correction, and sanitized regression-fixture output.
+- Rationale: Real product iteration must connect an observed bad memory/trace to a governed correction and a reproducible local regression instead of relying on an operator to rewrite the failure manually.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: Dashboard identity must come from the HandoffBase auth caller mapping. The browser receives only a signed HttpOnly session containing a key fingerprint and expiry; optional Dashboard scope env values may narrow but never establish or widen identity.
+- Rationale: A deployment-fixed tenant/user is a filter, not authentication. Re-resolving the key mapping per request makes key revocation and grant narrowing immediate, while caller-bound service mutations preserve the same governance semantics as MCP.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: `hard_delete` means physical memory/embedding deletion plus transactional redaction of linked historical content, while a minimal safe delete event remains as the audit tombstone.
+- Rationale: Hiding a `status=deleted` row is not a hard delete, but erasing the entire audit trail also violates governance. The safe boundary retains stable identity/scope/action metadata without retaining the deleted text, trace context, feedback reason/fixture, or conflict content.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: Unhelpful corrections and feedback must be atomic in the Postgres store, and hard-delete races must be closed by locking/revalidating every referenced memory or trace before persisting feedback, recall traces, or conflicts.
+- Rationale: Best-effort compensation does not survive process death, and delete/redaction sweeps are incomplete if a concurrent writer can recreate content after the sweep. Store-level transactions and row locks make the deletion promise durable under concurrent requests.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: `/health` is side-effect-free liveness, while authenticated `/ready` performs real store/provider dependency checks; auth-disabled non-loopback binding fails closed by default.
+- Rationale: Health metadata cannot prove Postgres schema or Qwen availability, and a non-loopback anonymous readiness endpoint must not trigger paid model calls. The loopback-only local trust boundary may probe Qwen for onboarding; separating liveness/readiness keeps operations honest and remote defaults safe.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: The explicit Postgres migrator uses a per-file transactional ledger with checksum drift detection and an advisory lock.
+- Rationale: Re-running one concatenated migration cannot safely distinguish applied schema versions or concurrent operators. A ledger makes startup-independent migrations repeatable and auditable without mutating schema automatically.
 - Status: active.

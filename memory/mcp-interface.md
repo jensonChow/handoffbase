@@ -4,7 +4,7 @@
 
 首版只支持 Remote Streamable HTTP。Local stdio 不在 MVP 范围内，后续可做 thin wrapper 转发到远程 MCP endpoint。
 
-当前实现使用 official MCP TypeScript SDK，默认 endpoint 为 `http://127.0.0.1:3000/mcp`，并保留 `/health` HTTP health check。
+当前实现使用 official MCP TypeScript SDK，默认 endpoint 为 `http://127.0.0.1:3000/mcp`。`/health` 是无副作用 liveness；`/ready` 才做 Postgres schema 与 Qwen provider readiness probe。
 
 ## Core Tools
 
@@ -16,10 +16,22 @@
 - `memory_forget`: 删除、失效或归档记忆。
 - `memory_trace`: 解释某次回答使用、忽略或排除的记忆。
 - `memory_resolve_conflict`: 对 open conflict 执行显式、授权、可审计的 resolution。
+- `memory_feedback`: 对 memory、trace 或二者记录 helpful/unhelpful；unhelpful 可带 correction，生成 pending correction memory 与 sanitized regression fixture。
 
-当前实现已注册以上 8 个 tools，并使用 Zod schemas 定义 input/output。`memory_resolve_conflict` 支持 `accept_candidate`、`reject_candidate`、`supersede_existing`、`merge`、`keep_both` 和 `dismiss_conflict`；`merge` 必须提供 `merged_text`。所有动作必须保留 linked memory 的 scope/source/provenance 和 audit/supersession links。
+当前实现已注册以上 9 个 tools，并使用 Zod schemas 定义 input/output。`memory_resolve_conflict` 支持 `accept_candidate`、`reject_candidate`、`supersede_existing`、`merge`、`keep_both` 和 `dismiss_conflict`；`merge` 必须提供 `merged_text`。所有动作必须保留 linked memory 的 scope/source/provenance 和 audit/supersession links。
+
+`memory_feedback` input contract:
+
+- 至少提供 `memory_id` 或 `trace_id`；两者同时提供时必须属于兼容 scope。
+- `signal` 只能是 `helpful` 或 `unhelpful`。
+- `correction` 只允许用于 `unhelpful`，并先经过 credential rejection、PII redaction 和 public-safe fixture shaping。
+- correction 作为 `sourceKind=user_correction`、`status=pending` 的 memory 进入治理队列，不会直接激活。
+- output 返回 `feedback_id`、target ids、signal/time、可选 pending correction summary 和 regression fixture。fixture 只保留 scope dimension 名，不保留 caller scope value 或真实 record id。
+- runnable benchmark conversion 仍需人类确认 `--public-safe-confirmed`；产品反馈不会自动改写 tracked benchmark 数据集。
 
 Authenticated HTTP 通过 typed `MemoryService.resolveConflict` 和 caller-bound wrapper 传递 scope，不再借用 `memory_update` private dispatch。Conflict vault 会逐条过滤同 tenant 下其他 user 无权读取的记录。
+
+`hard_delete` 的输出 status 仍为 `deleted`，但 storage 语义是真实物理删除，不是把 row 留在 `status=deleted`。系统先脱敏所有关联 event/trace/conflict/feedback，再删除 memory/embedding；安全 delete tombstone 继续可审计。
 
 Trace semantics:
 

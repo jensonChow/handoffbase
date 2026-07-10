@@ -54,7 +54,7 @@ code. Cloud state and secret configuration were not changed.
 ## Prior Validation Snapshot
 
 The rows below are preserved as the 2026-07-09 pre-integration snapshot; their
-tool/test counts are historical and do not validate the current eight-tool
+tool/test counts are historical and do not validate the current nine-tool
 integration. Use `npm run check` for the current gate set.
 
 | Check | Result |
@@ -62,7 +62,7 @@ integration. Use `npm run check` for the current gate set.
 | `npm run check` | Historical pass. Built/typechecked workspaces and server, built dashboard, smoke-registered the then-current 7 tools, 9 resources, and 4 prompts, and passed the then-current test counts. |
 | `npm run eval:memory` | Passed 8/8 deterministic memory eval cases without Qwen credentials or a remote endpoint. |
 | `npm run bench:memory` | Passed 17/17 deterministic benchmark-inspired local cases. |
-| `npm run smoke` | Historical pass; registered the then-current 7 tools, 9 resources, and 4 prompts. Current code has 8 tools. |
+| `npm run smoke` | Historical pass; registered the then-current 7 tools, 9 resources, and 4 prompts. Current code has 9 tools. |
 | `npm run dashboard:build` | Passed. |
 | `npm run test:dashboard` | Passed 2/2 dashboard API tests. |
 | `node --check scripts/validate-remote-mcp.mjs` | Passed. |
@@ -99,8 +99,9 @@ Expected safe outcomes:
   judging, restart it first.
 - [ ] After restart, recheck the public IP and update validation commands if it
   changed.
-- [ ] Re-run `GET /health` and `npm run mcp:validate-remote` only with safe
-  shell-provided `MCP_ENDPOINT` and `MCP_AUTH_TOKEN`.
+- [ ] Re-run `GET /health`, require `GET /ready` HTTP 200, and run
+  `MCP_VALIDATION_PROFILE=alibaba-demo npm run mcp:validate-remote` only with
+  safe shell-provided `MCP_ENDPOINT` and `MCP_AUTH_TOKEN`.
 - [ ] Stop or release the pay-as-you-go ECS instance after the approved
   demo/judging window.
 - [ ] Do not provision Postgres, domains, TLS, load balancers, registries, or

@@ -78,6 +78,7 @@ Users and agents govern memory with:
 
 - `memory_update`
 - `memory_forget`
+- `memory_feedback`
 - `memory_resolve_conflict`
 - conflict records
 - trace records
@@ -90,6 +91,18 @@ should replace an older procedure.
 `memory_forget` invalidates, archives, expires, or deletes a memory. It is the
 right tool when a memory is no longer wanted, no longer true, out of scope, or
 too sensitive to keep.
+
+In `hard_delete` mode, the store physically removes the memory row and its
+embedding. Historical event, trace, conflict, and feedback content linked to
+that memory is redacted; a minimal tombstone retains only stable identifiers,
+scope, actor/time, and deleted status so the destructive action remains
+auditable without retaining the deleted content.
+
+`memory_feedback` records a helpful or unhelpful judgment against an authorized
+memory or trace. An unhelpful correction can create a `pending`
+`user_correction` memory for review and return a sanitized regression-fixture
+draft; turning that draft into a benchmark case still requires explicit human
+public-safety confirmation.
 
 `memory_resolve_conflict` applies an authorized terminal decision to a conflict:
 accept or reject the candidate, supersede the existing memory, merge canonical
@@ -106,7 +119,7 @@ The core lifecycle statuses are:
 | `expired` | Memory aged out or passed its validity window. |
 | `superseded` | Memory was replaced by a newer memory. |
 | `archived` | Memory is retained for history but not normal recall. |
-| `deleted` | Memory was removed from normal use and should not be recalled. |
+| `deleted` | Terminal result/tombstone for hard delete; the original memory and embedding no longer remain in the store. |
 | `rejected` | Candidate was rejected before becoming usable memory. |
 
 The implementation also tracks events for add, update, delete, recall,

@@ -97,7 +97,7 @@ export async function main(args = process.argv.slice(2), io = defaultIo()) {
     ensureLocalBuild();
   }
 
-  const report = await runBenchmarkSuite();
+  const report = await runBenchmarkSuite(options.fixturePaths);
   if (options.json) {
     io.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
@@ -106,8 +106,11 @@ export async function main(args = process.argv.slice(2), io = defaultIo()) {
   return report.summary.harness.ok ? 0 : 1;
 }
 
-async function runBenchmarkSuite() {
-  const fixtureFiles = await findFixtureFiles();
+async function runBenchmarkSuite(explicitFixturePaths = []) {
+  const usesExplicitFixtures = explicitFixturePaths.length > 0;
+  const fixtureFiles = usesExplicitFixtures
+    ? [...new Set(explicitFixturePaths.map((fixturePath) => path.resolve(fixturePath)))].sort()
+    : await findFixtureFiles();
   const results = [];
   const errors = [];
   let runtimeReady = false;
@@ -134,7 +137,7 @@ async function runBenchmarkSuite() {
   for (const fixtureFile of runtimeReady ? fixtureFiles : []) {
     try {
       const fixture = normalizeFixture(await readFixture(fixtureFile));
-      validateFixture(fixture, fixtureFile);
+      validateFixture(fixture, fixtureFile, { enforceFamilyDirectory: !usesExplicitFixtures });
 
       for (const testCase of fixture.cases) {
         for (const baselineId of testCase.baselines) {
@@ -208,13 +211,15 @@ async function readFixture(fixturePath) {
   return JSON.parse(text);
 }
 
-function validateFixture(fixture, fixturePath) {
+function validateFixture(fixture, fixturePath, { enforceFamilyDirectory = true } = {}) {
   assert(isObject(fixture), `${shortPath(fixturePath)} must contain a JSON object.`);
   assertAllowed(fixture.family, allowedFamilies, `${shortPath(fixturePath)} uses an unsupported fixture family.`);
-  assert(
-    fixture.family === path.basename(path.dirname(fixturePath)),
-    `${shortPath(fixturePath)} family must match its directory name.`
-  );
+  if (enforceFamilyDirectory) {
+    assert(
+      fixture.family === path.basename(path.dirname(fixturePath)),
+      `${shortPath(fixturePath)} family must match its directory name.`
+    );
+  }
   assert(typeof fixture.description === "string", `${shortPath(fixturePath)} must include description.`);
   assertValidDate(fixture.fixedNow, `${shortPath(fixturePath)} fixedNow must be an ISO date string.`);
   assert(isObject(fixture.defaultScope), `${shortPath(fixturePath)} must include defaultScope.`);
@@ -1508,10 +1513,20 @@ function safeErrorMessage(error) {
 }
 
 function parseCliOptions(args) {
-  const options = { json: false };
-  for (const arg of args) {
+  const options = { json: false, fixturePaths: [] };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     if (arg === "--json") {
       options.json = true;
+      continue;
+    }
+    if (arg === "--fixture") {
+      const fixturePath = args[index + 1];
+      if (!fixturePath || fixturePath.startsWith("--")) {
+        throw new Error("Benchmark runner option --fixture requires a JSON file path.");
+      }
+      options.fixturePaths.push(fixturePath);
+      index += 1;
       continue;
     }
     throw new Error(`Unsupported benchmark runner option: ${arg}`);

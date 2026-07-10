@@ -1,10 +1,17 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import pg from "pg";
 
 const { Pool } = pg;
-const migrationUrl = new URL("../../packages/memory-core/migrations/0001_memory_core.sql", import.meta.url);
+const migrationDirectoryUrl = new URL("../../packages/memory-core/migrations/", import.meta.url);
+const MIGRATION_LEDGER_SQL = `create table if not exists handoffbase_schema_migrations (
+  name text primary key,
+  checksum text not null,
+  applied_at timestamptz not null default now()
+)`;
+const MIGRATION_LOCK_SQL = "select pg_advisory_xact_lock(hashtext('handoffbase_memory_core_migrations'))";
 
 export class MigrationConfigError extends Error {
   constructor(message) {
@@ -21,20 +28,63 @@ export async function runMemoryCoreMigration(databaseUrl, createPool = defaultPo
 
   const pool = createPool(normalizedUrl);
   try {
-    const sql = await readFile(migrationUrl, "utf8");
-    await applyMigration(pool, sql);
+    const migrationNames = (await readdir(migrationDirectoryUrl))
+      .filter((name) => /^\d+_[a-z0-9_-]+\.sql$/i.test(name))
+      .sort();
+    const results = [];
+    for (const name of migrationNames) {
+      const sql = await readFile(new URL(name, migrationDirectoryUrl), "utf8");
+      results.push(await applyVersionedMigration(pool, {
+        name,
+        sql,
+        checksum: migrationChecksum(sql),
+      }));
+    }
+    return results;
   } finally {
     await pool.end();
   }
 }
 
 export async function applyMigration(pool, sql) {
+  return await withMigrationTransaction(pool, async (client) => {
+    await client.query(sql);
+  });
+}
+
+export async function applyVersionedMigration(pool, migration) {
+  return await withMigrationTransaction(pool, async (client) => {
+    await client.query(MIGRATION_LOCK_SQL);
+    await client.query(MIGRATION_LEDGER_SQL);
+    const existing = await client.query(
+      "select checksum from handoffbase_schema_migrations where name = $1",
+      [migration.name],
+    );
+    const appliedChecksum = existing.rows[0]?.checksum;
+    if (appliedChecksum !== undefined) {
+      if (appliedChecksum !== migration.checksum) {
+        throw new MigrationConfigError(`Applied migration checksum mismatch: ${migration.name}.`);
+      }
+      return { name: migration.name, status: "skipped" };
+    }
+
+    await client.query(migration.sql);
+    await client.query(
+      "insert into handoffbase_schema_migrations (name, checksum) values ($1, $2)",
+      [migration.name, migration.checksum],
+    );
+    return { name: migration.name, status: "applied" };
+  });
+}
+
+async function withMigrationTransaction(pool, operation) {
   const client = await pool.connect();
   let releaseError;
   try {
     await client.query("BEGIN");
-    await client.query(sql);
+    const result = await operation(client);
     await client.query("COMMIT");
+    return result;
   } catch (error) {
     try {
       await client.query("ROLLBACK");
@@ -48,6 +98,10 @@ export async function applyMigration(pool, sql) {
   }
 }
 
+function migrationChecksum(sql) {
+  return createHash("sha256").update(sql).digest("hex");
+}
+
 function defaultPoolFactory(databaseUrl) {
   return new Pool({
     connectionString: databaseUrl,
@@ -58,8 +112,10 @@ function defaultPoolFactory(databaseUrl) {
 }
 
 async function main() {
-  await runMemoryCoreMigration(process.env.DATABASE_URL);
-  console.log("Applied memory-core migration 0001_memory_core.sql.");
+  const results = await runMemoryCoreMigration(process.env.DATABASE_URL);
+  const applied = results.filter((result) => result.status === "applied").length;
+  const skipped = results.length - applied;
+  console.log(`Memory-core migrations complete: ${applied} applied, ${skipped} already current.`);
 }
 
 const isMain = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);

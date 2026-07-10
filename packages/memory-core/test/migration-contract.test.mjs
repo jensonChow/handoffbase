@@ -6,12 +6,14 @@ import {
   MEMORY_CONFLICT_SEVERITIES,
   MEMORY_CONFLICT_STATUSES,
   MEMORY_CONFLICT_TYPES,
+  MEMORY_FEEDBACK_SIGNALS,
   MEMORY_SOURCE_KINDS,
   MEMORY_STATUSES,
   MEMORY_TYPES
 } from "../dist/index.js";
 
 const migrationUrl = new URL("../migrations/0001_memory_core.sql", import.meta.url);
+const feedbackMigrationUrl = new URL("../migrations/0002_feedback_hard_delete.sql", import.meta.url);
 
 async function readMigration() {
   return readFile(migrationUrl, "utf8");
@@ -105,5 +107,20 @@ test("memory migration includes first-class conflict records", async () => {
     extractSqlCheckValuesInTable(sql, "memory_conflicts", "status"),
     MEMORY_CONFLICT_STATUSES,
     "memory conflict status"
+  );
+});
+
+test("feedback migration is backward-compatible and preserves hard-delete tombstone references", async () => {
+  const sql = await readFile(feedbackMigrationUrl, "utf8");
+
+  assert.match(sql, /drop constraint if exists memory_events_memory_id_fkey/);
+  assert.match(sql, /create table if not exists memory_feedback/);
+  assert.match(sql, /tenant_id text not null/);
+  assert.match(sql, /user_id text not null/);
+  assert.match(sql, /check \(memory_id is not null or trace_id is not null\)/);
+  assertSameValues(
+    extractSqlCheckValuesInTable(sql, "memory_feedback", "signal"),
+    MEMORY_FEEDBACK_SIGNALS,
+    "memory feedback signal"
   );
 });

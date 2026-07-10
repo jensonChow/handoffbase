@@ -15,7 +15,7 @@ Session-scoped transfer notes live in `docs/handoff.md`; do not duplicate short-
 
 Public-facing product, effect, benchmark, and workflow docs live under `docs/`; do not create durable memory files for those docs unless they change product, architecture, operation, or decision facts.
 
-The integrated Product Proof state is split deliberately: selectable Postgres/runtime and dashboard-storage facts belong in `architecture.md`; the 8-tool contract belongs in `mcp-interface.md`; deterministic/credentialed benchmark commands and CI rules belong in `operations.md`; honest proof and product-boundary claims belong in `product.md`; Qwen-backed LongMemEval execution constraints belong in `qwen-cloud.md`.
+The integrated Product Proof state is split deliberately: selectable Postgres/runtime, authenticated Dashboard, hard-delete, feedback, and readiness facts belong in `architecture.md`; the 9-tool contract belongs in `mcp-interface.md`; deterministic/credentialed benchmark commands and CI rules belong in `operations.md`; honest proof and product-boundary claims belong in `product.md`; Qwen-backed LongMemEval execution constraints belong in `qwen-cloud.md`.
 
 ## Update Rules
 

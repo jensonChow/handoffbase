@@ -26,6 +26,7 @@ const API_KEYS = Object.freeze({
 
 const EXPECTED_TOOLS = [
   "continuity_bootstrap",
+  "memory_feedback",
   "memory_forget",
   "memory_recall",
   "memory_reflect",
@@ -73,8 +74,8 @@ export async function runCrossHostScenario() {
 
     const tools = await hostB.client.listTools();
     const toolNames = tools.tools.map((tool) => tool.name);
-    assert.equal(tools.tools.length, EXPECTED_TOOLS.length, "tools/list returns exactly the 8-tool surface");
-    assert.deepEqual([...toolNames].sort(), [...EXPECTED_TOOLS].sort(), "tools/list matches the exact 8-tool surface");
+    assert.equal(tools.tools.length, EXPECTED_TOOLS.length, "tools/list returns exactly the 9-tool surface");
+    assert.deepEqual([...toolNames].sort(), [...EXPECTED_TOOLS].sort(), "tools/list matches the exact 9-tool surface");
 
     const hostBScopes = {
       tenant_id: CROSS_HOST_FIXTURE.tenantId,

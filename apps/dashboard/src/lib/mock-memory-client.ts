@@ -1,9 +1,11 @@
 import type {
   ConflictCandidate,
+  ConflictResolutionResult,
   MemoryClient,
   MemoryEvent,
   MemoryRecord,
-  MemoryTrace
+  MemoryTrace,
+  TraceFeedback
 } from "./memory-client";
 
 const now = "2026-07-07T00:30:00.000Z";
@@ -13,7 +15,7 @@ let memories: MemoryRecord[] = [
     id: "mem_user_pref_001",
     type: "user_preference",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout",
       hostId: "codex"
     },
@@ -47,7 +49,7 @@ let memories: MemoryRecord[] = [
     id: "mem_proc_002",
     type: "procedure",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout",
       projectId: "ai-event-2026"
     },
@@ -79,7 +81,7 @@ let memories: MemoryRecord[] = [
     id: "mem_tool_003",
     type: "tool_memory",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout",
       toolId: "devpost"
     },
@@ -111,7 +113,7 @@ let memories: MemoryRecord[] = [
     id: "mem_pending_004",
     type: "failure_memory",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout",
       projectId: "ai-event-2026"
     },
@@ -144,7 +146,7 @@ let memories: MemoryRecord[] = [
     id: "mem_pending_005",
     type: "procedure",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout",
       projectId: "ai-event-2026",
       hostId: "codex"
@@ -178,7 +180,7 @@ let memories: MemoryRecord[] = [
     id: "mem_expired_006",
     type: "decision_memory",
     scope: {
-      userId: "user_demo",
+      userId: "demo-user",
       agentProfileId: "opportunity-scout"
     },
     source: {
@@ -222,7 +224,7 @@ let events: MemoryEvent[] = [
     memoryId: "mem_user_pref_001",
     eventType: "approved",
     actorType: "user",
-    actorId: "user_demo",
+    actorId: "demo-user",
     reason: "User confirmed this ranking criterion.",
     createdAt: "2026-07-06T10:21:00.000Z"
   },
@@ -344,7 +346,7 @@ const traces: MemoryTrace[] = [
   }
 ];
 
-const conflicts: ConflictCandidate[] = [
+let conflicts: ConflictCandidate[] = [
   {
     id: "conflict_001",
     status: "open",
@@ -356,10 +358,13 @@ const conflicts: ConflictCandidate[] = [
       "User appears to prioritize hackathon prize money when choosing opportunities.",
     recommendation:
       "Supersede the older decision memory and keep the new user preference active.",
+    recommendedAction: "supersede_existing",
     memoryType: "user_preference",
-    scopeLabel: "user_demo / opportunity-scout"
+    scopeLabel: "demo-user / opportunity-scout"
   }
 ];
+
+let feedback: TraceFeedback[] = [];
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -394,6 +399,25 @@ function findMemory(memoryId: string) {
 
 export function createMockMemoryClient(): MemoryClient {
   return {
+    async getSession() {
+      return {
+        authenticated: true,
+        authMode: "disabled",
+        caller: {
+          tenantId: "demo-tenant",
+          userId: "demo-user",
+          actorType: "dashboard",
+          actorId: "mock-dashboard"
+        }
+      };
+    },
+
+    async login() {
+      return this.getSession();
+    },
+
+    async logout() {},
+
     async listDashboard() {
       await delay();
 
@@ -404,7 +428,8 @@ export function createMockMemoryClient(): MemoryClient {
         memories,
         events,
         traces,
-        conflicts
+        conflicts,
+        feedback
       });
     },
 
@@ -489,8 +514,58 @@ export function createMockMemoryClient(): MemoryClient {
         eventType: "deleted",
         actorType: "user",
         actorId: "dashboard",
-        reason
+        reason,
+        hardDeleted: true,
+        scopeLabel: "user / agent profile"
       });
+    },
+
+    async resolveConflict(conflictId, input) {
+      await delay();
+      const conflict = conflicts.find((item) => item.id === conflictId);
+      if (!conflict) {
+        throw new Error(`Conflict ${conflictId} was not found.`);
+      }
+      conflicts = conflicts.filter((item) => item.id !== conflictId);
+      const result: ConflictResolutionResult = {
+        conflictId,
+        action: input.action,
+        status: input.action === "dismiss_conflict" ? "dismissed" : "resolved",
+        eventIds: [],
+        resolvedAt: new Date().toISOString()
+      };
+      return clone(result);
+    },
+
+    async submitTraceFeedback(traceId, input) {
+      await delay();
+      if (!traces.some((trace) => trace.id === traceId)) {
+        throw new Error(`Trace ${traceId} was not found.`);
+      }
+      const item: TraceFeedback = {
+        id: `feedback_${String(feedback.length + 1).padStart(3, "0")}`,
+        traceId,
+        rating: input.rating,
+        reason: [input.reason, input.outcome ? `Outcome: ${input.outcome}` : undefined]
+          .filter((value): value is string => Boolean(value))
+          .join("\n") || undefined,
+        correction: input.correction,
+        correctionMemoryId: input.correction
+          ? `mem_feedback_${String(feedback.length + 1).padStart(3, "0")}`
+          : undefined,
+        runId: traces.find((trace) => trace.id === traceId)?.runId,
+        createdAt: new Date().toISOString(),
+        regressionFixture: {
+          schema_version: "1",
+          target: "trace",
+          signal: input.rating,
+          scope_dimensions: ["tenant", "user", "agent_profile"],
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.correction ? { correction: input.correction } : {})
+        }
+      };
+      feedback = [item, ...feedback];
+      return clone(item);
     }
   };
 }

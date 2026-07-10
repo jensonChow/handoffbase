@@ -1,10 +1,15 @@
 import {
   type AddMemoryConflictInput,
+  type CreateMemoryFeedbackInput,
   type CreateMemoryInput,
   type CreateRunInput,
   type CreateTraceInput,
   type JsonObject,
   type MemoryEmbedding,
+  type MemoryFeedbackListFilter,
+  type MemoryFeedbackRecord,
+  type MemoryFeedbackWithCorrectionOptions,
+  type MemoryFeedbackWithCorrectionResult,
   type MemoryConflictListFilter,
   type MemoryConflictRecord,
   type MemoryConflictResolution,
@@ -14,6 +19,7 @@ import {
   type MemoryRecallQuery,
   type MemoryRecallResult,
   type MemoryRecord,
+  type MemoryDeleteResult,
   type MemoryTrace,
   type MemoryUpdateResult,
   type MemoryWriteResult,
@@ -25,12 +31,14 @@ import {
 } from "./types.js";
 import {
   applyMemoryPatch,
+  assertMemoryExpectedStatus,
   contextPackFromMemories,
   createMemoryConflictRecord,
   createMemoryRecord,
   createRunRecord,
-  markMemoryDeleted,
+  isRecallableMemory,
   resolveMemoryConflictRecord,
+  scopeMatches,
   supersedeMemoryRecord,
   touchMemoryUsage
 } from "./lifecycle.js";
@@ -40,10 +48,17 @@ import {
   createMemoryTrace,
   createRecallEvent,
   createSupersedeEvent,
-  createUpdateEvent
+  createUpdateEvent,
+  HARD_DELETE_REDACTED_EVENT_REASON
 } from "./events.js";
+import { createMemoryFeedbackRecord } from "./feedback.js";
 import { type EventListFilter, type MemoryStore } from "./storage.js";
-import { assertValidMemoryConflictRecord, assertValidMemoryEvent, assertValidMemoryRecord } from "./validation.js";
+import {
+  assertValidMemoryConflictRecord,
+  assertValidMemoryEvent,
+  assertValidMemoryFeedbackRecord,
+  assertValidMemoryRecord
+} from "./validation.js";
 import { cloneJsonObject, isPlainObject, setOptionalString } from "./utils.js";
 
 export interface SqlQueryResult<Row = Record<string, unknown>> {
@@ -174,6 +189,28 @@ export interface PostgresMemoryEmbeddingRow {
   created_at: Date | string;
 }
 
+export interface PostgresMemoryFeedbackRow {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  agent_profile_id?: string | null;
+  project_id?: string | null;
+  host_id?: string | null;
+  session_id?: string | null;
+  tool_id?: string | null;
+  memory_id?: string | null;
+  trace_id?: string | null;
+  run_id?: string | null;
+  signal: string;
+  reason?: string | null;
+  correction_memory_id?: string | null;
+  actor_type: string;
+  actor_id?: string | null;
+  regression_fixture?: SqlJsonObject;
+  created_at: Date | string;
+  metadata?: SqlJsonObject;
+}
+
 export class PostgresMemoryStore implements MemoryStore {
   constructor(private readonly client: SqlQueryClient) {}
 
@@ -200,6 +237,7 @@ export class PostgresMemoryStore implements MemoryStore {
     return withRequiredTransaction(this.client, "updateMemory", async (client) => {
       const now = optionTime(options);
       const before = await getMemoryRowForUpdate(client, id);
+      assertMemoryExpectedStatus(before, options.expectedStatus);
       const memory = applyMemoryPatch(before, patch, now);
       const updatedMemory = await updateMemoryRow(client, memory);
       const event = createUpdateEvent(before, updatedMemory, { ...options, now });
@@ -213,18 +251,23 @@ export class PostgresMemoryStore implements MemoryStore {
     });
   }
 
-  async deleteMemory(id: string, options: MutationOptions = {}): Promise<MemoryUpdateResult> {
+  async deleteMemory(id: string, options: MutationOptions = {}): Promise<MemoryDeleteResult> {
     return withRequiredTransaction(this.client, "deleteMemory", async (client) => {
       const now = optionTime(options);
       const before = await getMemoryRowForUpdate(client, id);
-      const memory = markMemoryDeleted(before, now);
-      const updatedMemory = await updateMemoryRow(client, memory);
-      const event = createDeleteEvent(before, updatedMemory, { ...options, now });
+
+      await redactHardDeletedMemoryArtifacts(client, id);
+      const event = createDeleteEvent(before, { ...options, now });
       const insertedEvent = await insertEventRow(client, event);
+      const deleted = await client.query<{ id: string }>(
+        "delete from memories where id = $1 returning id",
+        [id]
+      );
+      requireReturnedRow(deleted, "deleteMemory");
 
       return {
-        before,
-        memory: updatedMemory,
+        deletedMemoryId: before.id,
+        scope: { ...before.scope },
         event: insertedEvent
       };
     });
@@ -285,45 +328,67 @@ export class PostgresMemoryStore implements MemoryStore {
     const now = query.now ?? new Date();
     const scope = normalizeRecallScope(query.scope);
     const recallQuery: MemoryRecallQuery = { ...query, scope, now };
+    return withRequiredTransaction(this.client, "recallMemories", async (client) => {
+      const selectedQuery = buildRecallQuery(recallQuery, options);
+      const selectedResult = await client.query<PostgresRecallRow>(selectedQuery.sql, selectedQuery.values);
+      const initiallySelected = mapRecallRows(selectedResult.rows);
 
-    const selectedQuery = buildRecallQuery(recallQuery, options);
-    const selectedResult = await this.client.query<PostgresRecallRow>(selectedQuery.sql, selectedQuery.values);
-    const selected = mapRecallRows(selectedResult.rows);
+      const ignoredQuery = buildIgnoredMemoryQuery(recallQuery);
+      const ignoredResult = await client.query<{ id: string }>(ignoredQuery.sql, ignoredQuery.values);
+      const ignoredMemoryIds = ignoredResult.rows.map((row) => row.id);
+      const referencedIds = [...new Set([
+        ...initiallySelected.map((memory) => memory.id),
+        ...ignoredMemoryIds
+      ])].sort();
+      const locked = await lockMemoryRowsForNoKeyUpdate(client, referencedIds, "recallMemories");
+      const lockedById = new Map(locked.map((memory) => [memory.id, memory] as const));
+      const selected = initiallySelected.map((memory) => {
+        const current = lockedById.get(memory.id);
+        if (!current) throw new Error(`PostgresMemoryStore.recallMemories lost memory ${memory.id}.`);
+        if (!memoryMatchesRecallRequest(current, recallQuery)) {
+          throw new Error(`PostgresMemoryStore.recallMemories selected memory changed before it was locked: ${memory.id}.`);
+        }
+        return current;
+      });
+      const currentIgnoredMemoryIds = ignoredMemoryIds.filter((memoryId) => {
+        const current = lockedById.get(memoryId);
+        return current !== undefined
+          && scopeMatches(current.scope, scope)
+          && (recallQuery.types === undefined || recallQuery.types.includes(current.type))
+          && !isRecallableMemory(current, now);
+      });
 
-    const ignoredQuery = buildIgnoredMemoryQuery(recallQuery);
-    const ignoredResult = await this.client.query<{ id: string }>(ignoredQuery.sql, ignoredQuery.values);
-    const ignoredMemoryIds = ignoredResult.rows.map((row) => row.id);
+      const touched = await this.touchSelectedMemories(client, scope.tenantId, selected, now);
+      const selectionReasons = buildSelectionReasons(touched, currentIgnoredMemoryIds, query.query);
+      const trace = createMemoryTrace(
+        {
+          tenantId: scope.tenantId,
+          runId: query.runId,
+          query: query.query,
+          selectedMemoryIds: touched.map((memory) => memory.id),
+          ignoredMemoryIds: currentIgnoredMemoryIds,
+          contextPack: contextPackFromMemories(touched),
+          selectionReasons,
+          metadata: query.metadata
+        },
+        now
+      );
+      const insertedTrace = await insertTraceRow(client, trace);
 
-    const touched = await this.touchSelectedMemories(scope.tenantId, selected, now);
-    const selectionReasons = buildSelectionReasons(touched, ignoredMemoryIds, query.query);
-    const trace = createMemoryTrace(
-      {
-        tenantId: scope.tenantId,
-        runId: query.runId,
-        query: query.query,
-        selectedMemoryIds: touched.map((memory) => memory.id),
-        ignoredMemoryIds,
-        contextPack: contextPackFromMemories(touched),
-        selectionReasons,
+      const event = createRecallEvent(insertedTrace, {
+        actor: query.actor,
+        reason: query.query,
         metadata: query.metadata
-      },
-      now
-    );
-    await this.insertTrace(trace);
+      });
+      const insertedEvent = await insertEventRow(client, event);
 
-    const event = createRecallEvent(trace, {
-      actor: query.actor,
-      reason: query.query,
-      metadata: query.metadata
+      return {
+        memories: touched,
+        trace: insertedTrace,
+        event: insertedEvent,
+        ignoredMemoryIds: currentIgnoredMemoryIds
+      };
     });
-    await this.insertEvent(event);
-
-    return {
-      memories: touched,
-      trace,
-      event,
-      ignoredMemoryIds
-    };
   }
 
   async upsertEmbedding(embedding: MemoryEmbedding): Promise<MemoryEmbedding> {
@@ -346,6 +411,73 @@ export class PostgresMemoryStore implements MemoryStore {
     return row === undefined ? undefined : mapPostgresEmbeddingRow(row);
   }
 
+  async addFeedback(
+    input: CreateMemoryFeedbackInput,
+    options: MutationOptions = {}
+  ): Promise<MemoryFeedbackRecord> {
+    const feedback = createMemoryFeedbackRecord(input, {
+      ...options,
+      now: optionTime(options)
+    });
+    return withRequiredTransaction(this.client, "addFeedback", async (client) => {
+      await assertFeedbackTargetsAvailable(client, feedback);
+      const result = await client.query<PostgresMemoryFeedbackRow>(
+        INSERT_FEEDBACK_SQL,
+        feedbackInsertValues(feedback)
+      );
+      return mapPostgresFeedbackRow(requireReturnedRow(result, "addFeedback"));
+    });
+  }
+
+  async addFeedbackWithCorrection(
+    feedbackInput: CreateMemoryFeedbackInput,
+    correctionInput: CreateMemoryInput,
+    options: MemoryFeedbackWithCorrectionOptions = {}
+  ): Promise<MemoryFeedbackWithCorrectionResult> {
+    const correctionNow = optionTime(options.correction ?? {});
+    const correction = createMemoryRecord(correctionInput, correctionNow);
+    const feedback = createMemoryFeedbackRecord(
+      { ...feedbackInput, correctionMemoryId: correction.id },
+      { ...options.feedback, now: optionTime(options.feedback ?? {}) }
+    );
+
+    return withRequiredTransaction(this.client, "addFeedbackWithCorrection", async (client) => {
+      await assertFeedbackTargetsAvailable(client, feedback, correction.id);
+      const insertedCorrection = await insertMemoryRow(client, correction);
+      const correctionEvent = createAddEvent(insertedCorrection, {
+        ...options.correction,
+        now: correctionNow
+      });
+      const insertedEvent = await insertEventRow(client, correctionEvent);
+      const result = await client.query<PostgresMemoryFeedbackRow>(
+        INSERT_FEEDBACK_SQL,
+        feedbackInsertValues(feedback)
+      );
+      return {
+        feedback: mapPostgresFeedbackRow(requireReturnedRow(result, "addFeedbackWithCorrection")),
+        correction: {
+          memory: insertedCorrection,
+          event: insertedEvent
+        }
+      };
+    });
+  }
+
+  async getFeedback(id: string): Promise<MemoryFeedbackRecord | undefined> {
+    const result = await this.client.query<PostgresMemoryFeedbackRow>(
+      "select * from memory_feedback where id = $1",
+      [id]
+    );
+    const row = result.rows[0];
+    return row === undefined ? undefined : mapPostgresFeedbackRow(row);
+  }
+
+  async listFeedback(filter: MemoryFeedbackListFilter = {}): Promise<MemoryFeedbackRecord[]> {
+    const query = buildFeedbackListQuery(filter);
+    const result = await this.client.query<PostgresMemoryFeedbackRow>(query.sql, query.values);
+    return result.rows.map(mapPostgresFeedbackRow);
+  }
+
   async addRun(input: CreateRunInput): Promise<RunRecord> {
     const run = createRunRecord(input);
     return insertRunRow(this.client, run);
@@ -359,7 +491,10 @@ export class PostgresMemoryStore implements MemoryStore {
 
   async addTrace(input: CreateTraceInput): Promise<MemoryTrace> {
     const trace = createMemoryTrace(input);
-    return insertTraceRow(this.client, trace);
+    return withRequiredTransaction(this.client, "addTrace", async (client) => {
+      await lockMemoryRowsForKeyShare(client, traceReferencedMemoryIds(trace), "addTrace");
+      return insertTraceRow(client, trace);
+    });
   }
 
   async getTrace(id: string): Promise<MemoryTrace | undefined> {
@@ -373,8 +508,15 @@ export class PostgresMemoryStore implements MemoryStore {
     options: MutationOptions = {}
   ): Promise<MemoryConflictRecord> {
     const conflict = createMemoryConflictRecord(input, optionTime(options));
-    const result = await this.client.query<PostgresMemoryConflictRow>(
-      `insert into memory_conflicts (
+    return withRequiredTransaction(this.client, "addConflict", async (client) => {
+      await lockMemoryRowsForKeyShare(
+        client,
+        [conflict.candidateMemoryId, conflict.existingMemoryId]
+          .filter((id): id is string => id !== undefined),
+        "addConflict"
+      );
+      const result = await client.query<PostgresMemoryConflictRow>(
+        `insert into memory_conflicts (
   id,
   tenant_id,
   candidate_memory_id,
@@ -391,25 +533,26 @@ export class PostgresMemoryStore implements MemoryStore {
   metadata
 ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14::jsonb)
 returning *`,
-      [
-        conflict.id,
-        conflict.tenantId,
-        conflict.candidateMemoryId ?? null,
-        conflict.existingMemoryId ?? null,
-        conflict.conflictType,
-        conflict.severity,
-        conflict.recommendedAction,
-        conflict.status,
-        conflict.reason ?? null,
-        conflict.confidence ?? null,
-        conflict.resolution === undefined ? null : JSON.stringify(conflict.resolution),
-        conflict.createdAt,
-        conflict.resolvedAt ?? null,
-        JSON.stringify(conflict.metadata)
-      ]
-    );
-    const row = result.rows[0];
-    return row === undefined ? conflict : mapPostgresConflictRow(row);
+        [
+          conflict.id,
+          conflict.tenantId,
+          conflict.candidateMemoryId ?? null,
+          conflict.existingMemoryId ?? null,
+          conflict.conflictType,
+          conflict.severity,
+          conflict.recommendedAction,
+          conflict.status,
+          conflict.reason ?? null,
+          conflict.confidence ?? null,
+          conflict.resolution === undefined ? null : JSON.stringify(conflict.resolution),
+          conflict.createdAt,
+          conflict.resolvedAt ?? null,
+          JSON.stringify(conflict.metadata)
+        ]
+      );
+      const row = result.rows[0];
+      return row === undefined ? conflict : mapPostgresConflictRow(row);
+    });
   }
 
   async getConflict(id: string): Promise<MemoryConflictRecord | undefined> {
@@ -432,36 +575,64 @@ returning *`,
     resolution: MemoryConflictResolution,
     options: ResolveMemoryConflictOptions = {}
   ): Promise<MemoryConflictResolutionResult> {
-    const before = await this.getConflict(id);
-    if (before === undefined) {
-      throw new Error(`Memory conflict not found: ${id}`);
-    }
+    return withRequiredTransaction(this.client, "resolveConflict", async (client) => {
+      const initialResult = await client.query<PostgresMemoryConflictRow>(
+        "select * from memory_conflicts where id = $1",
+        [id]
+      );
+      const initialRow = initialResult.rows[0];
+      if (initialRow === undefined) {
+        throw new Error(`Memory conflict not found: ${id}`);
+      }
+      const initial = mapPostgresConflictRow(initialRow);
+      await lockMemoryRowsForKeyShare(
+        client,
+        [initial.candidateMemoryId, initial.existingMemoryId]
+          .filter((memoryId): memoryId is string => memoryId !== undefined),
+        "resolveConflict"
+      );
+      const lockedResult = await client.query<PostgresMemoryConflictRow>(
+        "select * from memory_conflicts where id = $1 for update",
+        [id]
+      );
+      const lockedRow = lockedResult.rows[0];
+      if (lockedRow === undefined) {
+        throw new Error(`Memory conflict not found: ${id}`);
+      }
+      const before = mapPostgresConflictRow(lockedRow);
+      if (
+        before.candidateMemoryId !== initial.candidateMemoryId
+        || before.existingMemoryId !== initial.existingMemoryId
+      ) {
+        throw new Error(`Memory conflict ${id} links changed during resolution.`);
+      }
 
-    const conflict = resolveMemoryConflictRecord(before, resolution, {
-      ...options,
-      now: optionTime(options)
-    });
-    const result = await this.client.query<PostgresMemoryConflictRow>(
-      `update memory_conflicts
+      const conflict = resolveMemoryConflictRecord(before, resolution, {
+        ...options,
+        now: optionTime(options)
+      });
+      const result = await client.query<PostgresMemoryConflictRow>(
+        `update memory_conflicts
 set status = $2,
     resolution = $3::jsonb,
     resolved_at = $4,
     metadata = $5::jsonb
 where id = $1
 returning *`,
-      [
-        id,
-        conflict.status,
-        JSON.stringify(conflict.resolution),
-        conflict.resolvedAt,
-        JSON.stringify(conflict.metadata)
-      ]
-    );
+        [
+          id,
+          conflict.status,
+          JSON.stringify(conflict.resolution),
+          conflict.resolvedAt,
+          JSON.stringify(conflict.metadata)
+        ]
+      );
 
-    return {
-      before,
-      conflict: result.rows[0] === undefined ? conflict : mapPostgresConflictRow(result.rows[0])
-    };
+      return {
+        before,
+        conflict: result.rows[0] === undefined ? conflict : mapPostgresConflictRow(result.rows[0])
+      };
+    });
   }
 
   async listEvents(filter: EventListFilter = {}): Promise<MemoryEvent[]> {
@@ -470,13 +641,18 @@ returning *`,
     return result.rows.map(mapPostgresEventRow);
   }
 
-  private async touchSelectedMemories(tenantId: string, selected: MemoryRecord[], now: Date): Promise<MemoryRecord[]> {
+  private async touchSelectedMemories(
+    client: SqlQueryClient,
+    tenantId: string,
+    selected: MemoryRecord[],
+    now: Date
+  ): Promise<MemoryRecord[]> {
     if (selected.length === 0) {
       return [];
     }
 
     const selectedMemoryIds = selected.map((memory) => memory.id);
-    const result = await this.client.query<PostgresMemoryRow>(
+    const result = await client.query<PostgresMemoryRow>(
       `update memories
 set last_used_at = $1,
     use_count = use_count + 1
@@ -485,12 +661,16 @@ returning *`,
       [now, tenantId, selectedMemoryIds]
     );
 
-    if (result.rows.length === 0) {
-      return selected.map((memory) => touchMemoryUsage(memory, now));
+    if (result.rows.length !== selected.length) {
+      throw new Error("PostgresMemoryStore.recallMemories could not revalidate every selected memory.");
     }
 
     const updatedById = new Map(result.rows.map((row) => [row.id, mapPostgresMemoryRow(row)] as const));
-    return selected.map((memory) => updatedById.get(memory.id) ?? touchMemoryUsage(memory, now));
+    return selected.map((memory) => {
+      const updated = updatedById.get(memory.id);
+      if (!updated) throw new Error(`PostgresMemoryStore.recallMemories lost memory ${memory.id} while touching it.`);
+      return updated;
+    });
   }
 
   private async insertTrace(trace: MemoryTrace): Promise<void> {
@@ -613,6 +793,37 @@ export function mapPostgresEventRow(row: PostgresMemoryEventRow): MemoryEvent {
 
   assertValidMemoryEvent(event);
   return event;
+}
+
+export function mapPostgresFeedbackRow(row: PostgresMemoryFeedbackRow): MemoryFeedbackRecord {
+  const feedback: MemoryFeedbackRecord = {
+    id: row.id,
+    scope: {
+      tenantId: row.tenant_id,
+      userId: row.user_id,
+      agentProfileId: optionalString(row.agent_profile_id),
+      projectId: optionalString(row.project_id),
+      hostId: optionalString(row.host_id),
+      sessionId: optionalString(row.session_id),
+      toolId: optionalString(row.tool_id)
+    },
+    signal: row.signal as MemoryFeedbackRecord["signal"],
+    actor: {
+      type: row.actor_type as MemoryFeedbackRecord["actor"]["type"],
+      id: optionalString(row.actor_id)
+    },
+    regressionFixture: parseJsonObject(row.regression_fixture, "regression_fixture"),
+    createdAt: requiredDate(row.created_at, "created_at"),
+    metadata: parseJsonObject(row.metadata, "metadata")
+  };
+
+  setOptionalString(feedback, "memoryId", optionalString(row.memory_id));
+  setOptionalString(feedback, "traceId", optionalString(row.trace_id));
+  setOptionalString(feedback, "runId", optionalString(row.run_id));
+  setOptionalString(feedback, "reason", optionalString(row.reason));
+  setOptionalString(feedback, "correctionMemoryId", optionalString(row.correction_memory_id));
+  assertValidMemoryFeedbackRecord(feedback);
+  return feedback;
 }
 
 export function mapPostgresRunRow(row: PostgresRunRow): RunRecord {
@@ -825,6 +1036,34 @@ insert into memory_traces (
 returning *
 `;
 
+const INSERT_FEEDBACK_SQL = `
+insert into memory_feedback (
+  id,
+  tenant_id,
+  user_id,
+  agent_profile_id,
+  project_id,
+  host_id,
+  session_id,
+  tool_id,
+  memory_id,
+  trace_id,
+  run_id,
+  signal,
+  reason,
+  correction_memory_id,
+  actor_type,
+  actor_id,
+  regression_fixture,
+  created_at,
+  metadata
+) values (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+  $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19::jsonb
+)
+returning *
+`;
+
 interface SqlQueryParts {
   sql: string;
   values: unknown[];
@@ -877,6 +1116,157 @@ async function insertRunRow(client: SqlQueryClient, run: RunRecord): Promise<Run
 async function insertTraceRow(client: SqlQueryClient, trace: MemoryTrace): Promise<MemoryTrace> {
   const result = await client.query<PostgresMemoryTraceRow>(INSERT_TRACE_SQL, traceInsertValues(trace));
   return mapPostgresTraceRow(requireReturnedRow(result, "insertTrace"));
+}
+
+async function redactHardDeletedMemoryArtifacts(client: SqlQueryClient, memoryId: string): Promise<void> {
+  const associatedTraceResult = await client.query<{ id: string }>(
+    `select id from memory_traces
+where $1 = any(selected_memory_ids)
+   or $1 = any(ignored_memory_ids)
+   or coalesce(metadata->'excludedMemoryIds', '[]'::jsonb) ? $1
+   or coalesce(metadata->'excluded_memory_ids', '[]'::jsonb) ? $1
+for update`,
+    [memoryId]
+  );
+  const associatedTraceIds = associatedTraceResult.rows.map((row) => row.id);
+
+  await client.query(
+    `update memory_events
+set before = null,
+    after = null,
+    reason = $2,
+    metadata = jsonb_build_object('hard_deleted_content_redacted', true)
+where memory_id = $1
+   or trace_id = any($3::text[])`,
+    [memoryId, HARD_DELETE_REDACTED_EVENT_REASON, associatedTraceIds]
+  );
+  await client.query(
+    `update memory_feedback
+set reason = null,
+    regression_fixture = jsonb_build_object(
+      'schema_version', '1',
+      'target', coalesce(regression_fixture->>'target', case when memory_id is not null and trace_id is not null then 'memory_and_trace' when memory_id is not null then 'memory' else 'trace' end),
+      'signal', signal,
+      'scope_dimensions', coalesce(regression_fixture->'scope_dimensions', '[]'::jsonb),
+      'hard_deleted_content_redacted', true
+    ),
+    metadata = jsonb_build_object('hard_deleted_content_redacted', true)
+where memory_id = $1
+   or correction_memory_id = $1
+   or trace_id = any($2::text[])`,
+    [memoryId, associatedTraceIds]
+  );
+  await client.query(
+    `update memory_traces
+set selected_memory_ids = array_remove(selected_memory_ids, $1),
+    ignored_memory_ids = array_remove(ignored_memory_ids, $1),
+    query = null,
+    context_pack = null,
+    selection_reasons = '{}'::jsonb,
+    metadata = jsonb_build_object('hard_deleted_content_redacted', true)
+where id = any($2::text[])`,
+    [memoryId, associatedTraceIds]
+  );
+  await client.query(
+    `update memory_conflicts
+set reason = null,
+    resolution = null,
+    metadata = jsonb_build_object('hard_deleted_content_redacted', true)
+where candidate_memory_id = $1 or existing_memory_id = $1`,
+    [memoryId]
+  );
+}
+
+async function assertFeedbackTargetsAvailable(
+  client: SqlQueryClient,
+  feedback: MemoryFeedbackRecord,
+  prospectiveMemoryId?: string
+): Promise<void> {
+  for (const [label, memoryId] of [
+    ["target", feedback.memoryId],
+    ["correction target", feedback.correctionMemoryId]
+  ] as const) {
+    if (memoryId === undefined || memoryId === prospectiveMemoryId) continue;
+    const result = await client.query<{ id: string }>(
+      "select id from memories where id = $1 for key share",
+      [memoryId]
+    );
+    if (result.rows[0] === undefined) {
+      throw new Error(`Memory feedback ${label} not found: ${memoryId}`);
+    }
+  }
+
+  if (feedback.traceId !== undefined) {
+    const result = await client.query<{ id: string; metadata: SqlJsonObject }>(
+      "select id, metadata from memory_traces where id = $1 for share",
+      [feedback.traceId]
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error(`Memory feedback trace target not found: ${feedback.traceId}`);
+    }
+    const metadata = parseJsonObject(row.metadata, "metadata");
+    if (metadata.hard_deleted_content_redacted === true) {
+      throw new Error(`Memory feedback trace target was hard deleted: ${feedback.traceId}`);
+    }
+  }
+}
+
+async function lockMemoryRowsForKeyShare(
+  client: SqlQueryClient,
+  memoryIds: string[],
+  operation: string
+): Promise<MemoryRecord[]> {
+  if (memoryIds.length === 0) return [];
+  const uniqueIds = [...new Set(memoryIds)].sort();
+  const result = await client.query<PostgresMemoryRow>(
+    "select * from memories where id = any($1::text[]) for key share",
+    [uniqueIds]
+  );
+  const memories = result.rows.map(mapPostgresMemoryRow);
+  const foundIds = new Set(memories.map((memory) => memory.id));
+  const missing = uniqueIds.filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    throw new Error(`PostgresMemoryStore.${operation} target memory no longer exists: ${missing.join(", ")}.`);
+  }
+  return memories;
+}
+
+async function lockMemoryRowsForNoKeyUpdate(
+  client: SqlQueryClient,
+  memoryIds: string[],
+  operation: string
+): Promise<MemoryRecord[]> {
+  if (memoryIds.length === 0) return [];
+  const uniqueIds = [...new Set(memoryIds)].sort();
+  const result = await client.query<PostgresMemoryRow>(
+    "select * from memories where id = any($1::text[]) order by id for no key update",
+    [uniqueIds]
+  );
+  const memories = result.rows.map(mapPostgresMemoryRow);
+  const foundIds = new Set(memories.map((memory) => memory.id));
+  const missing = uniqueIds.filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    throw new Error(`PostgresMemoryStore.${operation} target memory no longer exists: ${missing.join(", ")}.`);
+  }
+  return memories;
+}
+
+function memoryMatchesRecallRequest(memory: MemoryRecord, query: MemoryRecallQuery): boolean {
+  return scopeMatches(memory.scope, query.scope)
+    && (query.types === undefined || query.types.includes(memory.type))
+    && isRecallableMemory(memory, query.now ?? new Date());
+}
+
+function traceReferencedMemoryIds(trace: MemoryTrace): string[] {
+  const excluded: string[] = [];
+  for (const key of ["excludedMemoryIds", "excluded_memory_ids"]) {
+    const values = trace.metadata[key];
+    if (Array.isArray(values)) {
+      excluded.push(...values.filter((value): value is string => typeof value === "string"));
+    }
+  }
+  return [...new Set([...trace.selectedMemoryIds, ...trace.ignoredMemoryIds, ...excluded])].sort();
 }
 
 function requireReturnedRow<Row>(result: SqlQueryResult<Row>, operation: string): Row {
@@ -958,6 +1348,30 @@ function eventInsertValues(event: MemoryEvent): unknown[] {
     optionalJsonParam(event.after),
     requiredInputDate(event.createdAt, "createdAt"),
     jsonParam(event.metadata)
+  ];
+}
+
+function feedbackInsertValues(feedback: MemoryFeedbackRecord): unknown[] {
+  return [
+    feedback.id,
+    feedback.scope.tenantId,
+    feedback.scope.userId,
+    nullableString(feedback.scope.agentProfileId),
+    nullableString(feedback.scope.projectId),
+    nullableString(feedback.scope.hostId),
+    nullableString(feedback.scope.sessionId),
+    nullableString(feedback.scope.toolId),
+    nullableString(feedback.memoryId),
+    nullableString(feedback.traceId),
+    nullableString(feedback.runId),
+    feedback.signal,
+    nullableString(feedback.reason),
+    nullableString(feedback.correctionMemoryId),
+    feedback.actor.type,
+    nullableString(feedback.actor.id),
+    jsonParam(feedback.regressionFixture),
+    requiredInputDate(feedback.createdAt, "createdAt"),
+    jsonParam(feedback.metadata)
   ];
 }
 
@@ -1060,6 +1474,7 @@ function buildEventListQuery(filter: EventListFilter): SqlQueryParts {
   const where: string[] = [];
 
   addExactFilter(where, values, "tenant_id", filter.tenantId);
+  addEventScopeFilter(where, values, filter.scope);
   addExactFilter(where, values, "memory_id", filter.memoryId);
   addExactFilter(where, values, "run_id", filter.runId);
   addExactFilter(where, values, "trace_id", filter.traceId);
@@ -1068,6 +1483,70 @@ function buildEventListQuery(filter: EventListFilter): SqlQueryParts {
     sql: `select * from memory_events${whereClause(where)} order by created_at desc`,
     values
   };
+}
+
+function addEventScopeFilter(
+  where: string[],
+  values: unknown[],
+  scope: EventListFilter["scope"] | undefined
+): void {
+  if (scope === undefined) return;
+  addExactFilter(where, values, "tenant_id", scope.tenantId);
+  addEventSnapshotScopeValue(where, values, "userId", scope.userId, true);
+  addEventSnapshotScopeValue(where, values, "agentProfileId", scope.agentProfileId, false);
+  addEventSnapshotScopeValue(where, values, "projectId", scope.projectId, false);
+  addEventSnapshotScopeValue(where, values, "hostId", scope.hostId, false);
+  addEventSnapshotScopeValue(where, values, "sessionId", scope.sessionId, false);
+  addEventSnapshotScopeValue(where, values, "toolId", scope.toolId, false);
+}
+
+function addEventSnapshotScopeValue(
+  where: string[],
+  values: unknown[],
+  field: string,
+  value: string | undefined,
+  required: boolean
+): void {
+  if (value === undefined) return;
+  values.push(value);
+  const expression = `coalesce(after #>> '{scope,${field}}', before #>> '{scope,${field}}')`;
+  where.push(required
+    ? `${expression} = $${values.length}`
+    : `(${expression} is null or ${expression} = $${values.length})`);
+}
+
+function buildFeedbackListQuery(filter: MemoryFeedbackListFilter): SqlQueryParts {
+  const values: unknown[] = [];
+  const where: string[] = [];
+
+  addFeedbackScopeFilter(where, values, filter.scope);
+  addExactFilter(where, values, "memory_id", filter.memoryId);
+  addExactFilter(where, values, "trace_id", filter.traceId);
+  addExactFilter(where, values, "run_id", filter.runId);
+  if (filter.signals !== undefined && filter.signals.length > 0) {
+    values.push(filter.signals);
+    where.push(`signal = any($${values.length}::text[])`);
+  }
+
+  return {
+    sql: `select * from memory_feedback${whereClause(where)} order by created_at desc`,
+    values
+  };
+}
+
+function addFeedbackScopeFilter(
+  where: string[],
+  values: unknown[],
+  scope: MemoryFeedbackListFilter["scope"] | undefined
+): void {
+  if (scope === undefined) return;
+  addExactFilter(where, values, "tenant_id", scope.tenantId);
+  addExactFilter(where, values, "user_id", scope.userId);
+  addScopedDimensionFilter(where, values, "agent_profile_id", scope.agentProfileId);
+  addScopedDimensionFilter(where, values, "project_id", scope.projectId);
+  addScopedDimensionFilter(where, values, "host_id", scope.hostId);
+  addScopedDimensionFilter(where, values, "session_id", scope.sessionId);
+  addScopedDimensionFilter(where, values, "tool_id", scope.toolId);
 }
 
 function buildConflictListQuery(filter: MemoryConflictListFilter): SqlQueryParts {

@@ -3,6 +3,8 @@ import type {
   ContinuityBootstrapOutput,
   MemoryForgetInput,
   MemoryForgetOutput,
+  MemoryFeedbackInput,
+  MemoryFeedbackOutput,
   MemoryRecallInput,
   MemoryRecallOutput,
   MemoryReflectInput,
@@ -110,6 +112,34 @@ export class StubMemoryService implements MemoryService {
       mode: input.mode,
       status: statusByMode[input.mode],
       event_id: "event_stub_forget",
+    };
+  }
+
+  async feedback(input: MemoryFeedbackInput): Promise<MemoryFeedbackOutput> {
+    const target = input.memory_id && input.trace_id ? "memory_and_trace" : input.memory_id ? "memory" : "trace";
+    return {
+      feedback_id: "feedback_stub",
+      memory_id: input.memory_id,
+      trace_id: input.trace_id,
+      signal: input.signal,
+      created_at: new Date(0).toISOString(),
+      correction_memory: input.correction
+        ? {
+            id: "memory_stub_feedback_correction",
+            text: input.correction,
+            type: "failure_memory",
+            status: "pending",
+          }
+        : undefined,
+      regression_fixture: {
+        schema_version: "1",
+        target,
+        signal: input.signal,
+        memory_type: input.correction ? "failure_memory" : undefined,
+        scope_dimensions: ["tenant", "user"],
+        reason: input.reason,
+        correction: input.correction,
+      },
     };
   }
 

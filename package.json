@@ -14,8 +14,8 @@
     "check:markdown-links": "node scripts/check-markdown-links.mjs",
     "check:tracked-secrets": "node scripts/check-tracked-secrets.mjs",
     "db:migrate": "node scripts/db/migrate.mjs",
-    "dev:server": "tsx src/index.ts",
-    "start:server": "node dist/index.js",
+    "dev:server": "node scripts/run-server.mjs dev",
+    "start:server": "node scripts/run-server.mjs start",
     "smoke": "tsx scripts/smoke-registration.ts",
     "test": "npm run test:memory-core && npm run test:auth && npm run test:runtime && npm run test:server && npm run test:dashboard",
     "test:all": "npm run check",
@@ -24,6 +24,7 @@
     "test:runtime": "npm run build --workspace @handoffbase/memory-core && tsx --test tests/runtime-*.test.ts",
     "test:postgres:integration": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node --test test-integration/postgres-runtime.test.mjs",
     "test:postgres:restart": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/db/postgres-restart-test.mjs",
+    "test:onboarding": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node --test test/onboarding-runtime.test.mjs",
     "test:server": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node --test test/*.test.mjs",
     "test:dashboard": "npm run test --workspace @handoffbase/dashboard",
     "typecheck": "npm run build --workspace @handoffbase/memory-core && npm run typecheck --workspaces --if-present && npm run build:server -- --noEmit",
@@ -37,8 +38,9 @@
     "bench:longmemeval:tiny": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/benchmarks/longmemeval-tiny.mjs",
     "e2e:cross-host": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node --test test/e2e/cross-host-http.test.mjs",
     "eval:memory": "npm run build --workspace @handoffbase/memory-core && node scripts/run-memory-eval.mjs",
+    "feedback:to-benchmark": "npm run build --workspace @handoffbase/memory-core && node scripts/feedback-fixture-to-benchmark.mjs",
     "mcp:call": "node scripts/call-mcp-tool.mjs",
-    "mcp:validate-remote": "node scripts/validate-remote-mcp.mjs"
+    "mcp:validate-remote": "npm run build --workspace @handoffbase/memory-core && npm run build:server && node scripts/validate-remote-mcp.mjs"
   },
   "dependencies": {
     "@handoffbase/memory-core": "file:packages/memory-core",

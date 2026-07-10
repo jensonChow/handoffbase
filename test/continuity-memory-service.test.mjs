@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryMemoryStore } from "@handoffbase/memory-core";
+import { InMemoryMemoryStore, MemoryMutationPreconditionError } from "@handoffbase/memory-core";
 import { ScopeGuardError } from "../dist/auth/scope.js";
 import { ContinuityMemoryService } from "../dist/services/continuity-memory-service.js";
 
@@ -344,8 +344,8 @@ test("memory_resolve_conflict cannot revive a candidate concurrently forgotten f
 
   assert.equal(forgotten.status, "fulfilled");
   assert.equal(resolution.status, "rejected");
-  assert.match(resolution.reason.message, /cannot be applied to candidate memory status deleted/);
-  assert.equal((await store.getMemory(fixture.candidateId)).status, "deleted");
+  assert.match(resolution.reason.message, /missing candidate memory/);
+  assert.equal(await store.getMemory(fixture.candidateId), undefined);
   assert.equal((await store.getConflict(fixture.conflictId)).status, "open");
 });
 
@@ -428,6 +428,452 @@ test("vault-conflicts isolates same-tenant users without blocking on another use
   assert.deepEqual(payloadB.conflicts.map((conflict) => conflict.id), [userB.conflictId]);
 });
 
+test("memory_update enforces expected_status inside the mutation lock", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "service-pending-approval",
+    scope: resolutionScope,
+    type: "procedure",
+    canonicalText: "Pending service approval.",
+    sourceKind: "user_correction",
+    status: "pending",
+  });
+  const service = resolutionService(store);
+  const approved = await service.update(
+    {
+      memory_id: "service-pending-approval",
+      expected_status: "pending",
+      patch: { status: "active" },
+      reason: "Approve the pending memory.",
+    },
+    { caller: authorizedCaller() },
+  );
+  assert.equal(approved.memory.status, "active");
+
+  await assert.rejects(
+    () =>
+      service.update(
+        {
+          memory_id: "service-pending-approval",
+          expected_status: "pending",
+          patch: { status: "rejected" },
+          reason: "A stale approval must not overwrite the active status.",
+        },
+        { caller: authorizedCaller() },
+      ),
+    MemoryMutationPreconditionError,
+  );
+  assert.equal((await store.getMemory("service-pending-approval")).status, "active");
+  assert.equal((await store.listEvents({ memoryId: "service-pending-approval" })).length, 2);
+});
+
+test("memory_feedback accepts an authorized trace-only correction and emits a sanitized regression fixture", async () => {
+  const store = new InMemoryMemoryStore({ clock: () => new Date("2026-07-10T10:00:00.000Z") });
+  for (const id of ["feedback-trace-memory-a", "feedback-trace-memory-b"]) {
+    await store.addMemory({
+      id,
+      scope: resolutionScope,
+      type: "procedure",
+      canonicalText: `Procedure selected by the trace: ${id}.`,
+      sourceKind: "user_instruction",
+      status: "active",
+    });
+  }
+  const run = await store.addRun({
+    id: "feedback-run",
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    projectId: resolutionScope.projectId,
+    agentProfileId: resolutionScope.agentProfileId,
+    taskHint: "Repair the response with password=synthetic-fixture-password.",
+  });
+  const trace = await store.addTrace({
+    id: "feedback-trace",
+    tenantId: resolutionScope.tenantId,
+    runId: run.id,
+    query: "Explain the failure using Bearer abcdefghijklmnopqrstuvwxyz123456.",
+    selectedMemoryIds: ["feedback-trace-memory-a", "feedback-trace-memory-b"],
+    contextPack: "Synthetic trace context.",
+  });
+  const service = resolutionService(store);
+
+  const output = await service.feedback(
+    {
+      trace_id: trace.id,
+      signal: "unhelpful",
+      reason: "The answer repeated token=synthetic-feedback-token.",
+      correction: "Ask for the missing constraint before proposing a repair.",
+    },
+    { caller: authorizedCaller() },
+  );
+
+  assert.equal(output.trace_id, trace.id);
+  assert.equal(output.signal, "unhelpful");
+  assert.equal(output.correction_memory?.status, "pending");
+  assert.equal(output.correction_memory?.type, "failure_memory");
+  const correction = await store.getMemory(output.correction_memory.id);
+  assert.deepEqual(correction.scope, resolutionScope);
+  assert.equal(correction.sourceKind, "user_correction");
+  assert.equal(correction.status, "pending");
+
+  assert.equal(output.regression_fixture.target, "trace");
+  assert.match(output.regression_fixture.trace_query, /\[REDACTED_TOKEN\]/);
+  assert.match(output.regression_fixture.run_task_hint, /\[REDACTED_PASSWORD\]/);
+  assert.match(output.regression_fixture.reason, /\[REDACTED_PASSWORD\]/);
+  assert.equal(output.regression_fixture.correction, "Ask for the missing constraint before proposing a repair.");
+  assert.deepEqual(output.regression_fixture.scope_dimensions, ["tenant", "user", "agent_profile", "project"]);
+
+  const renderedFixture = JSON.stringify(output.regression_fixture);
+  for (const privateValue of [
+    trace.id,
+    run.id,
+    resolutionScope.tenantId,
+    resolutionScope.userId,
+    resolutionScope.projectId,
+    resolutionScope.agentProfileId,
+    "abcdefghijklmnopqrstuvwxyz123456",
+    "synthetic-fixture-password",
+    "synthetic-feedback-token",
+  ]) {
+    assert.equal(renderedFixture.includes(privateValue), false, `fixture excludes ${privateValue}`);
+  }
+
+  const persisted = await store.getFeedback(output.feedback_id);
+  assert.equal(persisted.scope.tenantId, resolutionScope.tenantId);
+  assert.equal(persisted.scope.userId, resolutionScope.userId);
+  assert.equal(persisted.scope.projectId, resolutionScope.projectId);
+  assert.equal(persisted.scope.agentProfileId, resolutionScope.agentProfileId);
+  assert.equal(persisted.traceId, trace.id);
+  assert.equal(persisted.runId, run.id);
+  assert.deepEqual(persisted.actor, { type: "mcp_host", id: "authorized-reviewer" });
+});
+
+test("memory_feedback records helpful feedback without creating a correction memory", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "helpful-feedback-target",
+    scope: resolutionScope,
+    type: "user_preference",
+    canonicalText: "Keep progress updates concise.",
+    sourceKind: "user_statement",
+    status: "active",
+  });
+  const service = resolutionService(store);
+
+  const output = await service.feedback(
+    {
+      memory_id: "helpful-feedback-target",
+      signal: "helpful",
+      reason: "This preference improved the response.",
+    },
+    { caller: authorizedCaller() },
+  );
+
+  assert.equal(output.memory_id, "helpful-feedback-target");
+  assert.equal(output.signal, "helpful");
+  assert.equal(output.correction_memory, undefined);
+  assert.equal(output.regression_fixture.correction, undefined);
+  assert.equal((await store.listFeedback({ memoryId: "helpful-feedback-target" })).length, 1);
+  assert.equal((await store.listMemories({ scope: resolutionScope })).length, 1);
+
+  await assert.rejects(
+    () =>
+      service.feedback(
+        {
+          memory_id: "helpful-feedback-target",
+          signal: "helpful",
+          correction: "This must be rejected by the tool schema.",
+        },
+        { caller: authorizedCaller() },
+      ),
+    /correction is only allowed for unhelpful feedback/,
+  );
+});
+
+test("memory_feedback removes a pending correction when feedback persistence fails", async () => {
+  const store = new FeedbackFailureStore();
+  await store.addMemory({
+    id: "feedback-rollback-target",
+    scope: resolutionScope,
+    type: "failure_memory",
+    canonicalText: "A failed response needs corrected guidance.",
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  const service = resolutionService(store);
+
+  await assert.rejects(
+    () =>
+      service.feedback(
+        {
+          memory_id: "feedback-rollback-target",
+          signal: "unhelpful",
+          correction: "Ask for the missing constraint before retrying.",
+        },
+        { caller: authorizedCaller() },
+      ),
+    /synthetic feedback persistence failure/,
+  );
+
+  assert.deepEqual(
+    (await store.listMemories()).map((memory) => memory.id),
+    ["feedback-rollback-target"],
+  );
+  assert.deepEqual(await store.listFeedback(), []);
+});
+
+test("memory_feedback rejects explicit memory and run scope conflicts before any write", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "project-a-feedback-target",
+    scope: resolutionScope,
+    type: "failure_memory",
+    canonicalText: "Project A failure guidance.",
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  await store.addRun({
+    id: "project-b-feedback-run",
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    projectId: "project-b",
+    agentProfileId: resolutionScope.agentProfileId,
+    taskHint: "Project B private task hint.",
+  });
+  const service = resolutionService(store);
+
+  await assert.rejects(
+    () =>
+      service.feedback(
+        {
+          memory_id: "project-a-feedback-target",
+          run_id: "project-b-feedback-run",
+          signal: "unhelpful",
+          correction: "This correction must not cross projects.",
+        },
+        {
+          caller: authorizedCaller({
+            allowedProjectIds: [resolutionScope.projectId, "project-b"],
+          }),
+        },
+      ),
+    /conflicting projectId scope/,
+  );
+  assert.deepEqual(await store.listFeedback(), []);
+  assert.deepEqual(
+    (await store.listMemories()).map((memory) => memory.id),
+    ["project-a-feedback-target"],
+  );
+});
+
+test("trace-only feedback uses the scoped run while inheriting only type from a global selected memory", async () => {
+  const store = new InMemoryMemoryStore();
+  const globalScope = {
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    agentProfileId: resolutionScope.agentProfileId,
+  };
+  await store.addMemory({
+    id: "global-trace-feedback-memory",
+    scope: globalScope,
+    type: "procedure",
+    canonicalText: "Global retry procedure.",
+    sourceKind: "user_instruction",
+    status: "active",
+    importance: 0.91,
+  });
+  const run = await store.addRun({
+    id: "scoped-trace-feedback-run",
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    projectId: "project-b",
+    agentProfileId: resolutionScope.agentProfileId,
+    taskHint: "Retry the Project B task.",
+  });
+  const trace = await store.addTrace({
+    id: "scoped-trace-feedback",
+    tenantId: resolutionScope.tenantId,
+    runId: run.id,
+    selectedMemoryIds: ["global-trace-feedback-memory"],
+    query: "Which retry procedure applies?",
+  });
+  const service = resolutionService(store);
+  const output = await service.feedback(
+    {
+      trace_id: trace.id,
+      signal: "unhelpful",
+      correction: "Verify the Project B constraint before retrying.",
+    },
+    {
+      caller: authorizedCaller({ allowedProjectIds: ["project-b"] }),
+    },
+  );
+
+  assert.equal(output.correction_memory.type, "procedure");
+  const correction = await store.getMemory(output.correction_memory.id);
+  assert.equal(correction.importance, 0.91);
+  assert.deepEqual(correction.scope, {
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    agentProfileId: resolutionScope.agentProfileId,
+    projectId: "project-b",
+  });
+  const persisted = await store.getFeedback(output.feedback_id);
+  assert.equal(persisted.scope.projectId, "project-b");
+  assert.equal(persisted.scope.agentProfileId, resolutionScope.agentProfileId);
+});
+
+test("memory_feedback redacts email and phone from corrections and regression fixtures", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "pii-feedback-target",
+    scope: resolutionScope,
+    type: "failure_memory",
+    canonicalText: "A response used personal contact data.",
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  const run = await store.addRun({
+    id: "pii-feedback-run",
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    projectId: resolutionScope.projectId,
+    agentProfileId: resolutionScope.agentProfileId,
+    taskHint: "Call +1 415 555 0199 before retrying.",
+  });
+  const trace = await store.addTrace({
+    id: "pii-feedback-trace",
+    tenantId: resolutionScope.tenantId,
+    runId: run.id,
+    query: "Ask reviewer@example.com why the response failed.",
+    selectedMemoryIds: ["pii-feedback-target"],
+  });
+  const service = resolutionService(store);
+  const output = await service.feedback(
+    {
+      memory_id: "pii-feedback-target",
+      trace_id: trace.id,
+      signal: "unhelpful",
+      reason: "Reviewer reviewer@example.com confirmed +1 415 555 0199 was private.",
+      correction: "Email owner@example.com or call +1 415 555 0199 before retrying.",
+    },
+    { caller: authorizedCaller() },
+  );
+
+  const correction = await store.getMemory(output.correction_memory.id);
+  const persisted = await store.getFeedback(output.feedback_id);
+  const rendered = JSON.stringify({ output, correction, persisted });
+  assert.equal(rendered.includes("reviewer@example.com"), false);
+  assert.equal(rendered.includes("owner@example.com"), false);
+  assert.equal(rendered.includes("415 555 0199"), false);
+  assert.match(output.correction_memory.text, /\[REDACTED_EMAIL\]/);
+  assert.match(output.correction_memory.text, /\[REDACTED_PHONE\]/);
+  assert.match(output.regression_fixture.trace_query, /\[REDACTED_EMAIL\]/);
+  assert.match(output.regression_fixture.run_task_hint, /\[REDACTED_PHONE\]/);
+  assert.match(output.regression_fixture.reason, /\[REDACTED_EMAIL\].*\[REDACTED_PHONE\]/);
+});
+
+test("memory_feedback rejects a cross-user target before writing feedback or correction", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "cross-user-feedback-target",
+    scope: resolutionScope,
+    type: "failure_memory",
+    canonicalText: "A private failure belonging to the authorized user.",
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  const service = resolutionService(store);
+
+  await assert.rejects(
+    () =>
+      service.feedback(
+        {
+          memory_id: "cross-user-feedback-target",
+          signal: "unhelpful",
+          correction: "An unauthorized replacement must not be persisted.",
+        },
+        { caller: authorizedCaller({ userId: "user-other" }) },
+      ),
+    ScopeGuardError,
+  );
+
+  assert.deepEqual(await store.listFeedback(), []);
+  assert.deepEqual(
+    (await store.listMemories()).map((memory) => memory.id),
+    ["cross-user-feedback-target"],
+  );
+});
+
+test("hard_delete makes a memory unavailable to feedback and redacts linked content while retaining scoped audit", async () => {
+  const store = new InMemoryMemoryStore({ clock: () => new Date("2026-07-10T11:00:00.000Z") });
+  const privateText = "Private target content that must disappear after hard deletion.";
+  await store.addMemory({
+    id: "hard-delete-feedback-target",
+    scope: resolutionScope,
+    type: "failure_memory",
+    canonicalText: privateText,
+    rawSource: `Raw source: ${privateText}`,
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  await store.addTrace({
+    id: "hard-delete-feedback-trace",
+    tenantId: resolutionScope.tenantId,
+    selectedMemoryIds: ["hard-delete-feedback-target"],
+    contextPack: privateText,
+    selectionReasons: { "hard-delete-feedback-target": privateText },
+  });
+  const service = resolutionService(store);
+  const feedback = await service.feedback(
+    {
+      memory_id: "hard-delete-feedback-target",
+      trace_id: "hard-delete-feedback-trace",
+      signal: "unhelpful",
+      reason: `Incorrect because it repeated: ${privateText}`,
+      correction: "Do not reuse deleted private content.",
+    },
+    { caller: authorizedCaller() },
+  );
+
+  const deletion = await service.forget(
+    {
+      memory_id: "hard-delete-feedback-target",
+      mode: "hard_delete",
+      reason: "The user requested permanent removal.",
+    },
+    { caller: authorizedCaller() },
+  );
+  assert.equal(deletion.status, "deleted");
+  assert.equal(await store.getMemory("hard-delete-feedback-target"), undefined);
+
+  await assert.rejects(
+    () =>
+      service.feedback(
+        { memory_id: "hard-delete-feedback-target", signal: "helpful" },
+        { caller: authorizedCaller() },
+      ),
+    /Memory not found: hard-delete-feedback-target/,
+  );
+
+  const redactedFeedback = await store.getFeedback(feedback.feedback_id);
+  assert.equal(redactedFeedback.reason, undefined);
+  assert.equal(redactedFeedback.regressionFixture.hard_deleted_content_redacted, true);
+  assert.equal(JSON.stringify(redactedFeedback).includes(privateText), false);
+
+  const redactedTrace = await store.getTrace("hard-delete-feedback-trace");
+  assert.deepEqual(redactedTrace.selectedMemoryIds, []);
+  assert.equal(redactedTrace.contextPack, undefined);
+  assert.equal(JSON.stringify(redactedTrace).includes(privateText), false);
+
+  const events = await store.listEvents({ memoryId: "hard-delete-feedback-target" });
+  assert.equal(events.some((event) => event.id === deletion.event_id && event.eventType === "delete"), true);
+  assert.equal(JSON.stringify(events).includes(privateText), false);
+  const tombstone = events.find((event) => event.id === deletion.event_id);
+  assert.deepEqual(tombstone.after.scope, resolutionScope);
+  assert.equal(tombstone.after.deletedMemoryId, "hard-delete-feedback-target");
+});
+
 const resolutionScope = {
   tenantId: "tenant-resolution",
   userId: "user-resolution",
@@ -489,6 +935,14 @@ function resolutionService(store) {
     provider: conflictProvider(),
     seedDemoMemories: false
   });
+}
+
+class FeedbackFailureStore extends InMemoryMemoryStore {
+  addFeedbackWithCorrection = undefined;
+
+  async addFeedback() {
+    throw new Error("synthetic feedback persistence failure");
+  }
 }
 
 function authorizedCaller(overrides = {}) {

@@ -5,6 +5,10 @@ import {
   QwenMemoryProvider,
   QwenProviderError,
   applyMemoryPatch,
+  assertMemoryExpectedStatus,
+  assessMemorySafety,
+  assertNoSensitiveText,
+  redactSensitiveText,
   rejectSensitiveText,
   type ConflictResult,
   type ContextPackInput,
@@ -13,6 +17,7 @@ import {
   type JsonValue,
   type MemoryCandidate,
   type MemoryActor,
+  type MemoryFeedbackRecord,
   type MemoryConflictRecord,
   type MemoryListFilter,
   type MemoryReasoningProvider,
@@ -23,6 +28,7 @@ import {
   type MemoryStore,
   type MemoryTrace,
   type MemoryUpdateResult,
+  type MemoryWriteResult,
   type RunRecord,
   type SourceKind,
   type SourceTrust,
@@ -33,6 +39,7 @@ import { randomUUID } from "node:crypto";
 import {
   ScopeGuardError,
   applyCallerAllowedDefaults,
+  assertScopeAllowed,
   assertScopedRequestNarrowed,
   callerActor,
   isAuthEnforced,
@@ -45,6 +52,10 @@ import {
   ContinuityBootstrapOutput,
   MemoryForgetInput,
   MemoryForgetOutput,
+  MemoryFeedbackInput,
+  MemoryFeedbackInputSchema,
+  MemoryFeedbackOutput,
+  MemoryFeedbackRegressionFixture,
   MemoryRecallInput,
   MemoryRecallOutput,
   MemoryReflectInput,
@@ -99,7 +110,24 @@ interface AppliedResolutionMutation {
   eventId?: string;
 }
 
-class ConflictLinkError extends Error {
+interface FeedbackTargetContext {
+  memory?: MemoryRecord;
+  trace?: MemoryTrace;
+  run?: RunRecord;
+  scope: MemoryScope;
+  memoryType?: MemoryType;
+  memoryStatus?: MemoryStatus;
+  memoryImportance?: number;
+}
+
+export class MemoryConflictResolutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MemoryConflictResolutionError";
+  }
+}
+
+class ConflictLinkError extends MemoryConflictResolutionError {
   constructor(message: string) {
     super(message);
     this.name = "ConflictLinkError";
@@ -334,7 +362,8 @@ export class ContinuityMemoryService implements MemoryService {
   async update(input: MemoryUpdateInput, context: MemoryServiceContext = {}): Promise<MemoryUpdateOutput> {
     return await this.withMemoryMutationLocks([input.memory_id], async () => {
       await this.ensureSeeded();
-      await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
+      const current = await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
+      assertMemoryExpectedStatus(current, input.expected_status);
       const result = await this.store.updateMemory(
         input.memory_id,
         {
@@ -349,6 +378,7 @@ export class ContinuityMemoryService implements MemoryService {
         {
           actor: callerActor(context.caller, { type: "user", id: "memory_update" }),
           reason: input.reason ?? "Updated through memory_update.",
+          expectedStatus: input.expected_status,
         },
       );
 
@@ -537,6 +567,104 @@ export class ContinuityMemoryService implements MemoryService {
     }
   }
 
+  async feedback(input: MemoryFeedbackInput, context: MemoryServiceContext = {}): Promise<MemoryFeedbackOutput> {
+    const request = MemoryFeedbackInputSchema.parse(input);
+    const lockIds = request.memory_id ? [request.memory_id] : [];
+    return await this.withMemoryMutationLocks(lockIds, async () => {
+      await this.ensureSeeded();
+      const target = await this.resolveFeedbackTarget(request, context.caller);
+      const actor = callerActor(context.caller, { type: "user", id: "memory_feedback" });
+      const reason = request.reason ? publicSafeFeedbackText(request.reason, "failure_memory") : undefined;
+      const correctionText = request.correction?.trim();
+      const correctionSafety = correctionText
+        ? assessMemorySafety({
+            text: correctionText,
+            type: target.memoryType ?? "failure_memory",
+            sourceTrust: "user_direct",
+          })
+        : undefined;
+      if (correctionText && correctionSafety?.decision === "reject") {
+        assertNoSensitiveText(correctionText);
+        throw new Error("memory_feedback correction contains sensitive credential content.");
+      }
+      const safeCorrectionText = correctionSafety?.redactedText.trim();
+
+      const fixture = buildFeedbackRegressionFixture(request, target, reason, safeCorrectionText);
+      const correctionInput: CreateMemoryInput | undefined = safeCorrectionText
+        ? {
+            scope: target.scope,
+            type: target.memoryType ?? "failure_memory",
+            canonicalText: safeCorrectionText,
+            sourceKind: "user_correction",
+            status: "pending",
+            confidence: 1,
+            importance: Math.max(target.memoryImportance ?? 0.7, 0.7),
+            metadata: feedbackCorrectionMetadata(request),
+          }
+        : undefined;
+      const correctionOptions = {
+        actor,
+        reason: "Created from unhelpful memory feedback correction.",
+        runId: target.run?.id ?? request.run_id,
+      };
+      const feedbackInput = {
+        scope: target.scope,
+        memoryId: request.memory_id,
+        traceId: request.trace_id,
+        runId: target.run?.id ?? request.run_id ?? target.trace?.runId,
+        signal: request.signal,
+        reason,
+        regressionFixture: fixture,
+        metadata: {
+          target: fixture.target,
+          has_correction: correctionInput !== undefined,
+        },
+      };
+      const feedbackOptions = {
+        actor,
+        reason,
+        runId: target.run?.id ?? request.run_id ?? target.trace?.runId,
+      };
+      let feedback: MemoryFeedbackRecord;
+      let correction: MemoryWriteResult | undefined;
+      const atomicAdd = this.store.addFeedbackWithCorrection?.bind(this.store);
+      if (correctionInput && atomicAdd) {
+        const result = await atomicAdd(feedbackInput, correctionInput, {
+          feedback: feedbackOptions,
+          correction: correctionOptions,
+        });
+        feedback = result.feedback;
+        correction = result.correction;
+      } else {
+        correction = correctionInput
+          ? await this.store.addMemory(correctionInput, correctionOptions)
+          : undefined;
+        try {
+          feedback = await this.store.addFeedback(
+            { ...feedbackInput, correctionMemoryId: correction?.memory.id },
+            feedbackOptions,
+          );
+        } catch (error) {
+          if (correction) {
+            try {
+              await this.store.deleteMemory(correction.memory.id, {
+                actor: { type: "system", id: "memory_feedback_rollback" },
+                reason: "Rolled back an uncommitted feedback correction.",
+              });
+            } catch {
+              throw new Error("memory_feedback failed and correction rollback was incomplete.", {
+                cause: error,
+              });
+            }
+          }
+          throw error;
+        }
+      }
+
+      return feedbackOutput(feedback, correction?.memory, fixture);
+    });
+  }
+
   async forget(input: MemoryForgetInput, context: MemoryServiceContext = {}): Promise<MemoryForgetOutput> {
     return await this.withMemoryMutationLocks([input.memory_id], async () => {
       await this.ensureSeeded();
@@ -548,13 +676,20 @@ export class ContinuityMemoryService implements MemoryService {
         invalidate: "invalidated",
       };
       const status = statusByMode[input.mode];
-      const result =
-        input.mode === "hard_delete"
-          ? await this.store.deleteMemory(input.memory_id, {
+      if (input.mode === "hard_delete") {
+        const result = await this.store.deleteMemory(input.memory_id, {
               actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
               reason: input.reason,
-            })
-          : await this.store.updateMemory(
+            });
+        return {
+          memory_id: result.deletedMemoryId,
+          mode: input.mode,
+          status: "deleted",
+          event_id: result.event.id,
+        };
+      }
+
+      const result = await this.store.updateMemory(
               input.memory_id,
               {
                 status,
@@ -903,6 +1038,90 @@ export class ContinuityMemoryService implements MemoryService {
     return memories.filter((memory): memory is MemoryRecord => Boolean(memory));
   }
 
+  private async resolveFeedbackTarget(
+    request: MemoryFeedbackInput,
+    caller: CallerContext | undefined,
+  ): Promise<FeedbackTargetContext> {
+    const memory = request.memory_id
+      ? await this.requireMutableMemory(request.memory_id, caller, "memory_feedback")
+      : undefined;
+    const trace = request.trace_id ? await this.store.getTrace(request.trace_id) : undefined;
+    if (request.trace_id && !trace) {
+      throw new Error(`Memory trace not found: ${request.trace_id}`);
+    }
+    if (trace) {
+      await this.assertTraceReadable(trace, caller, "memory_feedback");
+    }
+    if (memory && trace && !traceReferencesMemory(trace, memory.id)) {
+      throw new ScopeGuardError(
+        `memory_feedback trace ${trace.id} does not reference memory ${memory.id}.`,
+      );
+    }
+    if (memory && trace && memory.scope.tenantId !== trace.tenantId) {
+      throw new ScopeGuardError("memory_feedback targets must share a tenant scope.");
+    }
+    if (request.run_id && trace?.runId && request.run_id !== trace.runId) {
+      throw new ScopeGuardError("memory_feedback run_id does not match the target trace run.");
+    }
+
+    const runId = request.run_id ?? trace?.runId;
+    const run = runId ? await this.store.getRun(runId) : undefined;
+    if (request.run_id && !run) {
+      throw new Error(`Run not found: ${request.run_id}`);
+    }
+    if (run) {
+      assertScopedRequestNarrowed(scopeFromRun(run), caller, "memory_feedback");
+      if (trace && trace.tenantId !== run.tenantId) {
+        throw new ScopeGuardError("memory_feedback trace and run must share the same tenant scope.");
+      }
+    }
+
+    let inheritedMemory: MemoryRecord | undefined;
+    if (!memory && trace) {
+      const selectedIds = [...new Set(trace.selectedMemoryIds)];
+      if (selectedIds.length === 1) {
+        inheritedMemory = await this.store.getMemory(selectedIds[0]);
+        if (inheritedMemory) {
+          if (run) {
+            if (
+              inheritedMemory.scope.tenantId !== run.tenantId
+              || inheritedMemory.scope.userId !== run.userId
+            ) {
+              throw new ScopeGuardError(
+                "memory_feedback trace memory and run must share tenant and user scope.",
+              );
+            }
+            assertScopeAllowed(inheritedMemory.scope, caller, "memory_feedback correction type hint");
+          } else {
+            assertScopedRequestNarrowed(inheritedMemory.scope, caller, "memory_feedback correction");
+          }
+        }
+      }
+    }
+
+    if (run) {
+      const runScope = scopeFromRun(run);
+      if (memory) assertFeedbackScopesCompatible(memory.scope, runScope, "memory target", "run");
+    }
+
+    const scope = memory?.scope
+      ?? (run ? scopeFromRun(run) : inheritedMemory?.scope ?? (trace ? feedbackScopeFromTrace(trace, caller) : undefined));
+    if (!scope) {
+      throw new ScopeGuardError("memory_feedback could not resolve an authorized target scope.");
+    }
+    assertScopedRequestNarrowed(scope, caller, "memory_feedback");
+
+    return {
+      memory,
+      trace,
+      run,
+      scope,
+      memoryType: memory?.type ?? inheritedMemory?.type ?? "failure_memory",
+      memoryStatus: memory?.status ?? inheritedMemory?.status,
+      memoryImportance: memory?.importance ?? inheritedMemory?.importance,
+    };
+  }
+
   private async buildContextPack(input: ContextPackInput): Promise<BuiltContextPack> {
     const pack = await this.provider.buildContextPack(input);
     return {
@@ -996,6 +1215,146 @@ export class ContinuityMemoryService implements MemoryService {
       throw new ScopeGuardError(`${operation} cannot verify caller user scope for trace ${trace.id}.`);
     }
   }
+}
+
+function traceReferencesMemory(trace: MemoryTrace, memoryId: string): boolean {
+  if (trace.selectedMemoryIds.includes(memoryId) || trace.ignoredMemoryIds.includes(memoryId)) {
+    return true;
+  }
+  const excluded = trace.metadata.excludedMemoryIds ?? trace.metadata.excluded_memory_ids;
+  return Array.isArray(excluded) && excluded.includes(memoryId);
+}
+
+function feedbackScopeFromTrace(trace: MemoryTrace, caller: CallerContext | undefined): MemoryScope {
+  const scope = applyCallerAllowedDefaults(
+    {
+      tenantId: trace.tenantId,
+      userId: caller?.userId ?? DEFAULT_USER_ID,
+      agentProfileId: jsonString(trace.metadata.agentProfileId ?? trace.metadata.agent_profile_id),
+      projectId: jsonString(trace.metadata.projectId ?? trace.metadata.project_id),
+      hostId: jsonString(trace.metadata.hostId ?? trace.metadata.host_id),
+      sessionId: jsonString(trace.metadata.sessionId ?? trace.metadata.session_id),
+      toolId: jsonString(trace.metadata.toolId ?? trace.metadata.tool_id),
+    },
+    caller,
+  );
+  assertScopedRequestNarrowed(scope, caller, "memory_feedback trace scope");
+  return scope;
+}
+
+function feedbackCorrectionMetadata(input: MemoryFeedbackInput): JsonObject {
+  const metadata: JsonObject = {
+    feedback_signal: input.signal,
+    approval_mode: "pending",
+  };
+  if (input.memory_id) metadata.feedback_memory_id = input.memory_id;
+  if (input.trace_id) metadata.feedback_trace_id = input.trace_id;
+  if (input.run_id) metadata.feedback_run_id = input.run_id;
+  return metadata;
+}
+
+function buildFeedbackRegressionFixture(
+  input: MemoryFeedbackInput,
+  target: FeedbackTargetContext,
+  reason: string | undefined,
+  correction: string | undefined,
+): MemoryFeedbackRegressionFixture {
+  const fixture: MemoryFeedbackRegressionFixture = {
+    schema_version: "1",
+    target: input.memory_id && input.trace_id ? "memory_and_trace" : input.memory_id ? "memory" : "trace",
+    signal: input.signal,
+    memory_type: target.memoryType,
+    memory_status: target.memoryStatus,
+    scope_dimensions: feedbackScopeDimensions(target.scope),
+  };
+  const traceQuery = fixtureText(target.trace?.query);
+  const runTaskHint = fixtureText(target.run?.taskHint);
+  const safeReason = fixtureText(reason);
+  const safeCorrection = fixtureText(correction);
+  if (traceQuery) fixture.trace_query = traceQuery;
+  if (runTaskHint) fixture.run_task_hint = runTaskHint;
+  if (safeReason) fixture.reason = safeReason;
+  if (safeCorrection) fixture.correction = safeCorrection;
+  return fixture;
+}
+
+function feedbackScopeDimensions(scope: MemoryScope): string[] {
+  return [
+    ["tenant", scope.tenantId],
+    ["user", scope.userId],
+    ["agent_profile", scope.agentProfileId],
+    ["project", scope.projectId],
+    ["host", scope.hostId],
+    ["session", scope.sessionId],
+    ["tool", scope.toolId],
+  ].filter((entry) => entry[1] !== undefined).map((entry) => entry[0] as string);
+}
+
+function fixtureText(value: string | undefined): string | undefined {
+  const text = value ? publicSafeFeedbackText(value, "failure_memory").trim().slice(0, 1000) : "";
+  return text || undefined;
+}
+
+function publicSafeFeedbackText(value: string, type: MemoryType): string {
+  return assessMemorySafety({
+    text: redactSensitiveText(value),
+    type,
+    sourceTrust: "user_direct",
+  }).redactedText;
+}
+
+function assertFeedbackScopesCompatible(
+  left: MemoryScope,
+  right: MemoryScope,
+  leftLabel: string,
+  rightLabel: string,
+): void {
+  if (left.tenantId !== right.tenantId || left.userId !== right.userId) {
+    throw new ScopeGuardError(`memory_feedback ${leftLabel} and ${rightLabel} must share tenant and user scope.`);
+  }
+  for (const dimension of [
+    "agentProfileId",
+    "projectId",
+    "hostId",
+    "sessionId",
+    "toolId",
+  ] as const) {
+    const leftValue = left[dimension];
+    const rightValue = right[dimension];
+    if (leftValue !== rightValue) {
+      throw new ScopeGuardError(
+        `memory_feedback ${leftLabel} and ${rightLabel} have conflicting ${dimension} scope.`,
+      );
+    }
+  }
+}
+
+function feedbackOutput(
+  feedback: MemoryFeedbackRecord,
+  correction: MemoryRecord | undefined,
+  fixture: MemoryFeedbackRegressionFixture,
+): MemoryFeedbackOutput {
+  const output: MemoryFeedbackOutput = {
+    feedback_id: feedback.id,
+    signal: feedback.signal,
+    created_at: feedback.createdAt.toISOString(),
+    regression_fixture: fixture,
+  };
+  if (feedback.memoryId) output.memory_id = feedback.memoryId;
+  if (feedback.traceId) output.trace_id = feedback.traceId;
+  if (correction) {
+    output.correction_memory = {
+      id: correction.id,
+      text: correction.canonicalText,
+      type: correction.type,
+      status: "pending",
+    };
+  }
+  return output;
+}
+
+function jsonString(value: JsonValue | undefined): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function assertResolutionActionRequirements(
@@ -1335,7 +1694,7 @@ function toResolutionMemory(memory: MemoryRecord): NonNullable<MemoryResolveConf
 
 function requireResolution(condition: unknown, message: string): asserts condition {
   if (!condition) {
-    throw new Error(message);
+    throw new MemoryConflictResolutionError(message);
   }
 }
 

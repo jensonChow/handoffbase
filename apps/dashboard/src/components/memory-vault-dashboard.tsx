@@ -5,6 +5,7 @@ import {
   Ban,
   Check,
   Clock3,
+  Copy,
   Database,
   Eye,
   FilePenLine,
@@ -12,9 +13,13 @@ import {
   GitBranch,
   History,
   Inbox,
+  LogOut,
   RefreshCcw,
   Save,
   Search,
+  ShieldCheck,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   X
 } from "lucide-react";
@@ -24,15 +29,20 @@ import {
   createMemoryClient,
   MemoryClientError,
   type ConflictCandidate,
+  type ConflictResolutionAction,
+  type ConflictResolutionInput,
+  type DashboardSession,
   type DashboardSnapshot,
   type MemoryClientMode,
   type MemoryRecord,
   type MemoryStatus,
   type MemoryTrace,
-  type MemoryType
+  type MemoryType,
+  type TraceFeedback,
+  type TraceFeedbackInput
 } from "@/lib/memory-client";
 
-type ViewKey = "vault" | "pending" | "trace" | "conflicts";
+type ViewKey = "vault" | "pending" | "trace" | "conflicts" | "audit";
 
 type LoadError = {
   kind: "configuration" | "load";
@@ -45,8 +55,6 @@ type MutationError = {
 };
 
 type EditState = {
-  type: MemoryType;
-  status: MemoryStatus;
   confidence: number;
   importance: number;
   canonicalText: string;
@@ -89,6 +97,10 @@ export function MemoryVaultDashboard({
     [clientMode]
   );
   const [view, setView] = useState<ViewKey>("vault");
+  const [session, setSession] = useState<DashboardSession | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [apiKey, setApiKey] = useState("");
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [selectedMemoryId, setSelectedMemoryId] = useState<string>("");
   const [selectedTraceId, setSelectedTraceId] = useState<string>("");
@@ -122,15 +134,41 @@ export function MemoryVaultDashboard({
           : data.traces[0]?.id || ""
       );
     } catch (caught) {
+      if (caught instanceof MemoryClientError && caught.status === 401) {
+        setSession((current) => ({
+          authenticated: false,
+          authMode: current?.authMode ?? "api_key"
+        }));
+        setSnapshot(null);
+      }
       setLoadError(toLoadError(caught));
     } finally {
       setIsLoading(false);
     }
   }, [client]);
 
+  const initializeDashboard = useCallback(async () => {
+    try {
+      setIsCheckingSession(true);
+      setLoadError(null);
+      const currentSession = await client.getSession();
+      setSession(currentSession);
+      if (currentSession.authenticated) {
+        await loadDashboard();
+      } else {
+        setIsLoading(false);
+      }
+    } catch (caught) {
+      setLoadError(toLoadError(caught));
+      setIsLoading(false);
+    } finally {
+      setIsCheckingSession(false);
+    }
+  }, [client, loadDashboard]);
+
   useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+    void initializeDashboard();
+  }, [initializeDashboard]);
 
   const selectedMemory = useMemo(
     () => snapshot?.memories.find((memory) => memory.id === selectedMemoryId),
@@ -159,8 +197,6 @@ export function MemoryVaultDashboard({
     }
 
     setEditState({
-      type: selectedMemory.type,
-      status: selectedMemory.status,
       confidence: selectedMemory.confidence,
       importance: selectedMemory.importance,
       canonicalText: selectedMemory.canonicalText,
@@ -238,7 +274,7 @@ export function MemoryVaultDashboard({
     }
   }
 
-  async function runMutation(action: () => Promise<MemoryRecord | void>, selectId?: string) {
+  async function runMutation(action: () => Promise<unknown>, selectId?: string) {
     let mutationCompleted = false;
 
     try {
@@ -262,6 +298,49 @@ export function MemoryVaultDashboard({
   function selectMemory(memoryId: string) {
     setSelectedMemoryId(memoryId);
     setView("vault");
+  }
+
+  async function login() {
+    try {
+      setIsLoggingIn(true);
+      setLoadError(null);
+      const nextSession = await client.login(apiKey);
+      setSession(nextSession);
+      setApiKey("");
+      await loadDashboard();
+    } catch (caught) {
+      setLoadError(toLoadError(caught));
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await client.logout();
+    } finally {
+      setSession({ authenticated: false, authMode: "api_key" });
+      setSnapshot(null);
+      setSelectedMemoryId("");
+      setSelectedTraceId("");
+    }
+  }
+
+  if (isCheckingSession) {
+    return <DashboardLoading title="Checking secure dashboard session" />;
+  }
+
+  if (!session?.authenticated) {
+    return (
+      <LoginGate
+        apiKey={apiKey}
+        error={loadError}
+        isLoggingIn={isLoggingIn}
+        setApiKey={setApiKey}
+        onLogin={() => void login()}
+        onRetry={() => void initializeDashboard()}
+      />
+    );
   }
 
   const runtimeMode =
@@ -307,6 +386,13 @@ export function MemoryVaultDashboard({
             count={snapshot?.conflicts.length ?? 0}
             onClick={() => setView("conflicts")}
           />
+          <NavButton
+            active={view === "audit"}
+            icon={<History size={18} aria-hidden="true" />}
+            label="Audit / Deletes"
+            count={snapshot?.events.length ?? 0}
+            onClick={() => setView("audit")}
+          />
         </nav>
 
         <DashboardRuntimeStatus mode={runtimeMode} />
@@ -318,20 +404,32 @@ export function MemoryVaultDashboard({
             <p className="eyebrow">HandoffBase Memory Vault</p>
             <h2>{viewTitle(view)}</h2>
           </div>
-          <button
-            className="icon-text-button"
-            type="button"
-            onClick={loadDashboard}
-            disabled={isLoading}
-            aria-busy={isLoading}
-          >
-            <RefreshCcw
-              className={isLoading ? "is-spinning" : undefined}
-              size={16}
-              aria-hidden="true"
-            />
-            {isLoading ? "Refreshing" : "Refresh"}
-          </button>
+          <div className="header-actions">
+            <span className="session-scope" title="Authenticated caller scope">
+              <ShieldCheck size={15} aria-hidden="true" />
+              {session.caller?.tenantId} / {session.caller?.userId}
+            </span>
+            <button
+              className="icon-text-button"
+              type="button"
+              onClick={loadDashboard}
+              disabled={isLoading}
+              aria-busy={isLoading}
+            >
+              <RefreshCcw
+                className={isLoading ? "is-spinning" : undefined}
+                size={16}
+                aria-hidden="true"
+              />
+              {isLoading ? "Refreshing" : "Refresh"}
+            </button>
+            {session.authMode === "api_key" ? (
+              <button className="icon-text-button" type="button" onClick={() => void logout()}>
+                <LogOut size={16} aria-hidden="true" />
+                Sign out
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <div className="metric-strip" aria-label="Memory status summary">
@@ -392,8 +490,6 @@ export function MemoryVaultDashboard({
                   void runMutation(
                     () =>
                       client.updateMemory(selectedMemory.id, {
-                        type: editState.type,
-                        status: editState.status,
                         confidence: editState.confidence,
                         importance: editState.importance,
                         canonicalText: editState.canonicalText,
@@ -453,12 +549,6 @@ export function MemoryVaultDashboard({
                     memoryId
                   )
                 }
-                onDelete={(memoryId) =>
-                  void runMutation(
-                    () => client.deleteMemory(memoryId, "Deleted from Pending Memories review."),
-                    ""
-                  )
-                }
               />
             ) : null}
 
@@ -469,11 +559,32 @@ export function MemoryVaultDashboard({
                 selectedTraceId={selectedTraceId}
                 setSelectedTraceId={setSelectedTraceId}
                 onSelectMemory={selectMemory}
+                feedback={snapshot.feedback.filter(
+                  (item) => item.traceId === selectedTraceId
+                )}
+                isMutating={isMutating}
+                onSubmitFeedback={(input) => {
+                  if (selectedTrace) {
+                    void runMutation(() =>
+                      client.submitTraceFeedback(selectedTrace.id, input)
+                    );
+                  }
+                }}
               />
             ) : null}
 
             {view === "conflicts" ? (
-              <ConflictView conflicts={snapshot.conflicts} />
+              <ConflictView
+                conflicts={snapshot.conflicts}
+                isMutating={isMutating}
+                onResolve={(conflictId, input) =>
+                  void runMutation(() => client.resolveConflict(conflictId, input))
+                }
+              />
+            ) : null}
+
+            {view === "audit" ? (
+              <AuditView events={snapshot.events} />
             ) : null}
           </>
         ) : null}
@@ -483,22 +594,98 @@ export function MemoryVaultDashboard({
 
   if (isLoading && !snapshot) {
     return (
-      <main className="dashboard-shell">
-        <aside className="side-nav skeleton-nav" />
-        <section className="workspace">
-          <div className="loading-panel">
-            <Clock3 size={24} aria-hidden="true" />
-            <div>
-              <h2>Loading Memory Vault</h2>
-              <p>Fetching HandoffBase memory records, trace runs, and pending review queue.</p>
-            </div>
-          </div>
-        </section>
-      </main>
+      <DashboardLoading title="Loading Memory Vault" />
     );
   }
 
   return shell;
+}
+
+function DashboardLoading({ title }: { title: string }) {
+  return (
+    <main className="dashboard-shell">
+      <aside className="side-nav skeleton-nav" />
+      <section className="workspace">
+        <div className="loading-panel">
+          <Clock3 size={24} aria-hidden="true" />
+          <div>
+            <h2>{title}</h2>
+            <p>Preparing caller-scoped memory records, trace runs, and review queues.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function LoginGate({
+  apiKey,
+  error,
+  isLoggingIn,
+  setApiKey,
+  onLogin,
+  onRetry
+}: {
+  apiKey: string;
+  error: LoadError | null;
+  isLoggingIn: boolean;
+  setApiKey: (value: string) => void;
+  onLogin: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <main className="login-shell">
+      <section className="login-card" aria-labelledby="dashboard-sign-in-title">
+        <div className="login-mark">
+          <ShieldCheck size={28} aria-hidden="true" />
+        </div>
+        <p className="eyebrow">HandoffBase Memory Vault</p>
+        <h1 id="dashboard-sign-in-title">Sign in to your memory scope</h1>
+        <p>
+          Your API key is exchanged for a signed, HttpOnly session cookie. It is
+          never stored in browser storage or returned to the client.
+        </p>
+        {error ? (
+          <div className="login-error" role="alert">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>{error.message}</span>
+          </div>
+        ) : null}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onLogin();
+          }}
+        >
+          <label className="field-block">
+            <span>HandoffBase API key</span>
+            <input
+              autoComplete="current-password"
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="Enter API key"
+              required
+            />
+          </label>
+          <button
+            className="primary-button login-button"
+            type="submit"
+            disabled={isLoggingIn || !apiKey.trim()}
+          >
+            <ShieldCheck size={16} aria-hidden="true" />
+            {isLoggingIn ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+        {error?.kind === "configuration" ? (
+          <button className="ghost-button" type="button" onClick={onRetry}>
+            <RefreshCcw size={16} aria-hidden="true" />
+            Recheck server configuration
+          </button>
+        ) : null}
+      </section>
+    </main>
+  );
 }
 
 function VaultView(props: {
@@ -736,36 +923,6 @@ function MemoryDetailPanel(props: {
 
       <div className="field-grid">
         <label className="field-block">
-          <span>Type</span>
-          <select
-            value={edit.type}
-            onChange={(event) => patchEdit({ type: event.target.value as MemoryType })}
-          >
-            {memoryTypes.map((type) => (
-              <option key={type} value={type}>
-                {formatToken(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field-block">
-          <span>Status</span>
-          <select
-            value={edit.status}
-            onChange={(event) => patchEdit({ status: event.target.value as MemoryStatus })}
-          >
-            {statuses.map((status) => (
-              <option key={status} value={status}>
-                {formatToken(status)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="field-grid">
-        <label className="field-block">
           <span>Confidence {toPercent(edit.confidence)}</span>
           <input
             type="range"
@@ -819,6 +976,10 @@ function MemoryDetailPanel(props: {
       </label>
 
       <dl className="metadata-list">
+        <div>
+          <dt>Type / lifecycle</dt>
+          <dd>{formatToken(memory.type)} / {formatToken(memory.status)}</dd>
+        </div>
         <div>
           <dt>Scope</dt>
           <dd>{scopeLabel(memory)}</dd>
@@ -936,15 +1097,13 @@ function PendingView({
   isMutating,
   onSelect,
   onApprove,
-  onInvalidate,
-  onDelete
+  onInvalidate
 }: {
   memories: MemoryRecord[];
   isMutating: boolean;
   onSelect: (memoryId: string) => void;
   onApprove: (memoryId: string) => void;
   onInvalidate: (memoryId: string) => void;
-  onDelete: (memoryId: string) => void;
 }) {
   return (
     <section className="single-panel" aria-label="HandoffBase pending memory review">
@@ -1021,15 +1180,6 @@ function PendingView({
                   <X size={16} aria-hidden="true" />
                   Invalidate
                 </button>
-                <button
-                  type="button"
-                  className="danger-button"
-                  onClick={() => onDelete(memory.id)}
-                  disabled={isMutating}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                  Delete
-                </button>
               </div>
             </article>
           ))}
@@ -1050,13 +1200,19 @@ function TraceView({
   selectedTrace,
   selectedTraceId,
   setSelectedTraceId,
-  onSelectMemory
+  onSelectMemory,
+  feedback,
+  isMutating,
+  onSubmitFeedback
 }: {
   traces: MemoryTrace[];
   selectedTrace?: MemoryTrace;
   selectedTraceId: string;
   setSelectedTraceId: (traceId: string) => void;
   onSelectMemory: (memoryId: string) => void;
+  feedback: TraceFeedback[];
+  isMutating: boolean;
+  onSubmitFeedback: (input: TraceFeedbackInput) => void;
 }) {
   return (
     <div className="trace-grid">
@@ -1132,6 +1288,12 @@ function TraceView({
               tone="red"
               onSelectMemory={onSelectMemory}
             />
+            <TraceFeedbackPanel
+              key={selectedTrace.id}
+              feedback={feedback}
+              isMutating={isMutating}
+              onSubmit={onSubmitFeedback}
+            />
           </>
         ) : (
           <EmptyState
@@ -1141,6 +1303,148 @@ function TraceView({
           />
         )}
       </section>
+    </div>
+  );
+}
+
+export function TraceFeedbackPanel({
+  feedback,
+  isMutating,
+  onSubmit
+}: {
+  feedback: TraceFeedback[];
+  isMutating: boolean;
+  onSubmit: (input: TraceFeedbackInput) => void;
+}) {
+  const [rating, setRating] = useState<TraceFeedbackInput["rating"]>("helpful");
+  const [reason, setReason] = useState("");
+  const [correction, setCorrection] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const hasUnhelpfulDetail = Boolean(reason.trim() || correction.trim() || outcome.trim());
+
+  return (
+    <section className="trace-feedback" aria-label="Trace feedback and regression fixtures">
+      <div className="panel-heading compact">
+        <div>
+          <p className="eyebrow">Feedback loop</p>
+          <h4>Was this memory trace useful?</h4>
+        </div>
+        <Token>{feedback.length} submitted</Token>
+      </div>
+      <div className="feedback-rating" role="group" aria-label="Trace feedback rating">
+        <button
+          type="button"
+          className={rating === "helpful" ? "feedback-choice is-selected" : "feedback-choice"}
+          aria-pressed={rating === "helpful"}
+          onClick={() => setRating("helpful")}
+        >
+          <ThumbsUp size={16} aria-hidden="true" /> Helpful
+        </button>
+        <button
+          type="button"
+          className={rating === "unhelpful" ? "feedback-choice is-selected" : "feedback-choice"}
+          aria-pressed={rating === "unhelpful"}
+          onClick={() => setRating("unhelpful")}
+        >
+          <ThumbsDown size={16} aria-hidden="true" /> Unhelpful
+        </button>
+      </div>
+      <label className="field-block">
+        <span>{rating === "unhelpful" ? "What went wrong?" : "Optional note"}</span>
+        <textarea
+          rows={3}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Describe the observable result, not private reasoning."
+        />
+      </label>
+      {rating === "unhelpful" ? (
+        <div className="field-grid">
+          <label className="field-block">
+            <span>Correction</span>
+            <textarea
+              rows={3}
+              value={correction}
+              onChange={(event) => setCorrection(event.target.value)}
+              placeholder="A durable correction to review as pending memory"
+            />
+          </label>
+          <label className="field-block">
+            <span>Observed outcome</span>
+            <textarea
+              rows={3}
+              value={outcome}
+              onChange={(event) => setOutcome(event.target.value)}
+              placeholder="What happened after this context was used?"
+            />
+          </label>
+        </div>
+      ) : null}
+      <button
+        className="primary-button"
+        type="button"
+        disabled={isMutating || (rating === "unhelpful" && !hasUnhelpfulDetail)}
+        onClick={() =>
+          onSubmit({
+            rating,
+            reason: reason.trim() || undefined,
+            correction: rating === "unhelpful" ? correction.trim() || undefined : undefined,
+            outcome: rating === "unhelpful" ? outcome.trim() || undefined : undefined
+          })
+        }
+      >
+        {rating === "helpful" ? (
+          <ThumbsUp size={16} aria-hidden="true" />
+        ) : (
+          <ThumbsDown size={16} aria-hidden="true" />
+        )}
+        Submit feedback
+      </button>
+
+      {feedback.length > 0 ? (
+        <div className="feedback-history">
+          <h4>Persisted feedback</h4>
+          {feedback.map((item) => (
+            <article className="feedback-record" key={item.id}>
+              <div className="feedback-record-head">
+                <Token>{item.rating}</Token>
+                <span>{formatDate(item.createdAt)}</span>
+              </div>
+              {item.reason ? <p>{item.reason}</p> : null}
+              {item.correctionMemoryId ? (
+                <small>Pending correction memory: {item.correctionMemoryId}</small>
+              ) : null}
+              {item.rating === "unhelpful" &&
+              typeof item.regressionFixture.correction === "string" ? (
+                <RegressionFixture feedback={item} />
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RegressionFixture({ feedback }: { feedback: TraceFeedback }) {
+  const [copied, setCopied] = useState(false);
+  const fixture = JSON.stringify(feedback.regressionFixture, null, 2);
+
+  async function copyFixture() {
+    await navigator.clipboard.writeText(fixture);
+    setCopied(true);
+  }
+
+  return (
+    <div className="regression-fixture">
+      <div>
+        <strong>Runnable regression draft</strong>
+        <button type="button" className="ghost-button" onClick={() => void copyFixture()}>
+          <Copy size={14} aria-hidden="true" />
+          <span aria-live="polite">{copied ? "Copied" : "Copy runnable draft"}</span>
+        </button>
+      </div>
+      <pre>{fixture}</pre>
     </div>
   );
 }
@@ -1224,7 +1528,15 @@ function TraceMemoryGroup({
   );
 }
 
-function ConflictView({ conflicts }: { conflicts: ConflictCandidate[] }) {
+function ConflictView({
+  conflicts,
+  isMutating,
+  onResolve
+}: {
+  conflicts: ConflictCandidate[];
+  isMutating: boolean;
+  onResolve: (conflictId: string, input: ConflictResolutionInput) => void;
+}) {
   return (
     <section className="single-panel" aria-label="Conflict review">
       <div className="panel-heading">
@@ -1238,39 +1550,12 @@ function ConflictView({ conflicts }: { conflicts: ConflictCandidate[] }) {
       {conflicts.length ? (
         <div className="conflict-list">
           {conflicts.map((conflict) => (
-            <article className="conflict-row" key={conflict.id}>
-              <div className="conflict-meta">
-                <Token>{formatToken(conflict.conflictType)}</Token>
-                <Token>{formatToken(conflict.severity)} severity</Token>
-                <Token>{formatToken(conflict.memoryType)}</Token>
-                <Token>{formatToken(conflict.status)}</Token>
-                <span>{conflict.scopeLabel}</span>
-              </div>
-              <div className="comparison-grid">
-                <div>
-                  <h4>Candidate memory</h4>
-                  <p>{conflict.incoming}</p>
-                </div>
-                <div>
-                  <h4>Existing memory</h4>
-                  <p>{conflict.existing}</p>
-                </div>
-              </div>
-              <div className="recommendation">
-                <span>Recommended action</span>
-                <p>{conflict.recommendation}</p>
-              </div>
-              <div className="row-actions">
-                <button type="button" className="ghost-button" disabled>
-                  <Check size={16} aria-hidden="true" />
-                  Keep incoming
-                </button>
-                <button type="button" className="ghost-button" disabled>
-                  <X size={16} aria-hidden="true" />
-                  Keep existing
-                </button>
-              </div>
-            </article>
+            <ConflictResolutionCard
+              conflict={conflict}
+              isMutating={isMutating}
+              key={conflict.id}
+              onResolve={onResolve}
+            />
           ))}
         </div>
       ) : (
@@ -1278,6 +1563,166 @@ function ConflictView({ conflicts }: { conflicts: ConflictCandidate[] }) {
           icon={<AlertTriangle size={24} aria-hidden="true" />}
           title="No conflicts"
           body="Qwen conflict checks will surface supersede, merge, and reject candidates here."
+        />
+      )}
+    </section>
+  );
+}
+
+const conflictActions: Array<{
+  action: ConflictResolutionAction;
+  label: string;
+}> = [
+  { action: "accept_candidate", label: "Accept candidate" },
+  { action: "reject_candidate", label: "Reject candidate" },
+  { action: "supersede_existing", label: "Supersede existing" },
+  { action: "merge", label: "Merge memories" },
+  { action: "keep_both", label: "Keep both" },
+  { action: "dismiss_conflict", label: "Dismiss conflict" }
+];
+
+export function ConflictResolutionCard({
+  conflict,
+  isMutating,
+  onResolve
+}: {
+  conflict: ConflictCandidate;
+  isMutating: boolean;
+  onResolve: (conflictId: string, input: ConflictResolutionInput) => void;
+}) {
+  const [action, setAction] = useState<ConflictResolutionAction>(
+    conflict.recommendedAction
+  );
+  const [reason, setReason] = useState("");
+  const [mergedText, setMergedText] = useState(conflict.incoming);
+  const canResolve = Boolean(
+    reason.trim() && (action !== "merge" || mergedText.trim())
+  );
+
+  return (
+    <article className="conflict-row">
+      <div className="conflict-meta">
+        <Token>{formatToken(conflict.conflictType)}</Token>
+        <Token>{formatToken(conflict.severity)} severity</Token>
+        <Token>{formatToken(conflict.memoryType)}</Token>
+        <Token>{formatToken(conflict.status)}</Token>
+        <span>{conflict.scopeLabel}</span>
+      </div>
+      <div className="comparison-grid">
+        <div>
+          <h4>Candidate memory</h4>
+          <p>{conflict.incoming}</p>
+        </div>
+        <div>
+          <h4>Existing memory</h4>
+          <p>{conflict.existing}</p>
+        </div>
+      </div>
+      <div className="recommendation">
+        <span>Recommended action: {formatToken(conflict.recommendedAction)}</span>
+        <p>{conflict.recommendation}</p>
+      </div>
+      <div className="resolution-form">
+        <label className="field-block">
+          <span>Resolution action</span>
+          <select
+            value={action}
+            onChange={(event) =>
+              setAction(event.target.value as ConflictResolutionAction)
+            }
+          >
+            {conflictActions.map((option) => (
+              <option key={option.action} value={option.action}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field-block">
+          <span>Auditable reason (required)</span>
+          <input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Why is this the correct resolution?"
+            required
+          />
+        </label>
+        {action === "merge" ? (
+          <label className="field-block resolution-merge">
+            <span>Merged canonical text (required)</span>
+            <textarea
+              rows={4}
+              value={mergedText}
+              onChange={(event) => setMergedText(event.target.value)}
+              required
+            />
+          </label>
+        ) : null}
+        <button
+          className="primary-button"
+          type="button"
+          disabled={isMutating || !canResolve}
+          onClick={() =>
+            onResolve(conflict.id, {
+              action,
+              reason: reason.trim(),
+              mergedText: action === "merge" ? mergedText.trim() : undefined
+            })
+          }
+        >
+          <Check size={16} aria-hidden="true" />
+          Resolve conflict
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export function AuditView({ events }: { events: DashboardSnapshot["events"] }) {
+  const sorted = [...events].sort(
+    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
+  );
+  const deletions = sorted.filter((event) => event.eventType === "deleted");
+
+  return (
+    <section className="single-panel" aria-label="Global audit and deletion history">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Caller-scoped governance</p>
+          <h3>Audit &amp; Deletion History</h3>
+        </div>
+        <Token>{deletions.length} hard deletes</Token>
+      </div>
+      <p className="quiet-line">
+        Hard-deleted memory content is removed. Only the safe tombstone fields below remain.
+      </p>
+      {sorted.length > 0 ? (
+        <div className="audit-list">
+          {sorted.map((event) => (
+            <article
+              className={event.eventType === "deleted" ? "audit-row is-delete" : "audit-row"}
+              key={event.id}
+            >
+              <History size={17} aria-hidden="true" />
+              <div>
+                <div className="audit-row-head">
+                  <strong>{formatToken(event.eventType)}</strong>
+                  <Token>{event.memoryId}</Token>
+                </div>
+                <p>{event.reason}</p>
+                <small>
+                  {event.actorType}:{event.actorId} / {formatDate(event.createdAt)}
+                  {event.scopeLabel ? ` / scope: ${event.scopeLabel}` : ""}
+                </small>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={<History size={24} aria-hidden="true" />}
+          title="No audit events"
+          body="Caller-scoped lifecycle and deletion events will appear here."
         />
       )}
     </section>
@@ -1298,7 +1743,12 @@ function NavButton({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={active ? "nav-button is-active" : "nav-button"} onClick={onClick}>
+    <button
+      type="button"
+      className={active ? "nav-button is-active" : "nav-button"}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+    >
       <span>
         {icon}
         {label}
@@ -1433,7 +1883,8 @@ function viewTitle(view: ViewKey) {
     vault: "Inspect Memories",
     pending: "Review Pending Memories",
     trace: "Inspect Memory Traces",
-    conflicts: "Resolve Memory Conflicts"
+    conflicts: "Resolve Memory Conflicts",
+    audit: "Audit & Deletion History"
   };
 
   return titles[view];

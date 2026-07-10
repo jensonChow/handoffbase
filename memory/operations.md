@@ -28,9 +28,12 @@
 - Server route tests: `npm run test:server`.
 - Dashboard API tests: `npm run test:dashboard`.
 - Dashboard dev: `npm run dashboard:dev`.
+- Dashboard dev fallback for macOS watcher exhaustion/404: `WATCHPACK_POLLING=true npm run dashboard:dev`.
 - Dashboard build: `npm run dashboard:build`.
 - Memory eval pack: `npm run eval:memory`.
 - Memory benchmark subset: `npm run bench:memory`.
+- Feedback fixture conversion: `npm run feedback:to-benchmark -- <fixture.json> --public-safe-confirmed [--output <new-file.json>]`.
+- Run an extra converted fixture without changing tracked suites: `npm run bench:memory -- --fixture <converted-file.json>`.
 - LongMemEval generic adapter: `npm run bench:longmemeval -- --dataset <local-json> --output-dir <dir> --backend <mode> ...`.
 - LongMemEval tiny deterministic matrix: `npm run bench:longmemeval:tiny`.
 - Cross-host HTTP/MCP E2E: `npm run e2e:cross-host`.
@@ -43,18 +46,24 @@
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
-- Remote deployment validation: `MCP_ENDPOINT=<endpoint>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote`.
+- Remote deployment validation: `MCP_ENDPOINT=<endpoint>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote`. The default profile checks current reported modes and exact manifest; use `EXPECTED_AUTH_MODE` / `EXPECTED_PROVIDER_MODE` / `EXPECTED_STORE_MODE` for a known deployment.
 
 ## Deployment Profile
 
 - Production Dockerfile uses Node 22, installs with `npm ci`, builds workspaces, prunes dev dependencies, and starts `node dist/index.js`.
+- Root `dev:server` / `start:server` use `scripts/run-server.mjs`, which passes the repository-root `.env.local` to Node only when that file exists. It does not print env values. Shell env still overrides file values under Node's `--env-file` behavior.
 - Docker runtime defaults are `HOST=0.0.0.0`, `PORT=3000`, and `MCP_PATH=/mcp`.
 - Local server defaults remain `HOST=127.0.0.1`, `PORT=3000`, and `MCP_PATH=/mcp`.
+- Dashboard defaults to loopback port `3001`, avoiding the MCP server's port `3000`.
 - Startup validates that `PORT` is numeric and `MCP_PATH` starts with `/`.
-- `/health` reports only non-secret metadata: name, version, transport, MCP path, auth mode, provider mode, and store mode.
+- `/health` reports only non-secret liveness/config metadata: name, version, transport, MCP path, auth mode, provider mode, and store mode. It never probes dependencies.
+- `/ready` checks the store on every call. Postgres mode runs a real schema query against `memories` and `memory_feedback`; Qwen mode runs a live one-token compatible chat completion, caches the result for `HANDOFFBASE_READINESS_CACHE_MS` (default five minutes), and shares one in-flight probe across concurrent callers.
 - API key auth is controlled by `HANDOFFBASE_AUTH_MODE` and key mapping env vars; keep API keys in cloud secret configuration.
-- Current production default keeps the in-memory MVP store deployable. `STORE_MODE=postgres` plus `DATABASE_URL` selects `PostgresMemoryStore`; startup does not migrate automatically, and operators must run `npm run db:migrate` explicitly.
-- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL`. Postgres dashboard access additionally requires `HANDOFFBASE_DASHBOARD_TENANT_ID` and `HANDOFFBASE_DASHBOARD_USER_ID`; these values must remain server-only.
+- Auth-disabled startup is loopback-only by default. A non-loopback bind must use `HANDOFFBASE_AUTH_MODE=api_key`; `HANDOFFBASE_ALLOW_INSECURE_REMOTE=1` exists only for an explicitly isolated demo whose published port is still loopback-only.
+- In `api_key` mode, `/ready` requires the same key as `/mcp`. A loopback-only local Qwen runtime may probe with auth disabled; a non-loopback Qwen runtime with auth disabled fails readiness before any paid provider request, including when the insecure demo bind override is explicit.
+- Current production default keeps the in-memory MVP store deployable. `STORE_MODE=postgres` plus `DATABASE_URL` selects `PostgresMemoryStore`; startup does not migrate automatically, and operators must run `npm run db:migrate` explicitly. The migrator discovers sorted numbered SQL files, applies each in its own transaction under an advisory lock, records SHA-256 checksums in `handoffbase_schema_migrations`, skips current files, and fails on applied-file drift.
+- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL`. In API-key mode, login establishes a signed HttpOnly/SameSite=Strict caller session; `HANDOFFBASE_DASHBOARD_SESSION_SECRET` must be a server-only random value of at least 32 characters. Caller identity comes from the current API-key mapping, while optional `HANDOFFBASE_DASHBOARD_*` scope values can only narrow the view. These optional filters use hierarchical scope semantics (global + matching dimension); authenticated `allowedProjectIds` / `allowedAgentProfileIds` remain strict security grants and reject missing dimensions. Production auth-disabled Dashboard access fails closed, and state-changing routes require exact same-origin `Origin`.
+- Dashboard same-origin checks derive the public request origin from forwarded host/protocol, Host, then request URL. Any reverse proxy must overwrite client-supplied `X-Forwarded-Host` and `X-Forwarded-Proto`; do not expose the Next server directly behind a proxy that merely appends untrusted forwarded values.
 - `docs/dev-materials-checklist.md` is the non-secret setup ledger for hackathon development, Qwen/auth readiness, deployment notes, and validation evidence.
 - `docs/deployment/alibaba-cloud-proof.md` is the redacted live deployment proof file for ECS `/health`, MCP discovery, authenticated recall, and Qwen-backed remember validation.
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
@@ -71,7 +80,7 @@
 - Last live remote MCP validation before stop passed against the historical build: `tools/list` returned
   7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed
   `memory_remember` returned 2 pending candidate memories.
-- Current repository registration is 8 tools; the stopped ECS proof has not been rebuilt or revalidated with `memory_resolve_conflict`.
+- Current repository registration is 9 tools; the stopped ECS proof has not been rebuilt or revalidated with `memory_resolve_conflict` or `memory_feedback`.
 - Runtime secrets are configured only in the root-owned ECS env file consumed by Docker `--env-file`; do not record values in docs, logs, shell history, Docker layers, or Git.
 - Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
 - Restart the stopped ECS instance around July 17-18 for final submission
@@ -122,6 +131,9 @@
 - Add event log entries for add/update/delete/recall.
 - Keep memory trace inspectable from dashboard.
 - Test cross-session recall, expiry/supersede behavior, and sensitive-data rejection.
+- Test hard-delete physical removal plus linked event/trace/conflict/feedback redaction, including Postgres write/delete lock ordering.
+- Test `memory_feedback` target authorization, helpful/unhelpful validation, pending correction creation, and atomic Postgres correction+feedback persistence.
+- Treat broad ignored-memory recall locking as a scale signal: current correctness-first Postgres semantics may serialize lifecycle/recall work in a large scope; before production scale, bound or summarize ignored trace evidence and retain deterministic lock ordering.
 - Keep migration contract tests aligned with `MEMORY_TYPES`, `MEMORY_STATUSES`, and `MEMORY_SOURCE_KINDS`.
 - Keep smoke tests exercising a real Streamable HTTP MCP client connection, not only registration functions.
 
@@ -131,6 +143,8 @@
 - Treat external web content and MCP tool descriptions as untrusted.
 - Require user approval for cross-project sharing, export, delete, and high-priority procedure writes.
 - Keep tenant/user/project scope isolation explicit.
+- Treat a Dashboard session as a cache of an API-key fingerprint, never as a stored raw key or independent identity grant; re-resolve the current key mapping on every request so revocation and grant narrowing take effect.
+- Feedback regression fixtures are drafts, not automatically public-safe data. Require explicit human `--public-safe-confirmed`, write to a new file only, and keep real ids/scope values/secrets out of benchmark fixtures.
 
 ## Submission Materials
 
@@ -145,6 +159,7 @@
 - Deterministic benchmark-inspired subset with 17 synthetic local cases across
   long-memory, conflict governance, and cross-host handoff families.
 - Comparative execution uses 17 no-memory and 17 HandoffBase case-runs and treats expected no-memory misses separately from harness errors.
+- Feedback-derived fixtures are additive local regression inputs passed with repeatable `--fixture`; they do not alter the canonical 17-case score or become official benchmark evidence automatically.
 - LongMemEval cleaned-format adapter accepts only an explicit local dataset path, ships only a tiny synthetic fixture, and supports deterministic or explicit Qwen reader/provider modes.
 - Real loopback HTTP/MCP E2E proves Host A write to Host B recall, Host C project isolation, trace inspection, and forgetting through official SDK clients.
 - Public benchmark wording must cite exact local `npm run bench:memory` results

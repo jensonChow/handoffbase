@@ -14,9 +14,10 @@ test(
     assert.equal(proof.runtime.health.providerMode, "mock");
     assert.equal(proof.runtime.health.storeMode, "in-memory");
     assert.deepEqual(proof.authBoundary, { httpStatus: 401, jsonRpcCode: -32001 });
-    assert.equal(proof.tools.count, 8);
+    assert.equal(proof.tools.count, 9);
     assert.deepEqual(proof.tools.names, [
       "continuity_bootstrap",
+      "memory_feedback",
       "memory_forget",
       "memory_recall",
       "memory_reflect",

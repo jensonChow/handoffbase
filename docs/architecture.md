@@ -47,6 +47,7 @@ flowchart LR
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
+    Feedback["Memory feedback records"]
   end
 
   subgraph DashboardLayer["Memory Vault dashboard"]
@@ -81,9 +82,11 @@ flowchart LR
   Core --> Events
   Core --> Trace
   Core --> Conflicts
+  Core --> Feedback
 
   Dashboard --> DashboardAPI
-  DashboardAPI -->|same MemoryStore selection| Store
+  DashboardAPI -->|caller-bound mutations| Service
+  DashboardAPI -->|caller-scoped snapshots| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView
@@ -115,14 +118,17 @@ projects, hosts, and devices.
 ## MCP Server Boundary
 
 The MCP server exposes a Remote Streamable HTTP endpoint at `/mcp`. The current
-manifest contains eight tools, nine `memory://` resources, and four prompts.
+manifest contains nine tools, nine `memory://` resources, and four prompts.
 Tool names, resource URIs, and prompt names are part of the public interface and
 should not change without an explicit compatibility decision.
 
-The eighth tool, `memory_resolve_conflict`, applies an authorized decision to a
+`memory_resolve_conflict` applies an authorized decision to a
 first-class conflict record. It supports accepting or rejecting the candidate,
 superseding the existing memory, merging canonical text, keeping both memories,
 or dismissing the conflict, with scope checks and audit events.
+
+`memory_feedback` records helpful or unhelpful judgment for a memory or trace
+and can turn a correction into a pending memory candidate for governed review.
 
 The server layer stays thin. It resolves caller scope, enforces auth/scope
 guards, validates tool inputs, and delegates memory behavior to the service and
@@ -222,13 +228,17 @@ The Memory Vault dashboard is a Next.js interface for inspecting and governing
 memory. The browser uses same-origin dashboard API routes by default. The
 server-side backend follows the same `STORE_MODE` and `DATABASE_URL` as the MCP
 runtime: in-memory mode seeds demo data, while Postgres mode disables demo
-seeding and reads the shared durable store.
+seeding and reads the shared durable store. Mutation routes bind the authenticated
+caller to `ContinuityMemoryService`; store access is limited to caller-scoped
+vault snapshots and audit queries.
 
-Postgres dashboard mode fails closed unless private server-side
-`HANDOFFBASE_DASHBOARD_TENANT_ID` and `HANDOFFBASE_DASHBOARD_USER_ID` values are
-set; optional agent, project, and host values narrow that scope. None of those
-scope values are exposed through `NEXT_PUBLIC_*`. Set
+In API-key mode, the signed dashboard caller session derives tenant/user
+identity from the HandoffBase key mapping. Optional server-side tenant, user,
+agent, project, and host allowlists can narrow that caller grant; they never
+establish identity and none are exposed through `NEXT_PUBLIC_*`. Set
 `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` only for the isolated fixture demo.
+Production Dashboard access fails closed if auth is disabled; signed-cookie
+mutations also enforce a same-origin request check.
 
 ## Live Deployment Proof
 
@@ -246,7 +256,8 @@ storeMode=in-memory
 
 That historical image returned the then-current seven-tool MCP surface and
 validated discovery, `memory_recall`, and Qwen-backed `memory_remember`. It
-predates the integrated eighth tool and Postgres wiring, so a future relaunch
+predates the current nine-tool surface, including conflict resolution and
+feedback, as well as the Postgres wiring, so a future relaunch
 must rebuild and revalidate the current image before making current-runtime
 claims.
 

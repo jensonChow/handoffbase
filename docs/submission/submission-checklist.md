@@ -42,7 +42,7 @@ remote validation.
 - [ ] Dashboard test validation: `npm run test:dashboard`.
 - [ ] Remote validator script syntax: `node --check scripts/validate-remote-mcp.mjs`.
 - [ ] Final remote validator check after ECS restart:
-  `MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key> npm run mcp:validate-remote`.
+  `MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key> npm run mcp:validate-remote`.
 - [ ] Final secret scan check: tracked files contain no real API keys, auth
   tokens, database URLs, cookies, cloud credentials, UID, phone number,
   coupon/voucher codes, payment data, or auth headers.

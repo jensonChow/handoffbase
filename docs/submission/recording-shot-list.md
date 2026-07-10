@@ -46,7 +46,8 @@ Remote proof commands to show only with placeholders:
 MCP_ENDPOINT=<deployed-mcp-url>
 MCP_AUTH_TOKEN=<redacted>
 curl -s <deployed-health-url>
-MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+curl -s <deployed-ready-url>
+MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
 ```
 
 Syntax-only check for the remote validator:

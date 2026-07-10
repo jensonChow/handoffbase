@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 3001",
     "typecheck": "tsc --noEmit",
     "test": "npm run build --workspace @handoffbase/memory-core && tsx --tsconfig tsconfig.json --test test/*.test.ts"
   },

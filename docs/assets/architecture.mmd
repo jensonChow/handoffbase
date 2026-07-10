@@ -29,6 +29,7 @@ flowchart LR
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
+    Feedback["Memory feedback records"]
   end
 
   subgraph DashboardLayer["Memory Vault dashboard"]
@@ -63,9 +64,11 @@ flowchart LR
   Core --> Events
   Core --> Trace
   Core --> Conflicts
+  Core --> Feedback
 
   Dashboard --> DashboardAPI
-  DashboardAPI -->|same MemoryStore selection| Store
+  DashboardAPI -->|caller-bound mutations| Service
+  DashboardAPI -->|caller-scoped snapshots| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView
