@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg16
+    profiles:
+      - postgres
+    environment:
+      POSTGRES_USER: handoffbase_local
+      POSTGRES_PASSWORD: local-placeholder-only
+      POSTGRES_DB: handoffbase_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - handoffbase_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  handoffbase_postgres_data:
