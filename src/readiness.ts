@@ -199,5 +199,6 @@ function runtimeInfoForService(service: MemoryService): MemoryServiceRuntimeInfo
   return service.getRuntimeInfo?.() ?? {
     providerMode: "custom",
     storeMode: "custom",
+    embeddingMode: "none",
   };
 }

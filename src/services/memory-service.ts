@@ -39,6 +39,7 @@ export interface MemoryResourceResult {
 export interface MemoryServiceRuntimeInfo {
   providerMode: "mock" | "qwen" | "custom";
   storeMode: "in-memory" | "postgres" | "custom";
+  embeddingMode: "qwen" | "mock" | "custom" | "none";
 }
 
 export interface MemoryService {
@@ -72,6 +73,7 @@ export function withCallerContext(service: MemoryService, caller: CallerContext)
       service.getRuntimeInfo?.() ?? {
         providerMode: "custom",
         storeMode: "custom",
+        embeddingMode: "none",
       },
   };
 }

@@ -365,6 +365,14 @@ export interface MemoryRecallQuery {
   runId?: string;
   actor?: MemoryActor;
   metadata?: JsonObject;
+  /**
+   * Optional precomputed query embedding. When present, stores blend semantic
+   * (cosine) similarity into recall ranking alongside lexical scoring. Absent =
+   * lexical-only behavior (the credential-free default).
+   */
+  queryEmbedding?: readonly number[];
+  /** Model that produced queryEmbedding; stores may match it against stored vectors. */
+  embeddingModel?: string;
 }
 
 export interface MemoryRecallResult {

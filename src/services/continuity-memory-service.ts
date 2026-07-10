@@ -1,9 +1,12 @@
 import {
   InMemoryMemoryStore,
   MockMemoryProvider,
+  MockEmbeddingProvider,
   PostgresMemoryStore,
   QwenMemoryProvider,
+  QwenEmbeddingProvider,
   QwenProviderError,
+  EmbeddingProviderError,
   applyMemoryPatch,
   assertMemoryExpectedStatus,
   assessMemorySafety,
@@ -20,7 +23,10 @@ import {
   type MemoryFeedbackRecord,
   type MemoryConflictRecord,
   type MemoryListFilter,
+  type EmbeddingProvider,
   type MemoryReasoningProvider,
+  type MemoryRecallQuery,
+  type MemoryRecallResult,
   type MemoryRecord,
   type MemoryScope,
   type MemorySourceKind,
@@ -87,6 +93,13 @@ const DEFAULT_AGENT_PROFILE_ID = "opportunity-scout";
 export interface ContinuityMemoryServiceOptions {
   store?: MemoryStore;
   provider?: MemoryReasoningProvider;
+  /**
+   * Optional embedding provider. When set (or auto-detected from Qwen
+   * credentials), memories are embedded on write and queries on recall, so
+   * recall ranks by semantic similarity. Pass `null` to force it off even when
+   * credentials are present. Undefined uses the credential-based default.
+   */
+  embeddingProvider?: EmbeddingProvider | null;
   seedDemoMemories?: boolean;
 }
 
@@ -137,6 +150,7 @@ class ConflictLinkError extends MemoryConflictResolutionError {
 export class ContinuityMemoryService implements MemoryService {
   private readonly store: MemoryStore;
   private readonly provider: MemoryReasoningProvider;
+  private readonly embeddingProvider?: EmbeddingProvider;
   private readonly runtimeInfo: MemoryServiceRuntimeInfo;
   private readonly seedDemoMemories: boolean;
   private readonly conflictResolutionLocks = new Map<string, Promise<void>>();
@@ -146,9 +160,14 @@ export class ContinuityMemoryService implements MemoryService {
   constructor(options: ContinuityMemoryServiceOptions = {}) {
     this.store = options.store ?? new InMemoryMemoryStore();
     this.provider = options.provider ?? createDefaultReasoningProvider();
+    this.embeddingProvider =
+      options.embeddingProvider === null
+        ? undefined
+        : options.embeddingProvider ?? createDefaultEmbeddingProvider();
     this.runtimeInfo = {
       providerMode: providerModeFor(this.provider),
       storeMode: storeModeFor(this.store),
+      embeddingMode: embeddingModeFor(this.embeddingProvider),
     };
     this.seedDemoMemories = options.seedDemoMemories ?? true;
   }
@@ -157,10 +176,65 @@ export class ContinuityMemoryService implements MemoryService {
     return this.runtimeInfo;
   }
 
+  /**
+   * Best-effort embedding of texts. Returns undefined when no embedding provider
+   * is configured or the provider call fails, so recall/remember degrade to
+   * lexical behavior rather than erroring.
+   */
+  private async embedTexts(texts: string[]): Promise<number[][] | undefined> {
+    if (!this.embeddingProvider || texts.length === 0) {
+      return undefined;
+    }
+    try {
+      const vectors = await this.embeddingProvider.embed(texts);
+      return vectors.length === texts.length ? vectors : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Recall that adds a semantic query embedding when an embedding provider is active. */
+  private async recallWithEmbedding(query: MemoryRecallQuery): Promise<MemoryRecallResult> {
+    const text = query.query?.trim();
+    if (this.embeddingProvider && text) {
+      const vectors = await this.embedTexts([text]);
+      const queryEmbedding = vectors?.[0];
+      if (queryEmbedding) {
+        return this.store.recallMemories({
+          ...query,
+          queryEmbedding,
+          embeddingModel: this.embeddingProvider.model,
+        });
+      }
+    }
+    return this.store.recallMemories(query);
+  }
+
+  /** Best-effort persistence of a memory's embedding; never throws into the caller. */
+  private async persistMemoryEmbedding(memory: MemoryRecord): Promise<void> {
+    if (!this.embeddingProvider) {
+      return;
+    }
+    try {
+      const vectors = await this.embedTexts([memory.canonicalText]);
+      const embedding = vectors?.[0];
+      if (embedding) {
+        await this.store.upsertEmbedding({
+          memoryId: memory.id,
+          embedding,
+          embeddingModel: this.embeddingProvider.model,
+          createdAt: new Date(),
+        });
+      }
+    } catch {
+      // Embeddings are an enhancement; a failure must not fail the write.
+    }
+  }
+
   async continuityBootstrap(input: ContinuityBootstrapInput, context: MemoryServiceContext = {}): Promise<ContinuityBootstrapOutput> {
     await this.ensureSeeded();
     const scope = scopeFromBootstrap(input, context.caller);
-    const recall = await this.store.recallMemories({
+    const recall = await this.recallWithEmbedding({
       scope,
       query: input.task_hint ?? "session bootstrap continuity context",
       types: ["identity", "user_preference", "procedure", "project_fact", "tool_memory", "failure_memory", "decision_memory"],
@@ -186,7 +260,7 @@ export class ContinuityMemoryService implements MemoryService {
   async recall(input: MemoryRecallInput, context: MemoryServiceContext = {}): Promise<MemoryRecallOutput> {
     await this.ensureSeeded();
     const scope = scopeFromTool(input.scopes, context.caller);
-    const recall = await this.store.recallMemories({
+    const recall = await this.recallWithEmbedding({
       scope,
       query: input.query,
       types: input.types,
@@ -271,6 +345,7 @@ export class ContinuityMemoryService implements MemoryService {
         },
       );
       await persistConflictRecords(this.store, result.memory, conflict, input.source, context.caller);
+      await this.persistMemoryEmbedding(result.memory);
       stored.push(toCandidateMemory(candidate, result.memory.status, result.memory.id));
     }
 
@@ -322,6 +397,7 @@ export class ContinuityMemoryService implements MemoryService {
         reason: reflection.summary,
         runId: run.id,
       });
+      await this.persistMemoryEmbedding(result.memory);
       newMemories.push(toCandidateMemory(candidate, result.memory.status, result.memory.id));
     }
 
@@ -1723,6 +1799,43 @@ function providerModeFor(provider: MemoryReasoningProvider): MemoryServiceRuntim
     return "mock";
   }
   return "custom";
+}
+
+/**
+ * Selects the embedding provider from the environment. Default is OFF (returns
+ * undefined) so the credential-free path stays lexical and deterministic.
+ * Qwen embeddings turn on automatically when Qwen/DashScope credentials exist;
+ * HANDOFFBASE_EMBEDDINGS=mock forces the deterministic offline provider, and
+ * off/none/disabled forces it off even when credentials are present.
+ */
+function createDefaultEmbeddingProvider(): EmbeddingProvider | undefined {
+  const mode = process.env.HANDOFFBASE_EMBEDDINGS?.trim().toLowerCase();
+  if (mode === "off" || mode === "none" || mode === "disabled") {
+    return undefined;
+  }
+  if (mode === "mock") {
+    return new MockEmbeddingProvider();
+  }
+  if (process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY) {
+    try {
+      return QwenEmbeddingProvider.fromEnv();
+    } catch (error) {
+      if (!(error instanceof EmbeddingProviderError)) {
+        throw error;
+      }
+    }
+  }
+  return undefined;
+}
+
+function embeddingModeFor(provider?: EmbeddingProvider): MemoryServiceRuntimeInfo["embeddingMode"] {
+  if (provider instanceof QwenEmbeddingProvider) {
+    return "qwen";
+  }
+  if (provider instanceof MockEmbeddingProvider) {
+    return "mock";
+  }
+  return provider ? "custom" : "none";
 }
 
 function storeModeFor(store: MemoryStore): MemoryServiceRuntimeInfo["storeMode"] {

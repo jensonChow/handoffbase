@@ -328,8 +328,15 @@ export class PostgresMemoryStore implements MemoryStore {
     const now = query.now ?? new Date();
     const scope = normalizeRecallScope(query.scope);
     const recallQuery: MemoryRecallQuery = { ...query, scope, now };
+    // The shared MemoryStore.recallMemories interface only passes a query, so a
+    // caller (e.g. the service) supplies the query embedding via the query
+    // itself; an explicit options argument still takes precedence when provided.
+    const effectiveOptions: PostgresRecallOptions = {
+      queryEmbedding: options.queryEmbedding ?? recallQuery.queryEmbedding,
+      embeddingModel: options.embeddingModel ?? recallQuery.embeddingModel
+    };
     return withRequiredTransaction(this.client, "recallMemories", async (client) => {
-      const selectedQuery = buildRecallQuery(recallQuery, options);
+      const selectedQuery = buildRecallQuery(recallQuery, effectiveOptions);
       const selectedResult = await client.query<PostgresRecallRow>(selectedQuery.sql, selectedQuery.values);
       const initiallySelected = mapRecallRows(selectedResult.rows);
 

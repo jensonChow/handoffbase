@@ -13,3 +13,6 @@ export * from "./reasoning/input-sanitizer.js";
 export * from "./reasoning/prompts.js";
 export * from "./reasoning/providers/mock.js";
 export * from "./reasoning/providers/qwen.js";
+export * from "./embeddings/provider.js";
+export * from "./embeddings/mock.js";
+export * from "./embeddings/qwen.js";

@@ -64,6 +64,7 @@ export function createHttpApp(options: HttpAppOptions = {}): Express {
       authMode: authConfig.mode,
       providerMode: runtime.providerMode,
       storeMode: runtime.storeMode,
+      embeddingMode: runtime.embeddingMode,
     });
   });
 
@@ -269,6 +270,7 @@ function runtimeInfoForService(service: MemoryService): MemoryServiceRuntimeInfo
   return service.getRuntimeInfo?.() ?? {
     providerMode: "custom",
     storeMode: "custom",
+    embeddingMode: "none",
   };
 }
 

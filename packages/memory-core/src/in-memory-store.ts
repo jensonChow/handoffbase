@@ -55,6 +55,16 @@ import {
 import { type EventListFilter, type MemoryStore } from "./storage.js";
 import { cloneJsonObject, cloneMemoryConflictRecord, cloneMemoryRecord, isPlainObject } from "./utils.js";
 import { cloneMemoryFeedbackRecord, createMemoryFeedbackRecord } from "./feedback.js";
+import { cosineSimilarity } from "./embeddings/provider.js";
+
+/**
+ * Weight applied to non-negative cosine similarity when a query embedding is
+ * supplied. The lexical keyword term contributes up to 1.0, so an equal weight
+ * lets a strong semantic match outrank a weak lexical one without erasing the
+ * lexical signal. With no query embedding this term is 0, preserving the exact
+ * prior lexical ordering.
+ */
+const SEMANTIC_RECALL_WEIGHT = 1;
 
 export interface InMemoryMemoryStoreOptions {
   clock?: () => Date;
@@ -213,9 +223,17 @@ export class InMemoryMemoryStore implements MemoryStore {
     });
 
     const ignored = scoped.filter((memory) => !isRecallableMemory(memory, now));
-    const selected = scoped
-      .filter((memory) => isRecallableMemory(memory, now))
-      .sort((left, right) => scoreMemory(right, query.query) - scoreMemory(left, query.query))
+    const recallable = scoped.filter((memory) => isRecallableMemory(memory, now));
+    // Precompute each score once (the semantic term reads a stored vector) so
+    // the comparator is a cheap map lookup and cannot recompute inconsistently.
+    const recallScores = new Map(
+      recallable.map((memory) => [
+        memory.id,
+        scoreMemory(memory, query.query) + this.semanticBonus(memory, query.queryEmbedding)
+      ])
+    );
+    const selected = recallable
+      .sort((left, right) => (recallScores.get(right.id) ?? 0) - (recallScores.get(left.id) ?? 0))
       .slice(0, query.limit ?? 10);
 
     const touched = selected.map((memory) => touchMemoryUsage(memory, now));
@@ -269,6 +287,17 @@ export class InMemoryMemoryStore implements MemoryStore {
   async getEmbedding(memoryId: string): Promise<MemoryEmbedding | undefined> {
     const embedding = this.embeddings.get(memoryId);
     return embedding ? cloneEmbedding(embedding) : undefined;
+  }
+
+  private semanticBonus(memory: MemoryRecord, queryEmbedding?: readonly number[]): number {
+    if (!queryEmbedding || queryEmbedding.length === 0) {
+      return 0;
+    }
+    const stored = this.embeddings.get(memory.id);
+    if (!stored) {
+      return 0;
+    }
+    return SEMANTIC_RECALL_WEIGHT * Math.max(0, cosineSimilarity(stored.embedding, queryEmbedding));
   }
 
   async addFeedback(
