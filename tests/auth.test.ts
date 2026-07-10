@@ -1,4 +1,6 @@
 import { InMemoryMemoryStore, MockMemoryProvider, type CreateMemoryInput } from "@handoffbase/memory-core";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { authConfigFromEnv } from "../src/auth/config.js";
@@ -89,6 +91,128 @@ test("api_key auth mode resolves callers from bearer, custom header, JSON env, a
       actorId: "single-actor",
       authMode: "api_key",
     },
+  );
+});
+
+test("memory_resolve_conflict preserves API-key caller scope through the HTTP MCP wrapper", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    ...memoryInput("auth-conflict-existing", "tenant-a", "user-a"),
+    status: "active",
+  });
+  await store.addMemory({
+    ...memoryInput("auth-conflict-candidate", "tenant-a", "user-a"),
+    sourceKind: "user_correction",
+    status: "pending",
+  });
+  await store.addConflict({
+    id: "auth-conflict",
+    tenantId: "tenant-a",
+    candidateMemoryId: "auth-conflict-candidate",
+    existingMemoryId: "auth-conflict-existing",
+    conflictType: "contradiction",
+    recommendedAction: "ask_user",
+  });
+  const service = new ContinuityMemoryService({
+    store,
+    provider: new MockMemoryProvider(),
+    seedDemoMemories: false,
+  });
+  const started = await startHttpServer({
+    host: "127.0.0.1",
+    port: 0,
+    service,
+    authConfig: {
+      mode: "api_key",
+      apiKeys: {
+        "user-a-key": { tenantId: "tenant-a", userId: "user-a", actorId: "reviewer-a" },
+        "user-b-key": { tenantId: "tenant-a", userId: "user-b", actorId: "reviewer-b" },
+      },
+    },
+  });
+
+  try {
+    const denied = await callConflictResolution(started.url, "user-b-key");
+    assert.equal(denied.isError, true, "another user in the tenant cannot resolve the conflict");
+    assert.match(renderToolText(denied), /not authorized for user user-a/);
+    assert.equal((await store.getMemory("auth-conflict-candidate"))?.status, "pending");
+    assert.equal((await store.getMemory("auth-conflict-existing"))?.status, "active");
+    assert.equal((await store.getConflict("auth-conflict"))?.status, "open");
+
+    const allowed = await callConflictResolution(started.url, "user-a-key");
+    assert.notEqual(allowed.isError, true);
+    const payload = allowed.structuredContent as {
+      conflict_status?: string;
+      candidate_memory?: { status?: string };
+    };
+    assert.equal(payload.conflict_status, "resolved");
+    assert.equal(payload.candidate_memory?.status, "active");
+    assert.equal((await store.getConflict("auth-conflict"))?.status, "resolved");
+    const resolutionEvent = (await store.listEvents({ memoryId: "auth-conflict-candidate" })).find(
+      (event) => event.metadata.conflict_id === "auth-conflict",
+    );
+    assert.deepEqual(resolutionEvent?.actor, { type: "mcp_host", id: "reviewer-a" });
+  } finally {
+    await closeServer(started.server);
+  }
+});
+
+test("HANDOFFBASE_API_KEYS_JSON parse errors never reveal raw API keys", () => {
+  const rawApiKey = "synthetic-malformed-json-api-key";
+
+  assertApiKeyConfigErrorDoesNotReveal(
+    `{"${rawApiKey}":}`,
+    [rawApiKey],
+    /HANDOFFBASE_API_KEYS_JSON must contain valid JSON/,
+  );
+});
+
+test("HANDOFFBASE_API_KEYS_JSON entry errors never reveal raw API keys", () => {
+  const cases: Array<{
+    label: string;
+    caller: (rawApiKey: string) => unknown;
+    expectedMessage: RegExp;
+  }> = [
+    {
+      label: "non-object",
+      caller: () => null,
+      expectedMessage: /entry 1 must be an object/,
+    },
+    {
+      label: "missing-tenant",
+      caller: () => ({ userId: "user-a" }),
+      expectedMessage: /entry 1 is missing tenantId/,
+    },
+    {
+      label: "missing-user",
+      caller: () => ({ tenantId: "tenant-a" }),
+      expectedMessage: /entry 1 is missing userId/,
+    },
+    {
+      label: "invalid-actor-type",
+      caller: (rawApiKey) => ({ tenantId: "tenant-a", userId: "user-a", actorType: rawApiKey }),
+      expectedMessage: /entry 1 has unsupported actorType/,
+    },
+  ];
+
+  for (const item of cases) {
+    const rawApiKey = `synthetic-${item.label}-api-key`;
+    assertApiKeyConfigErrorDoesNotReveal(
+      JSON.stringify({ [rawApiKey]: item.caller(rawApiKey) }),
+      [rawApiKey],
+      item.expectedMessage,
+    );
+  }
+
+  const validRawApiKey = "synthetic-valid-first-api-key";
+  const invalidRawApiKey = "synthetic-invalid-second-api-key";
+  assertApiKeyConfigErrorDoesNotReveal(
+    JSON.stringify({
+      [validRawApiKey]: { tenantId: "tenant-a", userId: "user-a" },
+      [invalidRawApiKey]: { tenantId: "tenant-a" },
+    }),
+    [validRawApiKey, invalidRawApiKey],
+    /entry 2 is missing userId/,
   );
 });
 
@@ -204,6 +328,66 @@ function pickCallerFields(caller: CallerContext) {
     actorId: caller.actorId,
     authMode: caller.authMode,
   };
+}
+
+function assertApiKeyConfigErrorDoesNotReveal(
+  apiKeysJson: string,
+  rawApiKeys: string[],
+  expectedMessage: RegExp,
+): void {
+  assert.throws(
+    () =>
+      authConfigFromEnv({
+        HANDOFFBASE_AUTH_MODE: "api_key",
+        HANDOFFBASE_API_KEYS_JSON: apiKeysJson,
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, expectedMessage);
+
+      const renderedError = `${error.message}\n${error.stack ?? ""}`;
+      for (const rawApiKey of rawApiKeys) {
+        assert.equal(renderedError.includes(rawApiKey), false, "configuration error must not reveal a raw API key");
+      }
+      return true;
+    },
+  );
+}
+
+async function callConflictResolution(url: string, apiKey: string) {
+  const client = new Client({
+    name: "handoffbase-auth-resolution-test",
+    version: "0.1.0",
+  });
+  const transport = new StreamableHTTPClientTransport(new URL(url), {
+    requestInit: {
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+      },
+    },
+  });
+
+  try {
+    await client.connect(transport);
+    return await client.callTool({
+      name: "memory_resolve_conflict",
+      arguments: {
+        conflict_id: "auth-conflict",
+        action: "accept_candidate",
+        reason: "Accept the authorized user's candidate memory.",
+      },
+    });
+  } finally {
+    await transport.close();
+  }
+}
+
+function renderToolText(result: unknown): string {
+  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content ?? [];
+  return content
+    .filter((item) => item.type === "text" && typeof item.text === "string")
+    .map((item) => item.text)
+    .join("\n");
 }
 
 async function postJsonRpc(url: string, headers: Record<string, string>): Promise<Response> {

@@ -59,6 +59,30 @@ export const TraceMemorySchema = z.object({
   reason: z.string(),
 });
 
+export const memoryConflictResolutionActions = [
+  "accept_candidate",
+  "reject_candidate",
+  "supersede_existing",
+  "merge",
+  "keep_both",
+  "dismiss_conflict",
+] as const;
+
+export const MemoryConflictResolutionActionSchema = z
+  .enum(memoryConflictResolutionActions)
+  .describe(
+    "Resolution action: activate the candidate, reject it, supersede the existing memory, merge into the candidate, keep both active, or dismiss the conflict without changing memories.",
+  );
+
+export const ConflictResolutionMemorySchema = z.object({
+  id: z.string().min(1),
+  text: z.string(),
+  status: MemoryStatusSchema,
+  source_kind: MemorySourceKindSchema,
+  supersedes: z.array(z.string()),
+  superseded_by: z.string().min(1).optional(),
+});
+
 export const continuityBootstrapInputShape = {
   host: z.string().min(1).describe("MCP host making the request."),
   agent_profile: z.string().min(1).describe("Agent profile requesting continuity context."),
@@ -166,6 +190,28 @@ export const memoryTraceOutputShape = {
   excluded_memories: z.array(TraceMemorySchema),
 };
 
+export const memoryResolveConflictInputShape = {
+  conflict_id: z.string().min(1).describe("Open memory conflict to resolve."),
+  action: MemoryConflictResolutionActionSchema,
+  merged_text: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Required for merge; becomes the candidate memory's canonical text."),
+  reason: z.string().trim().min(1).describe("Auditable reason for the authorized resolution decision."),
+};
+
+export const memoryResolveConflictOutputShape = {
+  conflict_id: z.string().min(1),
+  action: MemoryConflictResolutionActionSchema,
+  conflict_status: z.enum(["resolved", "dismissed"]),
+  candidate_memory: ConflictResolutionMemorySchema.optional(),
+  existing_memory: ConflictResolutionMemorySchema.optional(),
+  event_ids: z.array(z.string().min(1)),
+  resolved_at: z.string().min(1),
+};
+
 export const ContinuityBootstrapInputSchema = z.object(continuityBootstrapInputShape);
 export const ContinuityBootstrapOutputSchema = z.object(continuityBootstrapOutputShape);
 export const MemoryRecallInputSchema = z.object(memoryRecallInputShape);
@@ -180,6 +226,16 @@ export const MemoryForgetInputSchema = z.object(memoryForgetInputShape);
 export const MemoryForgetOutputSchema = z.object(memoryForgetOutputShape);
 export const MemoryTraceInputSchema = z.object(memoryTraceInputShape);
 export const MemoryTraceOutputSchema = z.object(memoryTraceOutputShape);
+export const MemoryResolveConflictInputSchema = z.object(memoryResolveConflictInputShape).superRefine((input, context) => {
+  if (input.action === "merge" && !input.merged_text?.trim()) {
+    context.addIssue({
+      code: "custom",
+      path: ["merged_text"],
+      message: "merged_text is required when action is merge.",
+    });
+  }
+});
+export const MemoryResolveConflictOutputSchema = z.object(memoryResolveConflictOutputShape);
 
 export type ContinuityBootstrapInput = z.infer<typeof ContinuityBootstrapInputSchema>;
 export type ContinuityBootstrapOutput = z.infer<typeof ContinuityBootstrapOutputSchema>;
@@ -195,6 +251,9 @@ export type MemoryForgetInput = z.infer<typeof MemoryForgetInputSchema>;
 export type MemoryForgetOutput = z.infer<typeof MemoryForgetOutputSchema>;
 export type MemoryTraceInput = z.infer<typeof MemoryTraceInputSchema>;
 export type MemoryTraceOutput = z.infer<typeof MemoryTraceOutputSchema>;
+export type MemoryResolveConflictInput = z.infer<typeof MemoryResolveConflictInputSchema>;
+export type MemoryResolveConflictOutput = z.infer<typeof MemoryResolveConflictOutputSchema>;
+export type MemoryConflictResolutionAction = z.infer<typeof MemoryConflictResolutionActionSchema>;
 export type MemoryStatus = z.infer<typeof MemoryStatusSchema>;
 export type MemorySourceKind = z.infer<typeof MemorySourceKindSchema>;
 export type MemoryType = z.infer<typeof MemoryTypeSchema>;

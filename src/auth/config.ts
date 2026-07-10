@@ -46,12 +46,19 @@ function parseApiKeysJson(value: string | undefined): Record<string, ApiKeyCalle
     return {};
   }
 
-  const parsed = JSON.parse(value) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    throw new Error("HANDOFFBASE_API_KEYS_JSON must contain valid JSON.");
+  }
   if (!isRecord(parsed)) {
     throw new Error("HANDOFFBASE_API_KEYS_JSON must be a JSON object keyed by API key.");
   }
 
-  const entries = Object.entries(parsed).map(([apiKey, caller]) => [apiKey, parseCallerConfig(caller, apiKey)] as const);
+  const entries = Object.entries(parsed).map(
+    ([apiKey, caller], index) => [apiKey, parseCallerConfig(caller, index)] as const,
+  );
   return Object.fromEntries(entries);
 }
 
@@ -73,25 +80,26 @@ function parseSingleApiKey(env: Record<string, string | undefined>): Record<stri
   };
 }
 
-function parseCallerConfig(value: unknown, apiKey: string): ApiKeyCallerConfig {
+function parseCallerConfig(value: unknown, index: number): ApiKeyCallerConfig {
+  const source = `HANDOFFBASE_API_KEYS_JSON entry ${index + 1}`;
   if (!isRecord(value)) {
-    throw new Error(`API key config for ${apiKey} must be an object.`);
+    throw new Error(`${source} must be an object.`);
   }
 
   const tenantId = readString(value, "tenantId") ?? readString(value, "tenant_id");
   const userId = readString(value, "userId") ?? readString(value, "user_id");
   if (!tenantId) {
-    throw new Error(`API key config for ${apiKey} is missing tenantId.`);
+    throw new Error(`${source} is missing tenantId.`);
   }
   if (!userId) {
-    throw new Error(`API key config for ${apiKey} is missing userId.`);
+    throw new Error(`${source} is missing userId.`);
   }
 
   return {
     tenantId,
     userId,
     actorType:
-      parseActorType(readString(value, "actorType") ?? readString(value, "actor_type"), `API key config for ${apiKey}`) ??
+      parseActorType(readString(value, "actorType") ?? readString(value, "actor_type"), source, false) ??
       DEFAULT_ACTOR_TYPE,
     actorId: readString(value, "actorId") ?? readString(value, "actor_id") ?? userId,
     allowedAgentProfileIds:
@@ -100,14 +108,14 @@ function parseCallerConfig(value: unknown, apiKey: string): ApiKeyCallerConfig {
   };
 }
 
-function parseActorType(value: string | undefined, source: string): MemoryActorType | undefined {
+function parseActorType(value: string | undefined, source: string, includeValue = true): MemoryActorType | undefined {
   if (!value?.trim()) {
     return undefined;
   }
   if ((MEMORY_ACTOR_TYPES as readonly string[]).includes(value)) {
     return value as MemoryActorType;
   }
-  throw new Error(`${source} has unsupported actorType: ${value}`);
+  throw new Error(includeValue ? `${source} has unsupported actorType: ${value}` : `${source} has unsupported actorType.`);
 }
 
 function parseListEnv(value: string | undefined): string[] | undefined {
