@@ -1,6 +1,6 @@
 # Current Handoff
 
-Updated: 2026-07-10T06:46:30Z
+Updated: 2026-07-10T07:13:53Z
 
 ## Completed
 
@@ -81,8 +81,10 @@ Optional Postgres integration:
   `npm run test:postgres:restart` was not run. The disposable restart harness
   is implemented but must not be reported as passed until run elsewhere.
 
-Final whitespace, link, secret, and status checks must be repeated after this
-handoff update and before the local commit is reported.
+The complete deterministic gate was rerun immediately before publication.
+After this handoff refresh, whitespace, Markdown-link, tracked-secret, commit,
+and local/remote status checks were repeated before the final state was
+reported.
 
 ## Current Product Boundary
 
@@ -126,10 +128,14 @@ LongMemEval score.
 
 ## Git State
 
-- Branch: `codex/product-proof-integration`.
-- Final reconciliation is contained in one local integration commit on this
-  branch; use `git rev-parse HEAD` for the exact hash.
-- Nothing was pushed or merged.
+- Current branch: `main`.
+- Focused integration commit:
+  `aedb0bb0e275f76bb264c8684144904914058963`.
+- Published integration branch: `origin/codex/product-proof-integration` at
+  `aedb0bb0e275f76bb264c8684144904914058963`.
+- Main merge commit: `fa83d102963c190e5a639c0180fe58b27bcb1db1`.
+- `main` and `origin/main` are aligned at handoff completion. No pull request
+  or cloud-infrastructure mutation was performed.
 
 ## Next Session Prompt
 
