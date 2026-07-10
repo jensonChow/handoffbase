@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: local-placeholder-only
       POSTGRES_DB: handoffbase_test
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${HANDOFFBASE_POSTGRES_PORT:-55432}:5432"
     volumes:
       - handoffbase_postgres_data:/var/lib/postgresql/data
     healthcheck:

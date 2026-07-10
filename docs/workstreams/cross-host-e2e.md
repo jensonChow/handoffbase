@@ -13,20 +13,37 @@ The default proof is intentionally credential-free and deterministic:
 - `127.0.0.1` with port `0`;
 - no environment-file reads, network services, Qwen calls, or cloud resources.
 
-The runner validates the JSON-RPC authentication error envelope, MCP tool text/structured response parity, Host B context packs, storage-scope filtering plus API-key project authorization for Host C, raw context/retrieval trace contents, `memory_trace` explanations, and lifecycle invalidation. Host C's fixture key is restricted to Project Beta, and an attempted Project Alpha recall must return an MCP tool error without leaking the procedure id or text.
+The runner validates the JSON-RPC authentication error envelope, the current
+eight-tool surface (including `memory_resolve_conflict`), MCP tool
+text/structured response parity, Host B context packs, storage-scope filtering
+plus API-key project authorization for Host C, raw context/retrieval trace
+contents, `memory_trace` explanations, and lifecycle invalidation. Host C's
+fixture key is restricted to Project Beta, and an attempted Project Alpha
+recall must return an MCP tool error without leaking the procedure id or text.
+
+Run the automated proof or its human-readable counterpart with:
+
+```bash
+npm run e2e:cross-host
+npm run demo:cross-host
+```
 
 ## Postgres replay with a real restart
 
-This branch does not claim Postgres durability. The current runtime does not select Postgres from server configuration, and the repository does not yet provide a production SQL client adapter. `PostgresMemoryStore` accepts an explicit `SqlQueryClient`, whose `transaction()` implementation is required for atomic memory writes.
+The integrated server now provides a transactional `pg` adapter and selects
+`PostgresMemoryStore` with `STORE_MODE=postgres` plus `DATABASE_URL`; schema
+application remains explicit through `npm run db:migrate`. The same environment
+values select the dashboard's shared Postgres backend after private tenant/user
+scope is supplied.
 
-When the integration branch owns that adapter and test wiring, replay the same behavior in an isolated disposable database as follows:
+The cross-host CI gate intentionally remains in-memory so it is deterministic,
+credential-free, and independent of Docker. The optional
+`npm run test:postgres:integration` case uses `TEST_DATABASE_URL` and skips when
+none is supplied. `npm run test:postgres:restart` is the disposable local
+restart harness for Docker-capable machines. Docker was unavailable during the
+current integration, so the restart harness has not been executed here and no
+Postgres restart pass is claimed.
 
-1. Create a unique schema or database for the run and apply `packages/memory-core/migrations/0001_memory_core.sql`.
-2. Create SQL client 1 with both `query()` and `transaction()`, then inject `new PostgresMemoryStore(sqlClient1)` and `new MockMemoryProvider()` into `ContinuityMemoryService` with demo seeding disabled.
-3. Start server instance 1 on loopback port `0` with the same explicit fixture auth shape. Run only the baseline and Host A remember phase through the official Host A/B SDK clients, and save the generated memory IDs.
-4. Close every SDK client, fully close server instance 1, and close SQL client 1. This shutdown is the required persistence boundary; do not reuse the service or store object.
-5. Create SQL client 2, a new `PostgresMemoryStore`, a new service, and server instance 2 against the same isolated database. Use a newly connected Host B client to bootstrap and recall the Host A memories, then run the Host C isolation and trace assertions.
-6. Invalidate the project procedure through MCP. For stronger lifecycle proof, stop instance 2 and start a third fresh server/store/client set before the final Host B recall; assert that the invalidation and linked retrieval-trace explanation survive.
-7. Remove the isolated schema/database and close all clients. Use unique tenant/project suffixes if cleanup cannot be guaranteed after a failed run.
-
-Keep the Postgres replay local or CI-disposable, retain the mock provider and explicit in-test auth, and never point it at a shared or production database. Adding a database driver, runtime store selection, root package scripts, and CI wiring belongs to the integration branch, not this owned-file workstream.
+Keep every Postgres replay local or CI-disposable, retain the mock provider and
+explicit test auth, use a dedicated test database, and never point migration or
+restart commands at a shared or production database.

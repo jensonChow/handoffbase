@@ -1,159 +1,149 @@
 # Current Handoff
 
-Updated: 2026-07-09T15:38:29Z
+Updated: 2026-07-10T06:46:30Z
 
-## Completed Recently
+## Completed
 
-- Integrated the deterministic memory benchmark subset work:
-  - `scripts/run-memory-benchmarks.mjs`
-  - `examples/benchmarks/`
-  - `docs/benchmarks.md`
-  - `docs/benchmark-results.md`
-  - `npm run bench:memory`
-- Verified the deterministic benchmark subset passed locally: 17/17 cases.
-- Refreshed memory operations notes for benchmark subset expectations.
-- Integrated Devpost-facing submission materials:
-  - `docs/submission/devpost-copy.md`
-  - `docs/submission/testing-instructions.md`
-  - `docs/submission/submission-checklist.md`
-  - `docs/submission/main-demo-video-script.md`
-  - `docs/submission/alibaba-proof-video-script.md`
-  - `docs/submission/recording-shot-list.md`
-  - `docs/submission/architecture-for-devpost.md`
-  - `docs/submission/final-public-readiness.md`
-- Updated architecture submission assets:
-  - `docs/architecture.md`
-  - `docs/assets/architecture.mmd`
-- Added `docs/deployment/relaunch-runbook.md` as the safe restart,
-  validation, recording, availability, and stop/release checklist for the
-  stopped Alibaba Cloud ECS + Docker demo.
-- Linked the relaunch runbook from `docs/cloud-cost-runbook.md`,
-  `docs/deployment/alibaba-cloud-proof.md`, and
-  `docs/hackathon-resource-support.md`.
-- Clarified that the Alibaba Cloud deployment proof is historical live
-  validation from 2026-07-07T16:26:43Z, not a current-online claim while ECS is
-  stopped or before the endpoint is revalidated.
-- Confirmed the documented ECS instance was stopped in `cn-beijing` using
-  economical stop mode / savings stop mode after explicit user approval in the
-  prior cloud-cost session.
-- No release, resize, paid-service enablement, coupon redemption, payment
-  method, autopay, or new paid cloud resource was performed.
+Integrated the six Product Proof worker commits on
+`codex/product-proof-integration`, in the required order:
 
-## Benchmark Results
+1. benchmark baseline foundation (`2bb64bd` -> `736b6e0`)
+2. LongMemEval adapter (`f40814b` -> `11fa486`)
+3. Postgres runtime (`be94177` -> `f7bd38b`)
+4. conflict resolution (`ca5bcfd` -> `aa21c97`)
+5. dashboard server mode (`3cc9495` -> `a6e521d`)
+6. cross-host E2E (`947f9b1` -> `946676e`)
 
-`npm run bench:memory` passed all synthetic deterministic benchmark-inspired
-fixtures:
+The cherry-picks had no textual conflicts. Semantic reconciliation completed:
 
-- Total cases: 17.
-- Passed: 17.
-- Failed: 0.
+- `memory_resolve_conflict` is the typed eighth MCP tool and preserves caller
+  scope through authenticated HTTP.
+- The comparative benchmark executes terminal `supersede_existing`, `merge`,
+  and `keep_both` lifecycle assertions.
+- `STORE_MODE=in-memory` remains the credential-free default.
+- `STORE_MODE=postgres` plus `DATABASE_URL` selects `PostgresMemoryStore`;
+  migration is explicit through `npm run db:migrate`.
+- The dashboard browser defaults to same-origin HTTP. Its server backend uses
+  the same `STORE_MODE` and `DATABASE_URL` as the MCP runtime; Postgres mode
+  requires private tenant/user scope and disables demo seeding.
+- Cross-host E2E asserts the exact 8-tool surface and closes runtime resources
+  through the server lifecycle.
+- LongMemEval has deterministic and explicit Qwen reader/provider modes. The
+  tiny fixture remains mock, in-memory, network-free, and credential-free.
+- `npm run check` now owns all safe deterministic CI product gates.
+- README, architecture, product completeness, benchmark/eval/testing docs,
+  deployment/submission notes, `memory/*.md`, and this handoff match the code.
 
-Per-family pass counts:
+## Product Proof Results
 
-- `conflicts`: 5/5.
-- `cross-host-handoff`: 6/6.
-- `long-memory`: 6/6.
+The local comparative benchmark executed 34 baseline/case pairs:
 
-Per-metric pass counts:
+- HandoffBase: 17/17 observed passes.
+- No-memory: 0/17 expected capability misses.
+- Expectation conformance: 34/34.
+- Execution errors: 0.
+- Fixture errors: 0.
+- Shared metric-tagged case cells: HandoffBase 43/43, no-memory 0/43.
 
-- `answer_correct`: 3/3.
-- `conflict_action_correct`: 5/5.
-- `conflict_created`: 3/3.
-- `evidence_precision_at_k`: 5/5.
-- `evidence_recall_at_k`: 2/2.
-- `excluded_memory_correct`: 1/1.
-- `forget_correct`: 2/2.
-- `scope_isolation_correct`: 7/7.
-- `token_budget_respected`: 1/1.
-- `trace_id_present`: 8/8.
-- `update_correct`: 2/2.
-- `used_memory_correct`: 6/6.
+These are synthetic local regression results, not an official benchmark score.
 
-These are deterministic benchmark-inspired local results. They are not official
-LongMemEval, MemConflict, Mem2ActBench, LongMemEval-V2, MemEvoBench, LifeBench,
-or other leaderboard scores.
+The LongMemEval tiny matrix completed 9/9 question-runs across `no-memory`,
+`raw-history`, and `handoffbase`, using the deterministic reader and mock memory
+provider. The official evaluator was not run.
 
-## Validation Snapshot
+## Validation
 
-- `npm run check`: passed after benchmark integration, including typecheck,
-  build, smoke registration, memory-core tests, auth tests, server tests, and
-  dashboard tests.
-- `npm run eval:memory`: passed 8/8 deterministic memory eval cases after
-  benchmark integration.
-- `npm run bench:memory`: passed 17/17 deterministic benchmark cases.
-- `node --check scripts/run-memory-benchmarks.mjs`: passed in the benchmark
-  integration session.
-- `node --check scripts/validate-remote-mcp.mjs`: passed in the public
-  readiness session.
-- Markdown relative-link check and tracked-file secret/public scan passed in
-  the benchmark and public-readiness sessions.
+Final `npm run check`: passed. It included:
 
-## Current Product State
+- TypeScript/workspace/server typecheck and production builds: passed.
+- Dashboard production build: passed; Next.js generated all app/API routes.
+- MCP smoke: 8 tools, 9 resources, 4 prompts.
+- Memory core: 28/28 passed.
+- Auth: 8/8 passed.
+- Runtime/config/migration/pg-client unit tests: 17/17 passed.
+- Server aggregate: 44/44 passed, including conflict, benchmark, and
+  LongMemEval adapter coverage.
+- Dashboard: 14/14 passed.
+- `npm run eval:memory`: 8/8 passed.
+- `npm run bench:memory`: HandoffBase 17/17, no-memory 0/17 expected,
+  conformance 34/34.
+- `npm run bench:longmemeval:tiny`: 9/9 question-runs passed.
+- `npm run e2e:cross-host`: 1/1 passed.
+- Markdown relative links: 54 tracked Markdown files, 68 links, passed.
+- Tracked-file secret scan: 176 tracked text files, passed; no real `.env.*`
+  files were opened.
 
-- HandoffBase remains a functional open-source memory infrastructure MVP, not a
-  production SaaS product.
-- The current live/runtime proof remains `storeMode=in-memory`; Postgres
-  runtime wiring remains future work.
-- The Alibaba ECS proof remains historical deployment proof and may be stopped
-  for cost control. Do not claim a currently live endpoint without restart and
-  revalidation under explicit approval.
-- The benchmark subset is local, deterministic, public-safe, credential-free,
-  network-free, and synthetic. It does not read `.env.*`, call Qwen or
-  DashScope, call a remote MCP endpoint, restart ECS, use database URLs, or
-  require paid cloud resources.
+Optional Postgres integration:
 
-## Cloud And Cost State
+- `npm run test:postgres:integration`: exited successfully with its one test
+  safely skipped because `TEST_DATABASE_URL` was not supplied.
+- Docker is not installed on this machine (`docker: command not found`), so
+  `npm run test:postgres:restart` was not run. The disposable restart harness
+  is implemented but must not be reported as passed until run elsewhere.
 
-- The stopped ECS instance may still bill for retained disk/resources while
-  compute is paused by economical stop mode.
-- The prior public endpoint is not available while stopped, and the public IP
-  may change after restart.
-- Account-level balance and exact ECS bill detail were not visible in the prior
-  console check because billing pages stayed on loading skeletons.
-- Bailian fee overview showed total model-platform spend `¥0`.
-- `qwen-plus-2025-07-28` showed 1,000,000 / 1,000,000 free tokens remaining
-  with free-quota-only / stop-when-free-quota-runs-out enabled in the prior
-  check.
-- Alibaba Resource Center was not enabled, so the paid-resource sweep was a
-  best-effort console check rather than a full Resource Center inventory.
+Final whitespace, link, secret, and status checks must be repeated after this
+handoff update and before the local commit is reported.
 
-## Open Risks
+## Current Product Boundary
 
-- GitHub Actions should be checked after the pushed branch or any future PR.
-- The deterministic subset proves local service behavior over synthetic
-  fixtures only; public materials must not claim official benchmark scores.
-- The subset does not add Qwen-backed manual benchmark mode or external
-  benchmark dataset adapters.
-- Durable runtime storage, TLS/domain/load balancer/monitoring, and production
-  SaaS operations remain future work.
-- ECS restart, current public IP confirmation, `/health`, and remote MCP
-  validation still require explicit approval and safe shell-provided secrets.
-- Coupon/voucher activation may still require a later browser or email check.
-  Do not print, save, or commit any coupon/voucher code if one becomes
-  available.
-- If final submission validation needs a live endpoint, restart the ECS
-  instance around July 17-18, recheck the public IP, and revalidate using
-  `docs/deployment/relaunch-runbook.md`.
-- Public repository visibility still requires owner action; do not make the
-  repo public without explicit approval.
+- The repository code supports selectable Postgres persistence, but the
+  historical Alibaba ECS proof remains Qwen/API-key/in-memory and predates the
+  eighth tool.
+- No cloud database, TLS/domain/load balancer, monitoring, or production SaaS
+  operations were added.
+- Conflict serialization is process-local; there is no cross-process Postgres
+  transaction spanning all linked memories and the conflict record.
+- The dashboard is server-backed and scoped, but not a hardened production
+  admin console.
+- The migration has no ledger, and managed Postgres may require explicit
+  privilege/support verification for `CREATE EXTENSION vector`.
+
+## Full Credentialed LongMemEval Blockers
+
+Before a full run:
+
+- obtain the official cleaned dataset separately and keep it outside Git;
+- securely export `QWEN_API_KEY` or `DASHSCOPE_API_KEY`;
+- approve quota, cost, timeout, and exact Qwen model/version;
+- choose a fresh output directory and retain adapter metadata;
+- pin and run the separate official LongMemEval evaluator, including any judge
+  credential/cost, then record its configuration and output.
+
+Later adapter command:
+
+```sh
+QWEN_MODEL=qwen-plus npm run bench:longmemeval -- \
+  --dataset /absolute/path/to/longmemeval_s_cleaned.json \
+  --output-dir /absolute/path/to/longmemeval-qwen-results \
+  --backend handoffbase \
+  --reader qwen \
+  --memory-provider qwen
+```
+
+This produces hypotheses and internal retrieval evidence. It does not invoke
+the separate official evaluator and does not by itself produce an official
+LongMemEval score.
+
+## Git State
+
+- Branch: `codex/product-proof-integration`.
+- Final reconciliation is contained in one local integration commit on this
+  branch; use `git rev-parse HEAD` for the exact hash.
+- Nothing was pushed or merged.
 
 ## Next Session Prompt
 
 ```text
-Read agent.md, memory/README.md, memory/product.md, memory/architecture.md,
-memory/qwen-cloud.md, memory/operations.md, memory/decisions.md,
-docs/handoff.md, README.md, docs/effect.md, docs/benchmarks.md,
-docs/product-completeness.md, docs/product-workflows.md, docs/evals.md,
-docs/dev-materials-checklist.md, docs/hackathon-resource-support.md,
-docs/deployment/relaunch-runbook.md, docs/submission/final-public-readiness.md,
-scripts/run-memory-eval.mjs, scripts/run-memory-benchmarks.mjs, package.json,
-and packages/memory-core/src/types.ts first.
+Read agent.md, every memory/*.md file, docs/handoff.md, README.md,
+docs/architecture.md, docs/product-completeness.md, docs/benchmarks.md,
+docs/benchmark-results.md, docs/submission/testing-instructions.md,
+package.json, src/config.ts, src/runtime/, src/services/memory-service.ts,
+src/mcp/manifest.ts, apps/dashboard/src/lib/server/, and
+benchmarks/longmemeval/ before changing product behavior.
 
-Preserve MCP tool names, resource URIs, prompt names, runtime behavior,
-Postgres runtime wiring, repository visibility, cloud state, and secret-handling
-rules.
-
-Do not read `.env.*`, restart ECS, trigger cloud cost, run remote validation, or
-claim official benchmark scores unless explicitly asked and safe secrets are
-already supplied through the shell or cloud secret configuration.
+Preserve the credential-free mock/in-memory default and the honest distinction
+between integrated Postgres capability and the historical in-memory Alibaba
+proof. Do not run the official LongMemEval dataset, Qwen reader/provider, paid
+judge, Docker restart harness, cloud mutation, push, or merge without explicit
+authorization and safe external inputs.
 ```

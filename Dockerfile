@@ -25,6 +25,7 @@ WORKDIR /app
 COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/scripts/db/migrate.mjs ./scripts/db/migrate.mjs
 COPY --from=build /app/packages/memory-core/package.json ./packages/memory-core/package.json
 COPY --from=build /app/packages/memory-core/dist ./packages/memory-core/dist
 COPY --from=build /app/packages/memory-core/migrations ./packages/memory-core/migrations

@@ -49,9 +49,10 @@ The HandoffBase path remains 17/17:
 | `cross-host-handoff` | 6 | 6 |
 | `long-memory` | 6 | 6 |
 
-Conflict-governance cases execute both baselines. No-memory produces no
-candidate or governance state and therefore records the expected miss; the
-suite does not invent a conflict-resolution result.
+Conflict-governance cases execute both baselines. HandoffBase applies real
+terminal `supersede_existing`, `merge`, and `keep_both` resolution steps and
+asserts the resulting state. No-memory remains inert, produces no candidate or
+governance state, and therefore records the expected miss.
 
 ## Per-Metric-Tagged Case Results
 
@@ -114,3 +115,10 @@ executor ran for either baseline and no result is reported for them.
 
 The command does not read `.env.*`, call Qwen or DashScope, call a remote MCP
 endpoint, restart ECS, use a database URL, or require paid cloud resources.
+
+The separate cleaned-format LongMemEval adapter and synthetic tiny fixture do
+not change these recorded numbers. The official dataset was not downloaded, a
+full credentialed Qwen run was not completed, the official QA evaluator was not
+invoked, and no official LongMemEval score is reported. See the
+[adapter guide](../benchmarks/longmemeval/README.md) for that boundary and the
+later-run command.

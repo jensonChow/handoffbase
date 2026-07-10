@@ -179,14 +179,23 @@ function toDashboardTrace(
     agentProfileId: stringMetadata(trace.metadata, "agentProfileId") ?? "dashboard",
     createdAt: trace.createdAt.toISOString(),
     contextPack: trace.contextPack ?? "",
-    usedMemories: trace.selectedMemoryIds.map((memoryId) =>
-      toTraceMemoryRef(memoryId, memoryById, trace.selectionReasons[memoryId], scoreByMemoryId)
+    usedMemories: toVisibleTraceMemoryRefs(
+      trace.selectedMemoryIds,
+      memoryById,
+      trace.selectionReasons,
+      scoreByMemoryId
     ),
-    ignoredMemories: trace.ignoredMemoryIds.map((memoryId) =>
-      toTraceMemoryRef(memoryId, memoryById, trace.selectionReasons[memoryId], scoreByMemoryId)
+    ignoredMemories: toVisibleTraceMemoryRefs(
+      trace.ignoredMemoryIds,
+      memoryById,
+      trace.selectionReasons,
+      scoreByMemoryId
     ),
-    excludedMemories: excludedMemoryIds.map((memoryId) =>
-      toTraceMemoryRef(memoryId, memoryById, trace.selectionReasons[memoryId], scoreByMemoryId)
+    excludedMemories: toVisibleTraceMemoryRefs(
+      excludedMemoryIds,
+      memoryById,
+      trace.selectionReasons,
+      scoreByMemoryId
     ),
     metadata: primitiveMetadata(trace.metadata)
   };
@@ -235,19 +244,41 @@ function toDashboardConflict(
   };
 }
 
+function toVisibleTraceMemoryRefs(
+  memoryIds: string[],
+  memoryById: Map<string, CoreMemoryRecord>,
+  selectionReasons: Record<string, string>,
+  scoreByMemoryId: JsonObject | undefined
+): TraceMemoryRef[] {
+  return memoryIds.flatMap((memoryId) => {
+    const memory = memoryById.get(memoryId);
+    if (memory === undefined) {
+      return [];
+    }
+
+    return [
+      toTraceMemoryRef(
+        memoryId,
+        memory,
+        selectionReasons[memoryId],
+        scoreByMemoryId
+      )
+    ];
+  });
+}
+
 function toTraceMemoryRef(
   memoryId: string,
-  memoryById: Map<string, CoreMemoryRecord>,
+  memory: CoreMemoryRecord,
   reason: string | undefined,
   scoreByMemoryId: JsonObject | undefined
 ): TraceMemoryRef {
-  const memory = memoryById.get(memoryId);
   const score = scoreByMemoryId?.[memoryId];
 
   return {
     memoryId,
-    text: memory?.canonicalText ?? "Memory is no longer visible in the dashboard snapshot.",
-    type: memory?.type ?? "project_fact",
+    text: memory.canonicalText,
+    type: memory.type,
     score: typeof score === "number" ? score : undefined,
     reason: reason ?? "Selected by memory-core trace metadata."
   };

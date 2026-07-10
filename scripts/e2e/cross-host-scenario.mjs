@@ -28,8 +28,11 @@ const EXPECTED_TOOLS = [
   "continuity_bootstrap",
   "memory_forget",
   "memory_recall",
+  "memory_reflect",
   "memory_remember",
+  "memory_resolve_conflict",
   "memory_trace",
+  "memory_update",
 ];
 
 export async function runCrossHostScenario() {
@@ -70,9 +73,8 @@ export async function runCrossHostScenario() {
 
     const tools = await hostB.client.listTools();
     const toolNames = tools.tools.map((tool) => tool.name);
-    for (const expected of EXPECTED_TOOLS) {
-      assert.ok(toolNames.includes(expected), `tools/list includes ${expected}`);
-    }
+    assert.equal(tools.tools.length, EXPECTED_TOOLS.length, "tools/list returns exactly the 8-tool surface");
+    assert.deepEqual([...toolNames].sort(), [...EXPECTED_TOOLS].sort(), "tools/list matches the exact 8-tool surface");
 
     const hostBScopes = {
       tenant_id: CROSS_HOST_FIXTURE.tenantId,
@@ -354,7 +356,7 @@ export async function runCrossHostScenario() {
     };
   } finally {
     await Promise.allSettled(clients.reverse().map(({ client }) => client.close()));
-    await closeServer(started.server);
+    await started.close();
   }
 }
 
@@ -491,16 +493,4 @@ function pick(value, keys) {
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-async function closeServer(server) {
-  await new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
 }

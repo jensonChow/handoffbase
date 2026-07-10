@@ -4,7 +4,7 @@ import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
-export const LONGMEMEVAL_ADAPTER_VERSION = "1.0.0";
+export const LONGMEMEVAL_ADAPTER_VERSION = "1.1.0";
 export const LONGMEMEVAL_BACKENDS = Object.freeze(["no-memory", "raw-history", "handoffbase"]);
 export const LONGMEMEVAL_QUESTION_TYPES = Object.freeze([
   "single-session-user",
@@ -23,7 +23,7 @@ export const LONGMEMEVAL_OUTPUT_FILES = Object.freeze({
   state: ".longmemeval-run-state.json"
 });
 
-const OUTPUT_SCHEMA_VERSION = "1";
+const OUTPUT_SCHEMA_VERSION = "2";
 const OFFICIAL_TIMESTAMP = /^(\d{4})\/(\d{2})\/(\d{2}) \(([A-Z][a-z]{2})\) (\d{2}):(\d{2})$/;
 const RFC3339_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
 const WEEKDAYS = Object.freeze(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
@@ -270,7 +270,9 @@ export async function runLongMemEval(options) {
     adapter: LONGMEMEVAL_ADAPTER_VERSION,
     dataset: dataset.sha256,
     backend: normalized.backend,
+    readerMode: normalized.readerMode,
     model: normalized.reader.modelLabel,
+    memoryProviderMode: normalized.memoryProviderMode,
     commit: normalized.commit,
     retrievalLimit: normalized.retrievalLimit,
     tokenBudget: normalized.tokenBudget,
@@ -287,7 +289,9 @@ export async function runLongMemEval(options) {
     datasetSha256: dataset.sha256,
     datasetQuestions: dataset.questions.length,
     backend: normalized.backend,
+    readerMode: normalized.readerMode,
     modelLabel: normalized.reader.modelLabel,
+    memoryProviderMode: normalized.memoryProviderMode,
     memoryBoundaryLabel: normalized.memoryBoundaryLabel,
     retrievalLimit: normalized.retrievalLimit,
     tokenBudget: normalized.tokenBudget,
@@ -333,6 +337,7 @@ export async function runLongMemEval(options) {
         runIsolationKey: runId,
         backend: normalized.backend,
         reader: normalized.reader,
+        readerMode: normalized.readerMode,
         memoryBoundary: normalized.memoryBoundary,
         retrievalLimit: normalized.retrievalLimit,
         tokenBudget: normalized.tokenBudget
@@ -377,6 +382,7 @@ async function runQuestion({
   runIsolationKey,
   backend,
   reader,
+  readerMode,
   memoryBoundary,
   retrievalLimit,
   tokenBudget
@@ -503,6 +509,7 @@ async function runQuestion({
       },
       internal_pre_context_retrieval_metrics: metrics,
       reader: {
+        mode: readerMode,
         model_label: reader.modelLabel,
         token_counters: readerUsage
       },
@@ -567,6 +574,8 @@ function normalizeRunOptions(options) {
   validateNonEmptyString(options.outputDir, "outputDir");
   validate(LONGMEMEVAL_BACKENDS.includes(options.backend), "backend must be no-memory, raw-history, or handoffbase.");
   validate(isPlainObject(options.reader), "reader must be an object.");
+  const readerMode = options.reader.mode ?? "custom";
+  validateNonEmptyString(readerMode, "reader.mode");
   validateNonEmptyString(options.reader.modelLabel, "reader.modelLabel");
   validate(typeof options.reader.generate === "function", "reader.generate must be a function.");
   if (options.backend === "handoffbase") {
@@ -579,6 +588,10 @@ function normalizeRunOptions(options) {
     validate(typeof options.memoryBoundary.memory_remember === "function", "memoryBoundary.memory_remember must be a function.");
     validate(typeof options.memoryBoundary.memory_recall === "function", "memoryBoundary.memory_recall must be a function.");
   }
+  const memoryProviderMode = options.backend === "handoffbase"
+    ? options.memoryBoundary.providerMode ?? "custom"
+    : "none";
+  validateNonEmptyString(memoryProviderMode, "memoryBoundary.providerMode");
   if (options.limit !== undefined) {
     validate(Number.isSafeInteger(options.limit) && options.limit > 0, "limit must be a positive integer.");
   }
@@ -598,7 +611,9 @@ function normalizeRunOptions(options) {
     outputDir: options.outputDir,
     backend: options.backend,
     reader: options.reader,
+    readerMode,
     memoryBoundary: options.memoryBoundary,
+    memoryProviderMode,
     memoryBoundaryLabel: options.backend === "handoffbase" ? options.memoryBoundary.label : "none",
     questionId: options.questionId,
     limit: options.limit,
@@ -641,6 +656,8 @@ async function readRunState(statePath) {
 function validateRunStateStructure(state) {
   validate(["running", "incomplete", "complete"].includes(state.status), "Resume state status is invalid.");
   validateNonEmptyString(state.commit, "Resume state commit");
+  validateNonEmptyString(state.readerMode, "Resume state readerMode");
+  validateNonEmptyString(state.memoryProviderMode, "Resume state memoryProviderMode");
   validateNonEmptyString(state.startedAt, "Resume state startedAt");
   validate(Number.isFinite(Date.parse(state.startedAt)), "Resume state startedAt is invalid.");
   validate(
@@ -701,6 +718,7 @@ function validateRunStateStructure(state) {
       `Resume state record ${questionId} retrieval evaluable flag is invalid.`
     );
     validate(isPlainObject(record.retrieval.reader), `Resume state record ${questionId} reader is invalid.`);
+    validateNonEmptyString(record.retrieval.reader.mode, `Resume state record ${questionId} reader mode`);
     validateStoredUsage(
       record.retrieval.reader.token_counters,
       `Resume state record ${questionId} reader token counters`
@@ -745,7 +763,9 @@ function assertResumeCompatible(state, expected) {
     [state.datasetSha256, expected.datasetSha256, "dataset digest"],
     [state.datasetQuestions, expected.datasetQuestions, "dataset question count"],
     [state.backend, expected.backend, "backend"],
+    [state.readerMode, expected.readerMode, "reader mode"],
     [state.modelLabel, expected.modelLabel, "reader model label"],
+    [state.memoryProviderMode, expected.memoryProviderMode, "memory provider mode"],
     [state.memoryBoundaryLabel, expected.memoryBoundaryLabel, "memory boundary label"],
     [state.retrievalLimit, expected.retrievalLimit, "retrieval limit"],
     [state.tokenBudget, expected.tokenBudget, "token budget"],
@@ -791,7 +811,9 @@ function buildRunMetadata(state, records) {
     run_id: state.runId,
     commit: state.commit,
     backend: state.backend,
+    reader_mode: state.readerMode,
     model_label: state.modelLabel,
+    memory_provider_mode: state.memoryProviderMode,
     memory_boundary_label: state.memoryBoundaryLabel,
     status: state.status,
     dataset: {
@@ -837,6 +859,8 @@ function buildSummary(state, records) {
     run_id: state.runId,
     status: state.status,
     backend: state.backend,
+    reader_mode: state.readerMode,
+    memory_provider_mode: state.memoryProviderMode,
     selected_questions: state.selection.selectedQuestionIds.length,
     completed_questions: records.length,
     official_qa_evaluation: {

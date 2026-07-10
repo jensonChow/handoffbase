@@ -111,7 +111,7 @@ test("dashboard mutations survive fresh reads while the server process stays ali
   assert.deepEqual(secondRefresh.memories, snapshot.memories);
 });
 
-test("an injected shared store is scoped, unseeded, and created once", async () => {
+test("an injected shared store scopes memories, events, traces, and conflicts", async () => {
   const store = new InMemoryMemoryStore();
 
   await store.addMemory({
@@ -136,6 +136,51 @@ test("an injected shared store is scoped, unseeded, and created once", async () 
     sourceKind: "manual_import"
   });
 
+  await store.addRun({
+    id: "run_shared",
+    tenantId: "tenant_shared",
+    userId: "user_shared",
+    projectId: "project_shared",
+    hostId: "codex"
+  });
+  await store.addRun({
+    id: "run_other_user",
+    tenantId: "tenant_shared",
+    userId: "other_user",
+    projectId: "project_shared",
+    hostId: "codex"
+  });
+  const sharedTrace = await store.addTrace({
+    id: "trace_shared",
+    tenantId: "tenant_shared",
+    runId: "run_shared",
+    selectedMemoryIds: ["shared_memory_001"],
+    ignoredMemoryIds: [],
+    selectionReasons: {
+      shared_memory_001: "Visible to the configured dashboard user."
+    }
+  });
+  const otherUserTrace = await store.addTrace({
+    id: "trace_other_user",
+    tenantId: "tenant_shared",
+    runId: "run_other_user",
+    selectedMemoryIds: ["other_user_memory"],
+    ignoredMemoryIds: [],
+    selectionReasons: {
+      other_user_memory: "Must remain hidden from the configured dashboard user."
+    }
+  });
+  await store.addConflict({
+    id: "conflict_other_user",
+    tenantId: "tenant_shared",
+    candidateMemoryId: "other_user_memory",
+    existingMemoryId: "shared_memory_001",
+    conflictType: "contradiction",
+    severity: "high",
+    recommendedAction: "ask_user",
+    reason: "This cross-user conflict must remain hidden."
+  });
+
   let factoryCalls = 0;
   resetDashboardMemoryBackendForTest(async () => {
     factoryCalls += 1;
@@ -148,7 +193,8 @@ test("an injected shared store is scoped, unseeded, and created once", async () 
       },
       seedDemoData: false,
       loadMemories: async ({ store: boundStore }) =>
-        boundStore.listMemories({ includeExpiredByValidity: true })
+        boundStore.listMemories({ includeExpiredByValidity: true }),
+      loadTraces: async () => [sharedTrace, otherUserTrace]
     };
   });
 
@@ -163,8 +209,21 @@ test("an injected shared store is scoped, unseeded, and created once", async () 
     snapshot.memories.map((memory) => memory.id),
     ["shared_memory_001"]
   );
-  assert.equal(snapshot.traces.length, 0);
+  assert.deepEqual(snapshot.traces.map((trace) => trace.id), ["trace_shared"]);
+  assert.deepEqual(
+    snapshot.traces[0]?.usedMemories.map((memory) => memory.memoryId),
+    ["shared_memory_001"]
+  );
+  assert.equal(
+    snapshot.events.every((event) => event.memoryId === "shared_memory_001"),
+    true
+  );
   assert.equal(snapshot.conflicts.length, 0);
+  assert.equal(JSON.stringify(snapshot).includes("other_user_memory"), false);
+  assert.equal(
+    JSON.stringify(snapshot).includes("outside the dashboard scope"),
+    false
+  );
 
   const crossScopeMutation = await PATCH(
     jsonRequest("PATCH", { canonicalText: "Cross-scope edit" }),

@@ -1,10 +1,9 @@
 # Final Public Readiness
 
-Last updated: 2026-07-09T15:38:29Z
+Last updated: 2026-07-10
 
-Scope: docs-only public-readiness pass for HandoffBase public repository and
-Devpost submission. This pass does not change application behavior, cloud
-deployment, runtime storage, or secret configuration.
+Scope: public-readiness checklist reconciled with the integrated Product Proof
+code. Cloud state and secret configuration were not changed.
 
 ## Go/No-Go Snapshot
 
@@ -52,14 +51,18 @@ deployment, runtime storage, or secret configuration.
 - [ ] Main demo video link: `TODO`.
 - [ ] Alibaba proof video link: `TODO`.
 
-## Validation Checklist
+## Prior Validation Snapshot
+
+The rows below are preserved as the 2026-07-09 pre-integration snapshot; their
+tool/test counts are historical and do not validate the current eight-tool
+integration. Use `npm run check` for the current gate set.
 
 | Check | Result |
 | --- | --- |
-| `npm run check` | Passed. Built/typechecked workspaces and server, built dashboard, smoke-registered 7 tools, 9 resources, and 4 prompts, and passed memory-core 28/28, auth 5/5, server 1/1, and dashboard 2/2 tests. |
+| `npm run check` | Historical pass. Built/typechecked workspaces and server, built dashboard, smoke-registered the then-current 7 tools, 9 resources, and 4 prompts, and passed the then-current test counts. |
 | `npm run eval:memory` | Passed 8/8 deterministic memory eval cases without Qwen credentials or a remote endpoint. |
 | `npm run bench:memory` | Passed 17/17 deterministic benchmark-inspired local cases. |
-| `npm run smoke` | Passed; registered 7 tools, 9 resources, and 4 prompts. |
+| `npm run smoke` | Historical pass; registered the then-current 7 tools, 9 resources, and 4 prompts. Current code has 8 tools. |
 | `npm run dashboard:build` | Passed. |
 | `npm run test:dashboard` | Passed 2/2 dashboard API tests. |
 | `node --check scripts/validate-remote-mcp.mjs` | Passed. |
@@ -106,14 +109,14 @@ Expected safe outcomes:
 ## Known Limitations
 
 - The live Alibaba Cloud proof used `storeMode=in-memory`.
-- `PostgresMemoryStore` and the pgvector migration path exist, but runtime
-  `STORE_MODE=postgres` wiring is future work.
+- Postgres migration and `STORE_MODE=postgres` runtime wiring exist, but no
+  cloud database was provisioned and the Docker restart harness was not run.
 - The public endpoint proof used HTTP on an ECS IP, with no TLS, domain, load
   balancer, or managed gateway.
-- The Memory Vault dashboard is a governance prototype and defaults to mock data.
-- The eval pack and benchmark subset are deterministic and local; they are not
-  official benchmark scores.
-- No official benchmark result is claimed.
+- The Memory Vault uses same-origin server APIs by default and can share the MCP
+  Postgres database, but it is not a production admin console.
+- The local comparison and LongMemEval tiny fixture are deterministic and
+  synthetic. No full credentialed official run or official score exists.
 
 ## Final Go/No-Go Decision Fields
 

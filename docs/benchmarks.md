@@ -65,8 +65,8 @@ The current fixtures cover:
 - Conflict detection when a candidate contradicts an active memory.
 - Pending review records for `ask_user`, `merge`, and `supersede`
   recommendations.
-- Recommended governance actions for `supersede`, `merge`, `keep_both`, and
-  `reject`; end-to-end post-resolution state remains later coverage.
+- Authorized terminal resolution for `supersede_existing`, `merge`, and
+  `keep_both`, including linked-memory lifecycle and terminal conflict state.
 - Distractor memories that should not be treated as conflicts.
 - Conflict-vault resource inspection; conflict-trace coverage remains later
   work.
@@ -93,9 +93,40 @@ This is the benchmark that should make HandoffBase distinct from a generic RAG
 demo: it exercises MCP-native handoff, scoped governance, and traceable context
 packing.
 
+The separate `npm run e2e:cross-host` gate exercises the same product claim
+over a real loopback Express Streamable HTTP server and official MCP SDK
+clients. It asserts API-key auth, Host A writes, Host B recall/bootstrap, Host C
+project isolation, trace linkage, and forgetting without calling service/store
+methods directly.
+
+## LongMemEval Cleaned-Format Adapter
+
+The repository now includes a reproducible adapter for the official cleaned
+LongMemEval JSON shape under [`benchmarks/longmemeval/`](../benchmarks/longmemeval/README.md).
+It accepts an explicitly supplied local dataset and emits evaluator-compatible
+`hypotheses.jsonl` plus internal retrieval evidence and run metadata.
+
+The safe CI-sized gate is:
+
+```bash
+npm run bench:longmemeval:tiny
+```
+
+It runs a synthetic three-question fixture through `no-memory`, `raw-history`,
+and `handoffbase`, disables network access, uses a deterministic reader and mock
+memory provider, removes temporary outputs, and asserts that no official QA
+score is present.
+
+The full adapter command is `npm run bench:longmemeval -- ...`. Qwen reader and
+memory-provider modes are explicit opt-ins. The adapter never downloads a
+dataset, loads `.env.*`, invokes the official paid QA evaluator, or calls a paid
+judge by itself. No official dataset was downloaded for this integration, no
+full credentialed run has been completed, and no official LongMemEval score
+exists.
+
 ## Later-stage Benchmark Plan
 
-After the first deterministic subset is stable, add broader benchmark-inspired
+After the current deterministic proof is stable, add broader benchmark-inspired
 coverage:
 
 - Mem2ActBench-style action/tool-use memory: measure whether remembered
@@ -236,7 +267,8 @@ scripts/run-memory-benchmarks.mjs
 
 ## Claim Boundaries
 
-Until full external benchmark adapters exist, use these boundaries:
+Until a full official dataset run and official evaluator run exist, use these
+boundaries:
 
 - Say "benchmark-aware" or "benchmark-inspired deterministic subset."
 - Do not claim an official LongMemEval, MemConflict, Mem2ActBench,
@@ -246,8 +278,8 @@ Until full external benchmark adapters exist, use these boundaries:
 - Do not claim superiority over all memory platforms.
 - Do not imply that benchmark fixtures contain real user data or vendored
   external benchmark datasets.
-- Do not use benchmark claims in README, Devpost, or demo narration unless the
-  deterministic subset exists and the exact validation output is available.
+- Keep the local 17/17 versus 0/17 comparison separate from the LongMemEval
+  adapter and from any future official QA score.
 
 Acceptable public phrasing:
 
@@ -274,7 +306,7 @@ expected score outcomes:
 }
 ```
 
-The runner:
+The runner must:
 
 - Use deterministic assertions against memory ids, statuses, trace ids, context
   blocks, conflict records, and final answer/action fields.

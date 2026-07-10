@@ -17,9 +17,6 @@ import {
   memoryUpdateOutputShape,
   MemoryResolveConflictInputSchema,
   MemoryResolveConflictOutputSchema,
-  type MemoryResolveConflictInput,
-  type MemoryResolveConflictOutput,
-  type MemoryUpdateInput,
 } from "../schemas.js";
 import type { MemoryService } from "../services/memory-service.js";
 import { promptRegistrations, resourceRegistrations, toolRegistrations } from "./manifest.js";
@@ -146,7 +143,7 @@ export function registerContinuityMcp(server: McpServer, service: MemoryService)
       inputSchema: MemoryResolveConflictInputSchema,
       outputSchema: MemoryResolveConflictOutputSchema,
     },
-    async (input) => structuredToolResult(await resolveConflictThroughService(service, input)),
+    async (input) => structuredToolResult(await service.resolveConflict(input)),
   );
 
   for (const resource of resourceRegistrations) {
@@ -332,29 +329,4 @@ function registerPrompts(server: McpServer): void {
       ],
     }),
   );
-}
-
-const CONFLICT_RESOLUTION_DISPATCH = "memory_resolve_conflict" as const;
-
-interface ConflictResolutionCapableService {
-  resolveConflict(input: MemoryResolveConflictInput): Promise<MemoryResolveConflictOutput>;
-}
-
-async function resolveConflictThroughService(
-  service: MemoryService,
-  input: MemoryResolveConflictInput,
-): Promise<MemoryResolveConflictOutput> {
-  const conflictService = service as MemoryService & Partial<ConflictResolutionCapableService>;
-  if (typeof conflictService.resolveConflict === "function") {
-    return MemoryResolveConflictOutputSchema.parse(await conflictService.resolveConflict(input));
-  }
-
-  // Authenticated HTTP requests use the existing caller-bound MemoryService wrapper.
-  // Dispatch through update so that wrapper preserves its caller context without
-  // broadening the public memory_update schema or changing the non-owned wrapper.
-  const result = await service.update({
-    __handoffbase_operation: CONFLICT_RESOLUTION_DISPATCH,
-    ...input,
-  } as unknown as MemoryUpdateInput);
-  return MemoryResolveConflictOutputSchema.parse(result);
 }

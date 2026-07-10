@@ -1,5 +1,6 @@
 import {
   InMemoryMemoryStore,
+  PostgresMemoryStore,
   type AddMemoryConflictInput,
   type CreateMemoryInput,
   type JsonObject,
@@ -7,7 +8,8 @@ import {
   type MemoryScopeFilter,
   type MemoryStore,
   type MemoryTrace,
-  type RunRecord
+  type RunRecord,
+  type SqlQueryClient
 } from "@handoffbase/memory-core";
 import type {
   DashboardSnapshot,
@@ -21,6 +23,10 @@ import {
   toDashboardMemory,
   toDashboardSnapshot
 } from "./dashboard-memory-mappers";
+import {
+  createDashboardPgSqlQueryClient,
+  loadScopedPostgresTraces
+} from "./dashboard-postgres";
 
 const DEFAULT_TENANT_ID = "tenant_demo";
 const DEFAULT_SCOPE: MemoryScopeFilter = {
@@ -57,6 +63,14 @@ export type DashboardMemoryStoreBinding = {
 export type DashboardMemoryStoreFactory = () =>
   | DashboardMemoryStoreBinding
   | Promise<DashboardMemoryStoreBinding>;
+
+export type DashboardPostgresClientFactory = (
+  databaseUrl: string
+) => SqlQueryClient | Promise<SqlQueryClient>;
+
+export type DashboardStoreEnvironment = Readonly<
+  Record<string, string | undefined>
+>;
 
 export type DashboardMemoryBackendOptions = Partial<
   Omit<DashboardMemoryStoreBinding, "store">
@@ -425,12 +439,64 @@ type GlobalDashboardMemoryState = typeof globalThis & {
   __handoffbaseDashboardMemoryStoreFactory?: DashboardMemoryStoreFactory;
 };
 
-export function createDefaultDashboardMemoryStoreBinding(): DashboardMemoryStoreBinding {
+export function createDefaultDashboardMemoryStoreBinding(): Promise<DashboardMemoryStoreBinding> {
+  return createDashboardMemoryStoreBindingFromEnvironment();
+}
+
+export async function createDashboardMemoryStoreBindingFromEnvironment(
+  env: DashboardStoreEnvironment = process.env,
+  createPostgresClient: DashboardPostgresClientFactory =
+    createDashboardPgSqlQueryClient
+): Promise<DashboardMemoryStoreBinding> {
+  const storeMode = readOptionalEnvironmentValue(env.STORE_MODE) ?? "in-memory";
+
+  if (storeMode === "in-memory") {
+    return {
+      store: new InMemoryMemoryStore(),
+      mode: "server_in_memory",
+      scope: { ...DEFAULT_SCOPE },
+      seedDemoData: true
+    };
+  }
+
+  if (storeMode !== "postgres") {
+    throw new DashboardMemoryConfigurationError(
+      "STORE_MODE must be one of: in-memory, postgres."
+    );
+  }
+
+  const databaseUrl = requireEnvironmentValue(
+    env.DATABASE_URL,
+    "DATABASE_URL is required when STORE_MODE=postgres."
+  );
+  const scope: MemoryScopeFilter = {
+    tenantId: requireEnvironmentValue(
+      env.HANDOFFBASE_DASHBOARD_TENANT_ID,
+      "HANDOFFBASE_DASHBOARD_TENANT_ID is required when STORE_MODE=postgres."
+    ),
+    userId: requireEnvironmentValue(
+      env.HANDOFFBASE_DASHBOARD_USER_ID,
+      "HANDOFFBASE_DASHBOARD_USER_ID is required when STORE_MODE=postgres."
+    )
+  };
+
+  setOptionalScopeValue(
+    scope,
+    "agentProfileId",
+    env.HANDOFFBASE_DASHBOARD_AGENT_PROFILE_ID
+  );
+  setOptionalScopeValue(scope, "projectId", env.HANDOFFBASE_DASHBOARD_PROJECT_ID);
+  setOptionalScopeValue(scope, "hostId", env.HANDOFFBASE_DASHBOARD_HOST_ID);
+
+  const client = await createPostgresClient(databaseUrl);
+
   return {
-    store: new InMemoryMemoryStore(),
-    mode: "server_in_memory",
-    scope: { ...DEFAULT_SCOPE },
-    seedDemoData: true
+    store: new PostgresMemoryStore(client),
+    mode: "shared_persistent_store",
+    scope,
+    seedDemoData: false,
+    loadTraces: ({ scope: traceScope }) =>
+      loadScopedPostgresTraces(client, traceScope)
   };
 }
 
@@ -528,9 +594,14 @@ function memoryMatchesScope(
     [keyof MemoryScopeFilter, string | undefined]
   >;
 
-  return scopeEntries.every(
-    ([key, value]) => value === undefined || memory.scope[key] === value
-  );
+  return scopeEntries.every(([key, value]) => {
+    if (value === undefined) {
+      return true;
+    }
+
+    const memoryValue = memory.scope[key];
+    return memoryValue === undefined || memoryValue === value;
+  });
 }
 
 function runMatchesScope(run: RunRecord, scope: MemoryScopeFilter): boolean {
@@ -543,15 +614,46 @@ function runMatchesScope(run: RunRecord, scope: MemoryScopeFilter): boolean {
   }
 
   return (
-    (scope.agentProfileId === undefined ||
-      run.agentProfileId === scope.agentProfileId) &&
-    (scope.projectId === undefined || run.projectId === scope.projectId) &&
-    (scope.hostId === undefined || run.hostId === scope.hostId)
+    optionalScopeMatches(run.agentProfileId, scope.agentProfileId) &&
+    optionalScopeMatches(run.projectId, scope.projectId) &&
+    optionalScopeMatches(run.hostId, scope.hostId)
   );
+}
+
+function optionalScopeMatches(
+  recordValue: string | undefined,
+  filterValue: string | undefined
+): boolean {
+  return filterValue === undefined || recordValue === undefined || recordValue === filterValue;
 }
 
 function traceMetadata(metadata: JsonObject): JsonObject {
   return metadata;
+}
+
+function readOptionalEnvironmentValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function requireEnvironmentValue(value: string | undefined, message: string): string {
+  const normalized = readOptionalEnvironmentValue(value);
+  if (normalized === undefined) {
+    throw new DashboardMemoryConfigurationError(message);
+  }
+
+  return normalized;
+}
+
+function setOptionalScopeValue(
+  scope: MemoryScopeFilter,
+  key: "agentProfileId" | "projectId" | "hostId",
+  value: string | undefined
+): void {
+  const normalized = readOptionalEnvironmentValue(value);
+  if (normalized !== undefined) {
+    scope[key] = normalized;
+  }
 }
 
 const seedMemories: Array<{

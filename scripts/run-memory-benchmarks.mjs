@@ -29,11 +29,16 @@ const allowedExpectationKeys = new Set([
   "absentMemoryIds",
   "answerIncludes",
   "candidateStatus",
+  "candidateSupersedesMemoryIds",
+  "candidateText",
+  "conflictStatus",
   "conflictType",
   "contextExcludes",
   "contextExcludesAny",
   "contextIncludes",
   "excludedMemoryIds",
+  "existingStatus",
+  "existingSupersededBy",
   "ignoredMemoryIds",
   "memoryIdsAbsent",
   "memoryIdsAbsentOrContextExcluded",
@@ -48,6 +53,14 @@ const allowedExpectationKeys = new Set([
   "traceUsedMemoryIds",
   "usedMemoryIds",
   "vaultConflictsCount"
+]);
+const allowedConflictResolutionActions = new Set([
+  "accept_candidate",
+  "reject_candidate",
+  "supersede_existing",
+  "merge",
+  "keep_both",
+  "dismiss_conflict"
 ]);
 const handoffBaseBaselineId = "handoffbase-memory-context";
 const noMemoryBaselineId = "no-memory";
@@ -293,6 +306,18 @@ function normalizeStep(step, caseExpected) {
     });
   }
 
+  if (op === "resolveConflict") {
+    return removeUndefined({
+      ...step,
+      op,
+      conflictId: step.conflictId ?? input.conflictId ?? input.conflict_id,
+      action: step.action ?? input.action,
+      mergedText: step.mergedText ?? input.mergedText ?? input.merged_text,
+      reason: step.reason ?? input.reason,
+      expect
+    });
+  }
+
   return {
     ...step,
     op,
@@ -304,6 +329,7 @@ function normalizeOperation(operation) {
   if (operation === "memory_recall") return "recall";
   if (operation === "continuity_bootstrap") return "bootstrap";
   if (operation === "memory_forget") return "forget";
+  if (operation === "memory_resolve_conflict") return "resolveConflict";
   return operation;
 }
 
@@ -330,8 +356,13 @@ function normalizeExpect(expect) {
     memoryIdsAbsentOrContextExcluded: expect.memoryIdsAbsentOrContextExcluded,
     status: expect.status,
     candidateStatus: expect.candidateStatus,
+    candidateSupersedesMemoryIds: expect.candidateSupersedesMemoryIds,
+    candidateText: expect.candidateText,
+    conflictStatus: expect.conflictStatus,
     openConflictCount: expect.openConflictCount,
     conflictType: expect.conflictType,
+    existingStatus: expect.existingStatus,
+    existingSupersededBy: expect.existingSupersededBy,
     recommendedAction: expect.recommendedAction,
     vaultConflictsCount: expect.vaultConflictsCount
   });
@@ -432,6 +463,17 @@ function validateStep(step, label) {
     validateExpectObject(step.expect, label);
     return;
   }
+  if (step.op === "resolveConflict") {
+    assert(typeof step.conflictId === "string" && step.conflictId.length > 0, `${label} resolveConflict must include conflictId.`);
+    assertAllowed(step.action, allowedConflictResolutionActions, `${label} resolveConflict uses an unsupported action.`);
+    assert(typeof step.reason === "string" && step.reason.length > 0, `${label} resolveConflict must include reason.`);
+    if (step.action === "merge") {
+      assert(typeof step.mergedText === "string" && step.mergedText.length > 0, `${label} merge must include mergedText.`);
+    }
+    validateExpectObject(step.expect, label);
+    assert(typeof step.expect.conflictStatus === "string", `${label} resolveConflict must expect conflictStatus.`);
+    return;
+  }
   throw new Error(`${label} uses unsupported op ${step.op}.`);
 }
 
@@ -447,7 +489,8 @@ function validateExpectObject(expect, label) {
     "contextExcludes",
     "traceUsedMemoryIds",
     "traceIgnoredMemoryIds",
-    "traceExcludedMemoryIds"
+    "traceExcludedMemoryIds",
+    "candidateSupersedesMemoryIds"
   ]) {
     if (expect[key] !== undefined) {
       assert(
@@ -465,10 +508,17 @@ function validateExpectObject(expect, label) {
       assert(Number.isInteger(expect[key]) && expect[key] >= 0, `${label} expect.${key} must be a non-negative integer.`);
     }
   }
-  for (const key of ["status", "candidateStatus", "conflictType", "recommendedAction"]) {
+  for (const key of ["status", "candidateStatus", "candidateText", "conflictStatus", "conflictType", "existingStatus", "recommendedAction"]) {
     if (expect[key] !== undefined) {
       assert(typeof expect[key] === "string" && expect[key].length > 0, `${label} expect.${key} must be a string.`);
     }
+  }
+  if (expect.existingSupersededBy !== undefined) {
+    assert(
+      expect.existingSupersededBy === null ||
+        (typeof expect.existingSupersededBy === "string" && expect.existingSupersededBy.length > 0),
+      `${label} expect.existingSupersededBy must be a string or null.`
+    );
   }
 }
 
@@ -554,6 +604,10 @@ async function runCaseSteps({
   collectAssertionFailures = false
 }) {
   const assertionFailures = [];
+  const state = {
+    conflictIds: new Map(),
+    memoryIds: new Map()
+  };
   for (const [index, step] of testCase.steps.entries()) {
     try {
       await runStep({
@@ -562,6 +616,7 @@ async function runCaseSteps({
         baselineId,
         defaultScope,
         fixedNow,
+        state,
         step,
         label: `${fixture.family}/${testCase.id} step ${index + 1}`
       });
@@ -600,6 +655,15 @@ function createNoMemoryRuntime() {
       },
       async remember() {
         return { candidate_memories: [], warnings: ["no_memory_baseline"] };
+      },
+      async resolveConflict(input) {
+        return {
+          conflict_id: input.conflict_id,
+          action: input.action,
+          conflict_status: "absent",
+          event_ids: [],
+          resolved_at: ""
+        };
       },
       async trace() {
         return { used_memories: [], ignored_memories: [], excluded_memories: [] };
@@ -642,6 +706,12 @@ function assertNoMemoryRememberContract(baselineId, output, label) {
   );
 }
 
+function assertNoMemoryResolveContract(baselineId, output, label) {
+  if (baselineId !== noMemoryBaselineId) return;
+  assert(output.conflict_status === "absent", `${label} no-memory executor resolved a conflict.`);
+  assert(Array.isArray(output.event_ids) && output.event_ids.length === 0, `${label} no-memory executor emitted events.`);
+}
+
 async function seedStore(store, defaultScope, fixedNow, memories) {
   for (const memory of memories) {
     const input = toCreateMemoryInput(memory, defaultScope);
@@ -681,6 +751,10 @@ async function runStep(context) {
   }
   if (context.step.op === "conflictRemember") {
     await runConflictRememberStep(context);
+    return;
+  }
+  if (context.step.op === "resolveConflict") {
+    await runResolveConflictStep(context);
     return;
   }
   throw new Error(`${context.label} uses unsupported op.`);
@@ -748,7 +822,7 @@ async function runForgetStep({ service, baselineId, step, label }) {
   }
 }
 
-async function runConflictRememberStep({ service, store, baselineId, defaultScope, step, label }) {
+async function runConflictRememberStep({ service, store, baselineId, defaultScope, state, step, label }) {
   const scope = mergeCoreScope(
     defaultScope,
     step.scopes ?? step.scope ?? step.candidate.scope ?? {},
@@ -764,11 +838,23 @@ async function runConflictRememberStep({ service, store, baselineId, defaultScop
   const [candidate] = remembered.candidate_memories;
 
   benchmarkAssert(candidate, `${label} should create a candidate memory.`);
+  if (typeof candidate.id === "string") {
+    state.memoryIds.set(step.candidate.id, candidate.id);
+    state.memoryIds.set(step.conflict.candidateMemoryId, candidate.id);
+  }
   if (step.expect.candidateStatus !== undefined) {
     benchmarkAssert(candidate.status === step.expect.candidateStatus, `${label} candidate status mismatch.`);
   }
 
   const conflicts = await store.listConflicts({ statuses: ["open"] });
+  const createdConflict = conflicts.find(
+    (conflict) =>
+      conflict.candidateMemoryId === candidate.id &&
+      conflict.existingMemoryId === resolveMemoryAlias(state, step.conflict.existingMemoryId)
+  );
+  if (createdConflict && typeof step.conflict.id === "string") {
+    state.conflictIds.set(step.conflict.id, createdConflict.id);
+  }
   if (step.expect.openConflictCount !== undefined) {
     benchmarkAssert(conflicts.length === step.expect.openConflictCount, `${label} open conflict count mismatch.`);
   }
@@ -795,6 +881,109 @@ async function runConflictRememberStep({ service, store, baselineId, defaultScop
     const payload = JSON.parse(resource.text);
     benchmarkAssert(payload.count === step.expect.vaultConflictsCount, `${label} vault conflict count mismatch.`);
   }
+}
+
+async function runResolveConflictStep({ service, store, baselineId, defaultScope, state, step, label }) {
+  const conflictId = state.conflictIds.get(step.conflictId) ?? step.conflictId;
+  const output = await service.resolveConflict({
+    conflict_id: conflictId,
+    action: step.action,
+    merged_text: step.mergedText,
+    reason: step.reason
+  }, benchmarkContext(defaultScope));
+  assertNoMemoryResolveContract(baselineId, output, label);
+
+  const expect = step.expect;
+  if (expect.conflictStatus !== undefined) {
+    benchmarkAssert(output.conflict_status === expect.conflictStatus, `${label} conflict status mismatch.`);
+  }
+  if (expect.candidateStatus !== undefined) {
+    benchmarkAssert(output.candidate_memory?.status === expect.candidateStatus, `${label} candidate status mismatch.`);
+  }
+  if (expect.existingStatus !== undefined) {
+    benchmarkAssert(output.existing_memory?.status === expect.existingStatus, `${label} existing status mismatch.`);
+  }
+  if (expect.candidateText !== undefined) {
+    benchmarkAssert(output.candidate_memory?.text === expect.candidateText, `${label} candidate text mismatch.`);
+  }
+  if (expect.candidateSupersedesMemoryIds !== undefined) {
+    assertExactIds(
+      output.candidate_memory?.supersedes,
+      expect.candidateSupersedesMemoryIds.map((memoryId) => resolveMemoryAlias(state, memoryId)),
+      `${label} candidate supersedes`
+    );
+  }
+  if (expect.existingSupersededBy !== undefined) {
+    const expectedSupersededBy = expect.existingSupersededBy === null
+      ? null
+      : resolveMemoryAlias(state, expect.existingSupersededBy);
+    benchmarkAssert(
+      (output.existing_memory?.superseded_by ?? null) === expectedSupersededBy,
+      `${label} existing superseded_by mismatch.`
+    );
+  }
+
+  const persistedConflict = await store.getConflict(conflictId);
+  benchmarkAssert(persistedConflict?.status === expect.conflictStatus, `${label} persisted conflict status mismatch.`);
+  benchmarkAssert(persistedConflict?.resolution?.action === step.action, `${label} persisted conflict action mismatch.`);
+
+  const candidate = output.candidate_memory?.id
+    ? await store.getMemory(output.candidate_memory.id)
+    : undefined;
+  const existing = output.existing_memory?.id
+    ? await store.getMemory(output.existing_memory.id)
+    : undefined;
+  if (expect.candidateStatus !== undefined) {
+    benchmarkAssert(candidate?.status === expect.candidateStatus, `${label} persisted candidate status mismatch.`);
+  }
+  if (expect.existingStatus !== undefined) {
+    benchmarkAssert(existing?.status === expect.existingStatus, `${label} persisted existing status mismatch.`);
+  }
+  if (expect.candidateText !== undefined) {
+    benchmarkAssert(candidate?.canonicalText === expect.candidateText, `${label} persisted candidate text mismatch.`);
+  }
+  if (expect.candidateSupersedesMemoryIds !== undefined) {
+    assertExactIds(
+      candidate?.supersedes,
+      expect.candidateSupersedesMemoryIds.map((memoryId) => resolveMemoryAlias(state, memoryId)),
+      `${label} persisted candidate supersedes`
+    );
+  }
+  if (expect.existingSupersededBy !== undefined) {
+    const expectedSupersededBy = expect.existingSupersededBy === null
+      ? null
+      : resolveMemoryAlias(state, expect.existingSupersededBy);
+    benchmarkAssert(
+      (existing?.supersededBy ?? null) === expectedSupersededBy,
+      `${label} persisted existing supersededBy mismatch.`
+    );
+  }
+
+  if (expect.openConflictCount !== undefined) {
+    const openConflicts = await store.listConflicts({ statuses: ["open"] });
+    benchmarkAssert(openConflicts.length === expect.openConflictCount, `${label} open conflict count mismatch.`);
+  }
+  if (expect.vaultConflictsCount !== undefined) {
+    const resource = await service.readResource({
+      name: "vault-conflicts",
+      uri: "memory://vault/conflicts",
+      variables: {}
+    });
+    const payload = JSON.parse(resource.text);
+    benchmarkAssert(payload.count === expect.vaultConflictsCount, `${label} vault conflict count mismatch.`);
+  }
+}
+
+function resolveMemoryAlias(state, memoryId) {
+  return state.memoryIds.get(memoryId) ?? memoryId;
+}
+
+function assertExactIds(actualIds, expectedIds, label) {
+  benchmarkAssert(Array.isArray(actualIds), `${label} must be an array.`);
+  benchmarkAssert(
+    JSON.stringify([...actualIds].sort()) === JSON.stringify([...expectedIds].sort()),
+    `${label} ids mismatch.`
+  );
 }
 
 async function assertTraceExpectations(service, traceId, expect, label) {

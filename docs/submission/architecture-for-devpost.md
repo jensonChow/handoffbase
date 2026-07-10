@@ -42,15 +42,16 @@ flowchart LR
   subgraph CoreLayer["Memory core"]
     Core["Records, lifecycle,<br/>validation, scopes"]
     Store["MemoryStore"]
-    InMemory["InMemoryMemoryStore<br/>current live demo store"]
-    Postgres["PostgresMemoryStore + pgvector<br/>future runtime wiring"]
+    InMemory["InMemoryMemoryStore<br/>credential-free default"]
+    Postgres["PostgresMemoryStore + pgvector<br/>opt-in runtime"]
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
   end
 
-  subgraph DashboardLayer["Memory Vault dashboard prototype"]
+  subgraph DashboardLayer["Memory Vault dashboard"]
     Dashboard["Governance UI"]
+    DashboardAPI["Same-origin server API"]
     Pending["Pending review"]
     ConflictReview["Conflict review"]
     TraceView["Trace view"]
@@ -76,12 +77,13 @@ flowchart LR
   Service --> Core
   Core --> Store
   Store --> InMemory
-  Store -. "implemented path, not runtime default" .-> Postgres
+  Store --> Postgres
   Core --> Events
   Core --> Trace
   Core --> Conflicts
 
-  Dashboard -->|inspect and govern| Surface
+  Dashboard --> DashboardAPI
+  DashboardAPI -->|same MemoryStore selection| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView
@@ -126,20 +128,23 @@ The live proof used `storeMode=in-memory`. `InMemoryMemoryStore` is therefore
 the current live demo store, and data should not be described as durable across
 process restarts.
 
-`PostgresMemoryStore` and a pgvector migration path exist in the memory-core
-package, but they are future runtime wiring. HandoffBase should not claim
-Postgres-backed live persistence until runtime selection, database provisioning,
-and validation are completed.
+`PostgresMemoryStore`, the pgvector migration, `STORE_MODE=postgres`, and the
+`DATABASE_URL` runtime adapter are implemented. Migration is explicit through
+`npm run db:migrate`; in-memory remains the credential-free default. HandoffBase
+should not claim Postgres-backed live persistence until a dedicated database is
+provisioned and validated in an approved deployment.
 
 ## Dashboard
 
-The Memory Vault dashboard is a governance UI prototype. It is meant to show
+The Memory Vault dashboard is a governance UI. It is meant to show
 how users and operators inspect memory, review pending candidates, inspect
 trace decisions, and resolve conflicts instead of letting agent memory mutate
 silently.
 
-The dashboard supports the product story, but it is not yet a production admin
-console or the source of durable persistence.
+The browser uses same-origin server APIs by default. Its server backend follows
+the MCP runtime's `STORE_MODE` and `DATABASE_URL`; Postgres mode requires private
+tenant/user scope and disables demo seeding. It is not yet a production admin
+console.
 
 ## Current Limitations
 
@@ -149,8 +154,9 @@ console or the source of durable persistence.
 - No TLS certificate, custom domain, load balancer, or managed gateway is part
   of the current proof.
 - Runtime storage for the live proof is in-memory.
-- Postgres/pgvector exists as an implemented path, not as the default runtime.
-- The Memory Vault dashboard is a prototype.
+- Postgres/pgvector is opt-in and has not been validated in the live Alibaba
+  proof; the default runtime remains in-memory.
+- The Memory Vault dashboard is server-backed but not production hardened.
 - HandoffBase should not be described as production SaaS ready.
 
 ## Render Instructions

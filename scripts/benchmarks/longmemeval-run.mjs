@@ -8,8 +8,12 @@ import {
   runLongMemEval
 } from "../../benchmarks/longmemeval/adapter.mjs";
 import {
+  LONGMEMEVAL_MEMORY_PROVIDER_MODES,
+  LONGMEMEVAL_READER_MODES,
+  LongMemEvalRuntimeConfigurationError,
   createDeterministicExtractiveReader,
-  createLocalHandoffBaseBoundary
+  createLocalHandoffBaseBoundary,
+  createQwenChatReader
 } from "../../benchmarks/longmemeval/local-runtime.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -22,6 +26,8 @@ export function parseLongMemEvalArgs(argv) {
     ["--dataset", "datasetPath"],
     ["--output-dir", "outputDir"],
     ["--backend", "backend"],
+    ["--reader", "readerMode"],
+    ["--memory-provider", "memoryProviderMode"],
     ["--limit", "limit"],
     ["--question-id", "questionId"]
   ]);
@@ -74,6 +80,17 @@ export function parseLongMemEvalArgs(argv) {
   if (!LONGMEMEVAL_BACKENDS.includes(options.backend)) {
     throw new LongMemEvalValidationError("--backend must be no-memory, raw-history, or handoffbase.");
   }
+  options.readerMode ??= "deterministic";
+  options.memoryProviderMode ??= "mock";
+  if (!LONGMEMEVAL_READER_MODES.includes(options.readerMode)) {
+    throw new LongMemEvalValidationError("--reader must be deterministic or qwen.");
+  }
+  if (!LONGMEMEVAL_MEMORY_PROVIDER_MODES.includes(options.memoryProviderMode)) {
+    throw new LongMemEvalValidationError("--memory-provider must be mock or qwen.");
+  }
+  if (options.backend !== "handoffbase" && options.memoryProviderMode !== "mock") {
+    throw new LongMemEvalValidationError("--memory-provider qwen requires --backend handoffbase.");
+  }
   if (options.limit !== undefined) {
     if (!/^[1-9]\d*$/.test(options.limit)) {
       throw new LongMemEvalValidationError("--limit must be a positive integer.");
@@ -87,16 +104,24 @@ export function parseLongMemEvalArgs(argv) {
   return options;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), runtime = {}) {
   const args = parseLongMemEvalArgs(argv);
   if (args.help) {
     process.stdout.write(helpText());
     return;
   }
 
-  const reader = createDeterministicExtractiveReader();
+  const reader = args.readerMode === "qwen"
+    ? createQwenChatReader({ env: runtime.env, fetch: runtime.fetch })
+    : createDeterministicExtractiveReader();
   const memoryBoundary = args.backend === "handoffbase"
-    ? await createLocalHandoffBaseBoundary({ rootDir })
+    ? await createLocalHandoffBaseBoundary({
+        rootDir,
+        memoryProviderMode: args.memoryProviderMode,
+        env: runtime.env,
+        fetch: runtime.fetch,
+        provider: runtime.memoryProvider
+      })
     : undefined;
   const result = await runLongMemEval({
     ...args,
@@ -105,7 +130,8 @@ export async function main(argv = process.argv.slice(2)) {
     commit: currentCommit()
   });
   process.stdout.write(
-    `LongMemEval adapter ${result.status}: ${result.completedQuestions}/${result.selectedQuestions} questions.\n` +
+    `LongMemEval adapter ${result.status}: ${result.completedQuestions}/${result.selectedQuestions} questions ` +
+    `(reader=${args.readerMode}, memory-provider=${args.memoryProviderMode}).\n` +
     "Official hypotheses: hypotheses.jsonl; internal metrics: retrieval-evidence.jsonl and summary.json.\n"
   );
 }
@@ -136,17 +162,22 @@ function helpText() {
     --dataset /path/to/longmemeval_s_cleaned.json \\
     --output-dir /path/to/output \\
     --backend no-memory|raw-history|handoffbase \\
+    [--reader deterministic|qwen] \\
+    [--memory-provider mock|qwen] \\
     [--limit N] [--question-id ID] [--resume]
 
-The runner never downloads data or reads credentials. The local handoffbase mode
-uses the explicitly constructed MockMemoryProvider and requires existing build
-artifacts for memory-core and the server.
+Defaults are --reader deterministic and --memory-provider mock. Those defaults
+are credential-free and deterministic. Qwen modes read only the existing
+QWEN_*/DASHSCOPE_* process environment conventions; the runner never loads an
+.env file or downloads a dataset. Local handoffbase mode requires existing
+memory-core and server build artifacts.
 `;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
   main().catch((error) => {
-    const message = error instanceof LongMemEvalValidationError
+    const message = error instanceof LongMemEvalValidationError ||
+      error instanceof LongMemEvalRuntimeConfigurationError
       ? error.message
       : "The LongMemEval adapter run failed.";
     process.stderr.write(`LongMemEval adapter error: ${message}\n`);

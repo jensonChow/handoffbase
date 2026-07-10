@@ -15,9 +15,11 @@ HandoffBase is not a hidden chat-log store. The product loop is:
 
 The current runnable MVP proves this loop with Remote Streamable HTTP MCP tools,
 Qwen-backed or mock-provider reasoning, lifecycle records, trace records,
-conflict records, and a Memory Vault dashboard prototype. The current live proof
-still uses an in-memory runtime store, so durable production persistence is a
-future runtime milestone.
+conflict records, and a Memory Vault dashboard. The historical live proof
+used an in-memory runtime store. Current code adds explicit Postgres runtime
+selection, a server-backed dashboard, conflict resolution, comparative proof,
+and real HTTP/MCP cross-host E2E; production deployment remains a later
+milestone.
 
 ## Workflow 1: Capture Durable Memory
 
@@ -68,7 +70,7 @@ agents should act on it."
 
 Pending candidates are visible through:
 
-- the Memory Vault dashboard prototype, especially its pending-review view;
+- the Memory Vault dashboard, especially its pending-review view;
 - `memory://vault/pending` for MCP-readable pending memory candidates.
 
 Conflict records are visible through:
@@ -91,9 +93,11 @@ The user or reviewer can resolve candidates with concrete governance actions:
 - keep both: preserve both memories when the conflict is only apparent because
   scopes, time windows, or contexts differ.
 
-`memory_update` applies edits, merges, and supersession. `memory_forget` removes
-or retires memory that should not affect future behavior. Trace and event records
-make the review action inspectable later.
+`memory_resolve_conflict` applies the terminal conflict decision with caller
+authorization, linked-memory lifecycle mutations, and audit provenance.
+`memory_update` remains the direct edit/supersession tool; `memory_forget`
+removes or retires memory that should not affect future behavior. Trace and
+event records make each action inspectable later.
 
 Product result: memory becomes governed user data, not automatic prompt stuffing.
 The user can see what is pending, resolve contradictions, and decide what should
@@ -301,7 +305,8 @@ bounded to the deployment context where they are relevant.
 6. The user reviews the conflict through Memory Vault or
    `memory://vault/conflicts`.
 7. The user chooses supersede, merge, reject, or keep both.
-8. Future recall uses the resolved active memory and trace excludes the old
+8. The host calls `memory_resolve_conflict` with that explicit decision.
+9. Future recall uses the resolved active memory and trace excludes the old
    memory if it was superseded.
 
 What improves: corrections do not depend on recency alone. The user governs how
@@ -312,18 +317,15 @@ memory evolves.
 The current product loop is implemented enough to demonstrate the workflow, but
 some pieces should stay framed as future work:
 
-- The Memory Vault dashboard is a prototype. It shows vault, pending review,
-  trace inspection, edit/delete, and conflict review flows, but it is not a full
-  production admin console.
-- The live runtime store is currently in-memory. `PostgresMemoryStore` and the
-  SQL migration path exist, but durable runtime store selection and deployment
-  wiring are future work.
-- Cross-host examples need stronger quickstarts. The repo has local, remote,
-  HTTP, and bootstrap examples, but the front-page product story would benefit
-  from a clearer Host A to Host B to Host C walkthrough with scope assertions.
-- Benchmarks should decide which workflows become front-page claims. The current
-  eval pack is deterministic, local, credential-free, and useful for regression
-  coverage, but it is not an official benchmark score.
+- The Memory Vault uses same-origin server APIs by default and can share the MCP
+  runtime's Postgres database, but it is not a production admin console.
+- Postgres migration and runtime selection exist, but no durable cloud database
+  was provisioned; the Docker restart harness was not executed here.
+- `npm run e2e:cross-host` now provides the Host A→B→C HTTP/MCP walkthrough with
+  scope assertions, while the safe default remains in-memory.
+- The comparative benchmark is deterministic and local, and the LongMemEval
+  tiny fixture is synthetic. Neither is an official benchmark score; no full
+  credentialed official run has occurred.
 - Workflow claims should be tied to behavior. The strongest future proof is not
   "memory was retrieved"; it is "the agent made a better decision because the
   right memory was captured, governed, recalled, traced, and updated."

@@ -31,12 +31,19 @@
 - Dashboard build: `npm run dashboard:build`.
 - Memory eval pack: `npm run eval:memory`.
 - Memory benchmark subset: `npm run bench:memory`.
+- LongMemEval generic adapter: `npm run bench:longmemeval -- --dataset <local-json> --output-dir <dir> --backend <mode> ...`.
+- LongMemEval tiny deterministic matrix: `npm run bench:longmemeval:tiny`.
+- Cross-host HTTP/MCP E2E: `npm run e2e:cross-host`.
+- Cross-host safe demo: `npm run demo:cross-host`.
+- Postgres migration: `DATABASE_URL=<dedicated-url> npm run db:migrate`.
+- Optional supplied-database integration test: `TEST_DATABASE_URL=<dedicated-test-url> npm run test:postgres:integration`.
+- Disposable Docker restart proof: `npm run test:postgres:restart` (manual/optional; never part of credential-free CI).
+- Markdown relative links: `npm run check:markdown-links`.
+- Tracked-file secret scan: `npm run check:tracked-secrets`.
 - Demo narration: `npm run demo:flow`.
 - Demo JSON-RPC: `npm run demo:jsonrpc`.
 - Docker production image: `docker build -t handoffbase .`.
 - Remote deployment validation: `MCP_ENDPOINT=<endpoint>/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote`.
-- Markdown relative-link sanity check:
-  `node -e '<repo-local markdown link check script>'`.
 
 ## Deployment Profile
 
@@ -46,7 +53,8 @@
 - Startup validates that `PORT` is numeric and `MCP_PATH` starts with `/`.
 - `/health` reports only non-secret metadata: name, version, transport, MCP path, auth mode, provider mode, and store mode.
 - API key auth is controlled by `HANDOFFBASE_AUTH_MODE` and key mapping env vars; keep API keys in cloud secret configuration.
-- Current production default keeps the in-memory MVP store deployable. `PostgresMemoryStore` supports CRUD, recall, traces, events, embeddings, and conflicts, but env-based runtime selection remains future work.
+- Current production default keeps the in-memory MVP store deployable. `STORE_MODE=postgres` plus `DATABASE_URL` selects `PostgresMemoryStore`; startup does not migrate automatically, and operators must run `npm run db:migrate` explicitly.
+- Dashboard server mode reads the same `STORE_MODE` and `DATABASE_URL`. Postgres dashboard access additionally requires `HANDOFFBASE_DASHBOARD_TENANT_ID` and `HANDOFFBASE_DASHBOARD_USER_ID`; these values must remain server-only.
 - `docs/dev-materials-checklist.md` is the non-secret setup ledger for hackathon development, Qwen/auth readiness, deployment notes, and validation evidence.
 - `docs/deployment/alibaba-cloud-proof.md` is the redacted live deployment proof file for ECS `/health`, MCP discovery, authenticated recall, and Qwen-backed remember validation.
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
@@ -60,15 +68,16 @@
   so recheck the IP after restart.
 - Last live `/health` validation before stop passed with `authMode=api_key`,
   `providerMode=qwen`, and `storeMode=in-memory`.
-- Last live remote MCP validation before stop passed: `tools/list` returned
+- Last live remote MCP validation before stop passed against the historical build: `tools/list` returned
   7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed
   `memory_remember` returned 2 pending candidate memories.
+- Current repository registration is 8 tools; the stopped ECS proof has not been rebuilt or revalidated with `memory_resolve_conflict`.
 - Runtime secrets are configured only in the root-owned ECS env file consumed by Docker `--env-file`; do not record values in docs, logs, shell history, Docker layers, or Git.
 - Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
 - Restart the stopped ECS instance around July 17-18 for final submission
   validation, then stop or release the pay-as-you-go ECS instance after the
   approved hackathon demo window.
-- Postgres provisioning remains prepare-only until the target Alibaba PostgreSQL service/version is verified for pgvector or compatible vector extension support and runtime `STORE_MODE=postgres` wiring is added.
+- Alibaba Postgres provisioning remains prepare-only until the target service/version is verified for pgvector or compatible vector extension support and explicit paid-resource approval is given. Runtime wiring now exists locally, but no managed cloud database was provisioned or validated.
 - `docs/hackathon-resource-support.md` is the non-secret ledger for Devpost
   deadlines, Qwen Free Tier status, coupon/voucher request state, and Alibaba
   Cloud cost guardrails.
@@ -96,7 +105,7 @@
 ## CI
 
 - `.github/workflows/ci.yml` runs on push and pull request.
-- CI uses Node 22, `npm ci`, and `npm run check`.
+- CI uses Node 22, `npm ci`, and one authoritative `npm run check`; eval, comparative benchmark, tiny LongMemEval, cross-host E2E, link and tracked-secret gates are inside that command.
 - CI sets `QWEN_API_KEY` and `DASHSCOPE_API_KEY` to empty strings, so the default verification path must remain mock-provider compatible.
 - GitHub Actions are enabled for `jensonChow/handoffbase`; the current CI workflow is `CI`.
 
@@ -135,6 +144,9 @@
   remote endpoint access, network access, or `.env.*` reads.
 - Deterministic benchmark-inspired subset with 17 synthetic local cases across
   long-memory, conflict governance, and cross-host handoff families.
+- Comparative execution uses 17 no-memory and 17 HandoffBase case-runs and treats expected no-memory misses separately from harness errors.
+- LongMemEval cleaned-format adapter accepts only an explicit local dataset path, ships only a tiny synthetic fixture, and supports deterministic or explicit Qwen reader/provider modes.
+- Real loopback HTTP/MCP E2E proves Host A write to Host B recall, Host C project isolation, trace inspection, and forgetting through official SDK clients.
 - Public benchmark wording must cite exact local `npm run bench:memory` results
   and must not claim official benchmark scores.
 - Devpost submission copy in `docs/submission/devpost-copy.md`.
@@ -155,12 +167,14 @@ For star-readiness changes, run at minimum:
 
 - `npm run eval:memory`
 - `npm run bench:memory`
+- `npm run bench:longmemeval:tiny`
+- `npm run e2e:cross-host`
 - `npm run test:dashboard`
 - `npm run dashboard:build`
 - `node --check scripts/validate-remote-mcp.mjs`
 - `npm run check`
-- Markdown relative-link check over tracked Markdown docs.
-- tracked-file public-readiness scans for Qwen/DashScope/HandoffBase tokens, database URLs, local workstation paths, and workspace ids.
+- `npm run check:markdown-links`.
+- `npm run check:tracked-secrets`, plus any submission-specific public-path/workspace-id scan required by the release task.
 
 Placeholder matches such as `<your-handoffbase-api-key>` or `<redacted>` are acceptable only when clearly documented as placeholders.
 

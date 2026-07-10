@@ -95,3 +95,33 @@
 - Decision: HandoffBase should prioritize effect proof and product completeness before additional feature expansion.
 - Rationale: Core MCP, Qwen, lifecycle, and governance features are enough for the MVP, but benchmark-backed behavior improvement and product workflow clarity are needed to make it credible as long-term open-source infrastructure.
 - Status: active.
+
+## 2026-07-10
+
+- Decision: Product Proof integration exposes eight typed MCP tools, with `memory_resolve_conflict` as the explicit authorized conflict lifecycle operation.
+- Rationale: Conflict governance is incomplete if callers can only create and inspect conflicts. A typed service boundary preserves caller authorization and makes accept, reject, supersede, merge, keep-both, and dismiss auditable.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: `STORE_MODE=in-memory` remains the credential-free default, while `STORE_MODE=postgres` plus `DATABASE_URL` selects `PostgresMemoryStore`; migration stays an explicit operator command.
+- Rationale: CI and first-run contributors need zero credentials, while product proof needs real selectable persistence without surprising production schema mutations on startup.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: The dashboard server must follow the same `STORE_MODE` and `DATABASE_URL` as the MCP runtime, and Postgres dashboard access requires explicit private tenant/user scope.
+- Rationale: A separately seeded dashboard is not product truth. Shared storage makes dashboard mutations and runtime memories coherent, while explicit scope prevents cross-user visibility.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: `npm run check` owns every credential-free deterministic product gate: core/runtime/dashboard tests, 8-tool smoke, local eval, comparative benchmark, LongMemEval tiny matrix, real loopback cross-host E2E, Markdown links, and tracked-secret scanning.
+- Rationale: Contributors and CI should have one authoritative command that proves the integrated product without Qwen credentials, Docker, cloud access, or external datasets.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: The LongMemEval adapter may provide explicit Qwen reader/provider modes, but no official score can be claimed until a full official dataset run and separate official evaluator run are completed and recorded.
+- Rationale: Adapter compatibility, internal retrieval metrics, tiny synthetic fixtures, and model-generated hypotheses are different artifacts from an official benchmark score.
+- Status: active.

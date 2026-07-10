@@ -14,7 +14,14 @@ import {
   selectLongMemEvalQuestions,
   validateLongMemEvalDataset
 } from "../benchmarks/longmemeval/adapter.mjs";
-import { createDeterministicExtractiveReader } from "../benchmarks/longmemeval/local-runtime.mjs";
+import {
+  LongMemEvalQwenReaderError,
+  LongMemEvalRuntimeConfigurationError,
+  createDeterministicExtractiveReader,
+  createLocalHandoffBaseBoundary,
+  createQwenChatReader,
+  resolveQwenRuntimeConfig
+} from "../benchmarks/longmemeval/local-runtime.mjs";
 import { parseLongMemEvalArgs } from "../scripts/benchmarks/longmemeval-run.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -209,9 +216,25 @@ test("selection and CLI parsing are strict and deterministic", async () => {
     datasetPath: fixturePath,
     outputDir: "/tmp/lme-output",
     backend: "raw-history",
+    readerMode: "deterministic",
+    memoryProviderMode: "mock",
     limit: 2,
     questionId: "synthetic_beta",
     resume: true
+  });
+  assert.deepEqual(parseLongMemEvalArgs([
+    "--dataset", fixturePath,
+    "--output-dir", "/tmp/lme-qwen-output",
+    "--backend", "handoffbase",
+    "--reader", "qwen",
+    "--memory-provider", "qwen"
+  ]), {
+    datasetPath: fixturePath,
+    outputDir: "/tmp/lme-qwen-output",
+    backend: "handoffbase",
+    readerMode: "qwen",
+    memoryProviderMode: "qwen",
+    resume: false
   });
   assert.deepEqual(parseLongMemEvalArgs(["--help"]), { help: true });
   assert.throws(() => parseLongMemEvalArgs(["--dataset", fixturePath]), /Missing required flag/);
@@ -232,6 +255,18 @@ test("selection and CLI parsing are strict and deterministic", async () => {
     "--backend", "raw-history",
     "--limit", "0"
   ]), /--limit/);
+  assert.throws(() => parseLongMemEvalArgs([
+    "--dataset", fixturePath,
+    "--output-dir", "/tmp/out",
+    "--backend", "raw-history",
+    "--memory-provider", "qwen"
+  ]), /requires --backend handoffbase/);
+  assert.throws(() => parseLongMemEvalArgs([
+    "--dataset", fixturePath,
+    "--output-dir", "/tmp/out",
+    "--backend", "handoffbase",
+    "--reader", "unknown"
+  ]), /--reader/);
   await assert.rejects(loadLongMemEvalDataset("https://example.test/longmemeval.json"), /local file path/);
 });
 
@@ -471,6 +506,158 @@ test("the bundled reader is deterministic and remains honest without context", a
   });
   assert.equal(extracted.hypothesis, "I chose the launch codename Juniper.");
   assert.equal(extracted.usage.total_tokens, extracted.usage.input_tokens + extracted.usage.output_tokens);
+});
+
+test("Qwen runtime configuration follows existing env aliases without exposing values in errors", () => {
+  const config = resolveQwenRuntimeConfig({
+    QWEN_API_KEY: "unit-test-primary-credential",
+    DASHSCOPE_API_KEY: "unit-test-fallback-credential",
+    QWEN_BASE_URL: "https://reader.example.test/compatible-mode/v1/",
+    DASHSCOPE_BASE_URL: "https://ignored.example.test/v1",
+    QWEN_MODEL: "qwen-plus-test",
+    DASHSCOPE_MODEL: "ignored-model",
+    QWEN_TIMEOUT_MS: "45000"
+  });
+  assert.equal(config.apiKey, "unit-test-primary-credential");
+  assert.equal(config.baseUrl, "https://reader.example.test/compatible-mode/v1/");
+  assert.equal(config.model, "qwen-plus-test");
+  assert.equal(config.timeoutMs, 45_000);
+
+  assert.throws(
+    () => resolveQwenRuntimeConfig({}),
+    (error) => error instanceof LongMemEvalRuntimeConfigurationError &&
+      /QWEN_API_KEY or DASHSCOPE_API_KEY/.test(error.message)
+  );
+  const invalidSecret = "unit-test-value-that-must-not-appear";
+  assert.throws(
+    () => resolveQwenRuntimeConfig({
+      DASHSCOPE_API_KEY: invalidSecret,
+      DASHSCOPE_BASE_URL: `https://${invalidSecret}@reader.example.test/v1`
+    }),
+    (error) => error instanceof LongMemEvalRuntimeConfigurationError &&
+      !error.message.includes(invalidSecret)
+  );
+});
+
+test("injectable Qwen reader uses fake fetch, records only a model label, and keeps failures secret-safe", async (t) => {
+  const temp = await makeTempDir(t);
+  const outputDir = path.join(temp, "qwen-reader-output");
+  const credential = "unit-test-reader-credential";
+  const calls = [];
+  const reader = createQwenChatReader({
+    env: {
+      DASHSCOPE_API_KEY: credential,
+      DASHSCOPE_BASE_URL: "https://reader.example.test/compatible-mode/v1",
+      DASHSCOPE_MODEL: "qwen-plus-test"
+    },
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            choices: [{ message: { content: "Juniper" } }],
+            usage: { prompt_tokens: 11, completion_tokens: 2, total_tokens: 13 }
+          });
+        }
+      };
+    }
+  });
+
+  await runLongMemEval(baseRunOptions({
+    outputDir,
+    backend: "no-memory",
+    reader,
+    limit: 1
+  }));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://reader.example.test/compatible-mode/v1/chat/completions");
+  assert.equal(calls[0].init.headers.Authorization, `Bearer ${credential}`);
+  const request = JSON.parse(calls[0].init.body);
+  assert.equal(request.model, "qwen-plus-test");
+  assert.doesNotMatch(request.messages[1].content, /synthetic_alpha|answer_synthetic_alpha/);
+
+  const artifacts = await readAllOutputs(outputDir);
+  const serialized = Object.values(artifacts).join("\n");
+  assert.doesNotMatch(serialized, new RegExp(credential));
+  const metadata = JSON.parse(artifacts[LONGMEMEVAL_OUTPUT_FILES.metadata]);
+  assert.equal(metadata.reader_mode, "qwen");
+  assert.equal(metadata.model_label, "qwen-chat/qwen-plus-test");
+  assert.equal(metadata.memory_provider_mode, "none");
+  assert.equal(metadata.evaluation_boundary.official_qa_evaluator_run, false);
+
+  const responseSecret = "unit-test-response-secret";
+  const failingReader = createQwenChatReader({
+    env: { QWEN_API_KEY: credential },
+    fetch: async () => ({
+      ok: false,
+      status: 401,
+      async text() {
+        return responseSecret;
+      }
+    })
+  });
+  await assert.rejects(
+    failingReader.generate({
+      question: { question: "What did I choose?", question_date: "2025-01-01T00:00:00.000Z" },
+      context: { text: "user: I chose Juniper." }
+    }),
+    (error) => error instanceof LongMemEvalQwenReaderError &&
+      error.status === 401 &&
+      !error.message.includes(credential) &&
+      !error.message.includes(responseSecret)
+  );
+
+  const echoingReader = createQwenChatReader({
+    env: { QWEN_API_KEY: credential },
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ choices: [{ message: { content: credential } }] });
+      }
+    })
+  });
+  await assert.rejects(
+    echoingReader.generate({
+      question: { question: "What did I choose?", question_date: "2025-01-01T00:00:00.000Z" },
+      context: { text: "user: I chose Juniper." }
+    }),
+    (error) => error instanceof LongMemEvalQwenReaderError &&
+      /credential material/.test(error.message) &&
+      !error.message.includes(credential)
+  );
+});
+
+test("local HandoffBase boundary can explicitly construct QwenMemoryProvider without a network call", async () => {
+  let fetchCalls = 0;
+  const boundary = await createLocalHandoffBaseBoundary({
+    rootDir: repoRoot,
+    memoryProviderMode: "qwen",
+    env: {
+      QWEN_API_KEY: "unit-test-memory-provider-credential",
+      QWEN_MODEL: "qwen-plus-test"
+    },
+    fetch: async () => {
+      fetchCalls += 1;
+      throw new Error("fake fetch should not be called during construction");
+    }
+  });
+  assert.equal(boundary.providerMode, "qwen");
+  assert.equal(boundary.label, "local-continuity-memory-service/qwen-provider/in-memory");
+  assert.equal(boundary.supportsIdempotency, true);
+  assert.equal(fetchCalls, 0);
+
+  await assert.rejects(
+    createLocalHandoffBaseBoundary({
+      rootDir: repoRoot,
+      memoryProviderMode: "qwen",
+      env: {},
+      fetch: async () => { throw new Error("network access is forbidden"); }
+    }),
+    LongMemEvalRuntimeConfigurationError
+  );
 });
 
 function baseRunOptions(overrides = {}) {

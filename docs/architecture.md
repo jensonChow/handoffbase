@@ -5,12 +5,13 @@ agent runtime, a generic vector store wrapper, or a project-local note file. Its
 job is to expose durable memory operations through MCP so different hosts can
 share the same governed continuity layer without changing their own runtimes.
 
-The current project is in submission-readiness mode. The live proof is
-intentionally narrow: a Remote Streamable HTTP MCP server on Alibaba Cloud ECS,
-Qwen-backed memory reasoning, API key auth, and an in-memory runtime store. The
-ECS instance has since been stopped to reduce cost, so the public endpoint
-should be revalidated before any submission or demo that depends on it being
-online.
+The current project is in product-proof integration mode. The default path is
+still intentionally narrow and credential-free: Remote Streamable HTTP MCP,
+`MockMemoryProvider`, and an in-memory store. Postgres runtime selection,
+explicit migration, server-backed dashboard access, conflict resolution, and a
+real HTTP/MCP cross-host proof are implemented. The separate Alibaba Cloud ECS
+record remains historical Qwen/API-key/in-memory proof; the instance was later
+stopped to reduce cost.
 
 ## System Shape
 
@@ -41,15 +42,16 @@ flowchart LR
   subgraph CoreLayer["Memory core"]
     Core["Records, lifecycle,<br/>validation, scopes"]
     Store["MemoryStore"]
-    InMemory["InMemoryMemoryStore<br/>current live demo store"]
-    Postgres["PostgresMemoryStore + pgvector<br/>future runtime wiring"]
+    InMemory["InMemoryMemoryStore<br/>credential-free default"]
+    Postgres["PostgresMemoryStore + pgvector<br/>opt-in runtime"]
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
   end
 
-  subgraph DashboardLayer["Memory Vault dashboard prototype"]
+  subgraph DashboardLayer["Memory Vault dashboard"]
     Dashboard["Governance UI"]
+    DashboardAPI["Same-origin server API"]
     Pending["Pending review"]
     ConflictReview["Conflict review"]
     TraceView["Trace view"]
@@ -75,12 +77,13 @@ flowchart LR
   Service --> Core
   Core --> Store
   Store --> InMemory
-  Store -. "implemented path, not runtime default" .-> Postgres
+  Store --> Postgres
   Core --> Events
   Core --> Trace
   Core --> Conflicts
 
-  Dashboard -->|inspect and govern| Surface
+  Dashboard --> DashboardAPI
+  DashboardAPI -->|same MemoryStore selection| Store
   Dashboard --> Pending
   Dashboard --> ConflictReview
   Dashboard --> TraceView
@@ -112,9 +115,14 @@ projects, hosts, and devices.
 ## MCP Server Boundary
 
 The MCP server exposes a Remote Streamable HTTP endpoint at `/mcp`. The current
-manifest contains seven tools, nine `memory://` resources, and four prompts.
+manifest contains eight tools, nine `memory://` resources, and four prompts.
 Tool names, resource URIs, and prompt names are part of the public interface and
 should not change without an explicit compatibility decision.
+
+The eighth tool, `memory_resolve_conflict`, applies an authorized decision to a
+first-class conflict record. It supports accepting or rejecting the candidate,
+superseding the existing memory, merging canonical text, keeping both memories,
+or dismissing the conflict, with scope checks and audit events.
 
 The server layer stays thin. It resolves caller scope, enforces auth/scope
 guards, validates tool inputs, and delegates memory behavior to the service and
@@ -162,16 +170,17 @@ optional; HandoffBase should not persist full raw chat logs by default.
 
 `MemoryStore` is the storage interface used by the service layer.
 
-`InMemoryMemoryStore` is the current live demo store. The deployed `/health`
-proof reports `storeMode=in-memory`, so stored demo memories are not durable
-across process restarts.
+`InMemoryMemoryStore` is the default store. It keeps local development and CI
+credential-free, deterministic, and free of external services. Stored memories
+do not survive a process restart.
 
 `PostgresMemoryStore` is an implemented path in `packages/memory-core`. It
 supports core CRUD, recall, traces, events, embeddings, and conflicts, and the
-repository includes a Postgres/pgvector migration contract. It is not wired as
-the default server runtime yet. Do not claim production persistence until runtime
-store selection and database provisioning are explicitly completed and
-validated.
+repository includes a Postgres/pgvector migration. `STORE_MODE=postgres`
+selects it for the MCP server and requires `DATABASE_URL`; operators must first
+run `DATABASE_URL=<postgres-url> npm run db:migrate`. Startup never migrates a
+database implicitly. The implementation provides a durable runtime path, but no
+production cloud database has been provisioned or validated.
 
 ## Trace Governance
 
@@ -199,18 +208,27 @@ This supports review flows such as:
 - keep both memories when scopes are different
 - reject unsafe or low-confidence candidates
 
+`memory_resolve_conflict` closes that governance loop. The service authorizes
+the caller against both linked memories, applies lifecycle mutations with
+auditable provenance, persists the terminal conflict state, serializes
+competing decisions, and compensates partial mutations if persistence fails.
+
 The important property is not that HandoffBase always knows the right answer. It
 is that changes to durable memory are reviewable rather than invisible.
 
 ## Memory Vault Dashboard
 
-The Memory Vault dashboard is a Next.js prototype for inspecting and governing
-memory. The current app includes vault, pending review, edit/delete, trace, and
-conflict-review views behind a client boundary.
+The Memory Vault dashboard is a Next.js interface for inspecting and governing
+memory. The browser uses same-origin dashboard API routes by default. The
+server-side backend follows the same `STORE_MODE` and `DATABASE_URL` as the MCP
+runtime: in-memory mode seeds demo data, while Postgres mode disables demo
+seeding and reads the shared durable store.
 
-The dashboard defaults to mock data for local development. It can call same
-origin dashboard API routes when `NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT=http`
-is set, but it is not yet the source of production-grade persistence.
+Postgres dashboard mode fails closed unless private server-side
+`HANDOFFBASE_DASHBOARD_TENANT_ID` and `HANDOFFBASE_DASHBOARD_USER_ID` values are
+set; optional agent, project, and host values narrow that scope. None of those
+scope values are exposed through `NEXT_PUBLIC_*`. Set
+`HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock` only for the isolated fixture demo.
 
 ## Live Deployment Proof
 
@@ -218,7 +236,7 @@ The deployed proof is recorded in
 [`docs/deployment/alibaba-cloud-proof.md`](deployment/alibaba-cloud-proof.md).
 It shows a single Alibaba Cloud ECS instance running the Dockerized server.
 
-Current live `/health` proof:
+Historical `/health` proof from 2026-07-07:
 
 ```text
 authMode=api_key
@@ -226,8 +244,11 @@ providerMode=qwen
 storeMode=in-memory
 ```
 
-Remote validation has succeeded for MCP discovery, `memory_recall`, and
-Qwen-backed `memory_remember` through `npm run mcp:validate-remote`.
+That historical image returned the then-current seven-tool MCP surface and
+validated discovery, `memory_recall`, and Qwen-backed `memory_remember`. It
+predates the integrated eighth tool and Postgres wiring, so a future relaunch
+must rebuild and revalidate the current image before making current-runtime
+claims.
 
 The ECS instance has since been stopped to reduce cost. Treat the deployment
 record as proof that validation passed, not as a guarantee that the public
@@ -235,12 +256,12 @@ endpoint is currently online.
 
 ## Current Limitations
 
-- Runtime storage is still in-memory on the live proof.
-- Postgres/pgvector is implemented as a path but not wired as the default
-  runtime.
+- Runtime storage was in-memory on the historical live proof; the integrated
+  Postgres path has not been deployed to cloud infrastructure.
 - The public ECS endpoint is HTTP on an IP address, without domain, TLS, load
   balancer, or managed gateway.
-- The dashboard is a prototype and defaults to mock data.
+- The dashboard is server-backed by default but is not a hardened production
+  admin console.
 - HandoffBase should not claim to be more mature or more production-ready than
   established managed memory platforms.
 

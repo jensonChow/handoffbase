@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ import {
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runnerPath = path.join(repositoryRoot, "scripts/run-memory-benchmarks.mjs");
+const conflictFixturePath = path.join(repositoryRoot, "examples/benchmarks/conflicts/cases.json");
 
 test("excluded-memory assertion rejects a returned MemorySummary whose text is in context", () => {
   assert.throws(
@@ -105,6 +107,54 @@ test("benchmark JSON executes both implemented baselines with a deterministic sc
   assert.equal(report.results.every((result) => result.executionError === null), true);
   assert.equal(report.results.some((result) => result.baseline === "raw-history"), false);
   assert.equal(report.results.some((result) => result.baseline === "naive-vector-rag"), false);
+
+  for (const caseId of [
+    "preference-contradiction-supersede",
+    "procedure-duplicate-merge",
+    "different-project-keep-both"
+  ]) {
+    const noMemory = report.results.find(
+      (result) => result.baseline === "no-memory" && result.caseId === caseId
+    );
+    const handoffbase = report.results.find(
+      (result) => result.baseline === "handoffbase-memory-context" && result.caseId === caseId
+    );
+    assert.equal(noMemory.observedPass, false, `${caseId} remains a no-memory capability miss`);
+    assert.equal(noMemory.expectationMatched, true);
+    assert.equal(noMemory.executionError, null, `${caseId} no-memory miss is not a harness error`);
+    assert.equal(handoffbase.observedPass, true, `${caseId} resolves deterministically in HandoffBase`);
+    assert.equal(handoffbase.executionError, null);
+  }
+});
+
+test("conflict fixtures cover terminal supersede, merge, and keep-both postconditions", () => {
+  const fixture = JSON.parse(readFileSync(conflictFixturePath, "utf8"));
+  const resolutionSteps = fixture.cases
+    .flatMap((testCase) => testCase.steps.map((step) => ({ caseId: testCase.id, ...step })))
+    .filter((step) => step.op === "resolveConflict");
+
+  assert.deepEqual(
+    resolutionSteps.map((step) => step.action),
+    ["supersede_existing", "merge", "keep_both"]
+  );
+  assert.equal(resolutionSteps.every((step) => step.expect.conflictStatus === "resolved"), true);
+  assert.equal(resolutionSteps.every((step) => step.expect.candidateStatus === "active"), true);
+  assert.equal(resolutionSteps.every((step) => step.expect.openConflictCount === 0), true);
+  assert.equal(resolutionSteps.every((step) => step.expect.vaultConflictsCount === 0), true);
+
+  const [supersede, merge, keepBoth] = resolutionSteps;
+  assert.equal(supersede.expect.existingStatus, "superseded");
+  assert.deepEqual(supersede.expect.candidateSupersedesMemoryIds, ["bench-pref-prize-money"]);
+  assert.equal(supersede.expect.existingSupersededBy, "bench-candidate-pref-credibility-network");
+
+  assert.equal(merge.expect.existingStatus, "superseded");
+  assert.equal(merge.expect.candidateText, merge.mergedText);
+  assert.deepEqual(merge.expect.candidateSupersedesMemoryIds, ["bench-procedure-deadline-timezone"]);
+  assert.equal(merge.expect.existingSupersededBy, "bench-candidate-procedure-rules");
+
+  assert.equal(keepBoth.expect.existingStatus, "active");
+  assert.deepEqual(keepBoth.expect.candidateSupersedesMemoryIds, []);
+  assert.equal(keepBoth.expect.existingSupersededBy, null);
 });
 
 function runJsonBenchmark() {

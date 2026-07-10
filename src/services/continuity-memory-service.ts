@@ -72,7 +72,6 @@ import type {
 const DEFAULT_TENANT_ID = "demo-tenant";
 const DEFAULT_USER_ID = "demo-user";
 const DEFAULT_AGENT_PROFILE_ID = "opportunity-scout";
-const CONFLICT_RESOLUTION_DISPATCH = "memory_resolve_conflict" as const;
 
 export interface ContinuityMemoryServiceOptions {
   store?: MemoryStore;
@@ -333,11 +332,6 @@ export class ContinuityMemoryService implements MemoryService {
   }
 
   async update(input: MemoryUpdateInput, context: MemoryServiceContext = {}): Promise<MemoryUpdateOutput> {
-    const conflictResolution = conflictResolutionDispatchFrom(input);
-    if (conflictResolution) {
-      return (await this.resolveConflict(conflictResolution, context)) as unknown as MemoryUpdateOutput;
-    }
-
     return await this.withMemoryMutationLocks([input.memory_id], async () => {
       await this.ensureSeeded();
       await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
@@ -1002,15 +996,6 @@ export class ContinuityMemoryService implements MemoryService {
       throw new ScopeGuardError(`${operation} cannot verify caller user scope for trace ${trace.id}.`);
     }
   }
-}
-
-function conflictResolutionDispatchFrom(input: MemoryUpdateInput): MemoryResolveConflictInput | undefined {
-  const dispatch = input as unknown as Record<string, unknown>;
-  if (dispatch.__handoffbase_operation !== CONFLICT_RESOLUTION_DISPATCH) {
-    return undefined;
-  }
-  const { __handoffbase_operation: _operation, ...payload } = dispatch;
-  return MemoryResolveConflictInputSchema.parse(payload);
 }
 
 function assertResolutionActionRequirements(
