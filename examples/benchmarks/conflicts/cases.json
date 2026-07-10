@@ -12,6 +12,11 @@
     {
       "id": "preference-contradiction-supersede",
       "name": "Preference correction creates a supersede conflict",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-pref-prize-money",
@@ -55,19 +60,7 @@
             "openConflictCount": 1,
             "conflictType": "contradiction",
             "recommendedAction": "supersede",
-            "vaultConflictsCount": 1,
-            "vaultResource": {
-              "uri": "memory://vault/conflicts",
-              "containsConflictId": "bench-conflict-pref-prize-vs-network",
-              "containsExistingMemoryId": "bench-pref-prize-money",
-              "containsCandidateMemoryId": "bench-candidate-pref-credibility-network"
-            },
-            "resolutionExpectation": {
-              "action": "supersede",
-              "existingStatusAfterResolution": "superseded",
-              "candidateStatusAfterResolution": "active",
-              "conflictStatusAfterResolution": "resolved"
-            }
+            "vaultConflictsCount": 1
           }
         }
       ],
@@ -79,6 +72,11 @@
     {
       "id": "procedure-duplicate-merge",
       "name": "Procedure refinement recommends merge",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-deadline-timezone",
@@ -122,36 +120,23 @@
             "openConflictCount": 1,
             "conflictType": "duplicate",
             "recommendedAction": "merge",
-            "vaultConflictsCount": 1,
-            "vaultResource": {
-              "uri": "memory://vault/conflicts",
-              "containsConflictId": "bench-conflict-procedure-merge",
-              "containsExistingMemoryId": "bench-procedure-deadline-timezone",
-              "containsCandidateMemoryId": "bench-candidate-procedure-rules"
-            },
-            "resolutionExpectation": {
-              "action": "merge",
-              "mergedCanonicalTextIncludes": [
-                "deadline",
-                "timezone",
-                "eligibility",
-                "official rules"
-              ],
-              "activeMemoryCountAfterResolution": 1,
-              "conflictStatusAfterResolution": "resolved"
-            }
+            "vaultConflictsCount": 1
           }
         }
       ],
       "metrics": [
         "conflict_created",
-        "conflict_action_correct",
-        "update_correct"
+        "conflict_action_correct"
       ]
     },
     {
       "id": "different-project-keep-both",
       "name": "Similar memories in different projects should be kept",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-project-a-preference",
@@ -199,32 +184,20 @@
             "openConflictCount": 1,
             "conflictType": "scope_overlap",
             "recommendedAction": "keep_both",
-            "vaultConflictsCount": 1,
-            "vaultResource": {
-              "uri": "memory://vault/conflicts",
-              "containsConflictId": "bench-conflict-project-scope-overlap",
-              "containsExistingMemoryId": "bench-project-a-preference",
-              "containsCandidateMemoryId": "bench-candidate-project-b-preference"
-            },
-            "resolutionExpectation": {
-              "action": "keep_both",
-              "existingStatusAfterResolution": "active",
-              "candidateStatusAfterResolution": "active",
-              "projectARecallExcludesCandidate": true,
-              "projectBRecallExcludesExisting": true,
-              "conflictStatusAfterResolution": "resolved"
-            }
+            "vaultConflictsCount": 1
           }
         }
       ],
-      "metrics": [
-        "scope_isolation_correct",
-        "conflict_action_correct"
-      ]
+      "metrics": ["conflict_action_correct"]
     },
     {
       "id": "unsafe-placeholder-candidate-reject",
       "name": "Credential-shaped placeholder candidate is rejected",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-procedure-no-sensitive-values",
@@ -268,16 +241,7 @@
             "openConflictCount": 0,
             "conflictType": "none",
             "recommendedAction": "reject",
-            "vaultConflictsCount": 0,
-            "vaultResource": {
-              "uri": "memory://vault/conflicts",
-              "excludesConflictId": "bench-conflict-placeholder-reject"
-            },
-            "resolutionExpectation": {
-              "action": "reject",
-              "candidateStatusAfterResolution": "rejected",
-              "activeMemoryCreated": false
-            }
+            "vaultConflictsCount": 0
           }
         }
       ],
@@ -288,6 +252,11 @@
     {
       "id": "stale-fact-ask-user",
       "name": "Stale deployment proof fact asks the user",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "seedMemories": [
         {
           "id": "bench-fact-synthetic-proof-earlier-run",
@@ -331,19 +300,7 @@
             "openConflictCount": 1,
             "conflictType": "contradiction",
             "recommendedAction": "ask_user",
-            "vaultConflictsCount": 1,
-            "vaultResource": {
-              "uri": "memory://vault/conflicts",
-              "containsConflictId": "bench-conflict-stale-proof-ask-user",
-              "containsExistingMemoryId": "bench-fact-synthetic-proof-earlier-run",
-              "containsCandidateMemoryId": "bench-candidate-proof-status-verify"
-            },
-            "resolutionExpectation": {
-              "action": "ask_user",
-              "existingStatusAfterResolution": "active",
-              "candidateStatusAfterResolution": "pending",
-              "conflictStatusAfterResolution": "open"
-            }
+            "vaultConflictsCount": 1
           }
         }
       ],

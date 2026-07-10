@@ -4,9 +4,10 @@ This directory contains synthetic LongMemEval-style benchmark-inspired fixtures
 for HandoffBase. They are not official LongMemEval data, adapters, scores, or
 leaderboard results.
 
-The fixture set is intended for a future deterministic benchmark runner. It
-does not execute by itself, call Qwen, start a cloud service, read local
-environment files, or require remote MCP access.
+The fixture set is executed by `npm run bench:memory` across the `no-memory`
+and `handoffbase-memory-context` registry entries. The runner does not call
+Qwen, start a cloud service, read local environment files, or require remote
+MCP access.
 
 ## Files
 
@@ -36,12 +37,13 @@ All records are synthetic and safe for a public repository:
 | `token-budget-ignores-lower-priority-memory` | Keeps high-importance evidence while excluding lower-priority memories under a tight budget. |
 | `out-of-scope-evidence-missing` | Excludes memory from another project scope. |
 
-## Runner Expectations
+## Runner Contract
 
-A future runner should treat these cases as benchmark-inspired deterministic
-assertions over memory ids, lifecycle statuses, context text, trace ids, and
-metric keys. The intended default path should remain credential-free,
-network-free, and suitable for contributors.
+The runner treats these cases as benchmark-inspired deterministic assertions
+over memory ids, lifecycle statuses, context text, trace ids, and metric tags.
+Each case explicitly expects the no-memory executor to miss the full
+memory-dependent oracle and the HandoffBase executor to pass it. Expected
+no-memory misses lower its comparative score without failing the harness.
 
 See [`docs/benchmarks.md`](../../../docs/benchmarks.md) and
 [`docs/evals.md`](../../../docs/evals.md) for the benchmark strategy and current

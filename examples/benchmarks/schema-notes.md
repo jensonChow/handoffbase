@@ -25,6 +25,11 @@ Each fixture file has this top-level shape:
     {
       "id": "case-id",
       "name": "Human-readable name",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
       "metrics": ["answer_correct", "trace_id_present"],
       "seedMemories": [],
       "steps": []
@@ -38,6 +43,43 @@ Each fixture file has this top-level shape:
 - `long-memory`
 - `conflicts`
 - `cross-host-handoff`
+
+## Baselines And Expected Outcomes
+
+Every case must list one or more implemented baseline ids in `baselines` and
+provide exactly one corresponding `baselineExpectations` entry. Baseline ids
+must be unique; missing, extra, or unimplemented ids fail fixture validation.
+
+The current registry implements:
+
+- `no-memory`: executes the case with no persistence, recalled context, trace,
+  forget state, or conflict-governance capability.
+- `handoffbase-memory-context`: executes the case with the local deterministic
+  HandoffBase store, provider, service, seeds, and fixed clock.
+
+The expectation shape is `{ "pass": boolean }`. `pass` is the expected score
+against the case's common step oracle. An observed `false` result for a
+memory-dependent no-memory case is therefore a valid, conformant regression
+result: it lowers the baseline score without failing the harness. The
+HandoffBase expectation must always be `true`.
+
+Two results remain distinct:
+
+- Observed pass: whether the executor satisfied the case's common behavior
+  assertions. This feeds baseline totals and the HandoffBase delta.
+- Expectation conformance: whether the observed pass matched
+  `baselineExpectations`. This, fixture validity, and executor health control
+  the command exit status.
+
+Metric totals retain the suite's case-level semantics: each case's observed
+pass is counted once under every metric tag declared by that case. They are
+metric-tagged case counts, not independently adjudicated sub-scores.
+
+All current fixtures list both implemented baselines. In conflict-governance
+cases, no-memory executes the remember operation with no candidate or
+governance state and records an expected miss against the common oracle.
+`raw-history` and `naive-vector-rag` should be added only with real executors;
+the runner rejects them today instead of emitting placeholder results.
 
 `defaultScope` uses memory-core field names:
 
@@ -167,3 +209,13 @@ Calls `memory_remember` with a fixture-backed deterministic conflict provider. T
 ```
 
 Fixture text should remain synthetic and public-safe. Do not put real credentials, endpoint tokens, user identifiers, payment details, coupon or voucher values, or private account material in benchmark fixtures.
+
+## Machine-Readable Result Schema
+
+`node scripts/run-memory-benchmarks.mjs --json` emits schema version `1` with
+stable fields for the implemented registry, fixture and execution counts,
+per-execution observed and expected outcomes, harness errors, per-baseline
+family and metric-tagged totals, and the paired HandoffBase delta over
+no-memory. The output intentionally omits wall-clock timestamps, durations,
+generated trace/conflict ids, and absolute paths so identical inputs produce
+identical JSON.

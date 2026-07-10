@@ -5,11 +5,10 @@ strategy is to isolate what changes when an agent receives governed,
 traceable, scoped memory from HandoffBase instead of no memory, raw history, or
 naive recall.
 
-This document is a plan. The first implementation should be a
-benchmark-aware, benchmark-inspired subset, not an official leaderboard run.
-It should extend the current deterministic eval posture in
-[`docs/evals.md`](evals.md) and keep the default contributor path
-credential-free.
+The first benchmark-aware, benchmark-inspired subset is implemented as a local
+comparative regression harness. It extends the deterministic eval posture in
+[`docs/evals.md`](evals.md), keeps the default contributor path credential-free,
+and is not an official leaderboard run.
 
 ## Goal
 
@@ -32,14 +31,14 @@ given the same task, same model mode, and same fixture, HandoffBase memory
 context improves the memory-dependent outcome while preserving governance,
 scope isolation, and traceability.
 
-## First-stage Benchmark Plan
+## Implemented First Stage
 
 ### LongMemEval-style subset
 
 Purpose: test durable memory and answer quality across long or separated
 interactions.
 
-Include cases for:
+The current fixtures cover:
 
 - Long-term user preference and project fact recall.
 - Multi-session reasoning where the answer requires combining memories from
@@ -53,23 +52,24 @@ Implementation shape:
 - Synthetic fixtures under `examples/benchmarks/long-memory/`.
 - Deterministic mock mode where the expected memory ids and answer fragments are
   known.
-- Optional Qwen-backed manual mode that uses the same fixtures but reports as
-  manual proof, not official LongMemEval score.
+- Qwen is not called by this runner. A future Qwen-backed manual mode must be
+  reported separately as manual proof, not as an official LongMemEval score.
 
 ### MemConflict-style governance eval
 
 Purpose: test whether HandoffBase handles conflicting memory as governed state,
 not silent overwrite.
 
-Include cases for:
+The current fixtures cover:
 
 - Conflict detection when a candidate contradicts an active memory.
 - Pending review records for `ask_user`, `merge`, and `supersede`
   recommendations.
-- Correct resolution behavior for `supersede`, `merge`, `keep_both`, and
-  `reject`.
+- Recommended governance actions for `supersede`, `merge`, `keep_both`, and
+  `reject`; end-to-end post-resolution state remains later coverage.
 - Distractor memories that should not be treated as conflicts.
-- Trace and resource inspection through pending/conflict vault surfaces.
+- Conflict-vault resource inspection; conflict-trace coverage remains later
+  work.
 
 The score should separate answer correctness from governance correctness. A
 correct answer without the expected conflict record is still a benchmark
@@ -80,7 +80,7 @@ failure for HandoffBase.
 Purpose: test the product-specific claim that memory can move across MCP hosts
 and sessions without copying raw chat history.
 
-Include cases for:
+The current fixtures cover:
 
 - Host A writes or reflects a durable memory.
 - Host B bootstraps a later session and receives the expected context pack.
@@ -115,20 +115,23 @@ These later stages can use larger fixtures, benchmark adapters, and optional
 model-backed judging, but they should remain separate from the default CI path
 unless they are deterministic and cost-free.
 
-## Required Baselines
+## Baseline Registry
 
-Every benchmark case should run comparable scenarios across these baselines:
+The runner executes only registered baselines; fixture names are validated and
+unknown entries fail instead of being silently skipped.
 
-| Baseline | What it proves |
-| --- | --- |
-| `no-memory` | The task is genuinely memory-dependent and fails or abstains without prior state. |
-| `raw-history` | Stuffing prior transcript into context is not the same as governed, scoped memory. |
-| `naive-recall` or `naive-vector-rag` | Simple retrieval can find text but may miss update, conflict, trace, or scope rules. |
-| `handoffbase-memory-context` | HandoffBase supplies selected memory context plus trace and governance metadata. |
+| Baseline | Status | What it proves |
+| --- | --- | --- |
+| `no-memory` | Implemented | Runs the common case oracle with no persistence, recalled context, trace, forget state, or conflict-governance capability. |
+| `handoffbase-memory-context` | Implemented | Runs local HandoffBase with `InMemoryMemoryStore`, the deterministic fixture provider, `ContinuityMemoryService`, fixed clocks, and seeded memories. |
+| `raw-history` | Extension point only | Would test transcript stuffing, but no executor ran and no result is reported. |
+| `naive-vector-rag` | Extension point only | Would test ungoverned retrieval, but no executor ran and no result is reported. |
 
-The first deterministic runner can implement `no-memory` and
-`handoffbase-memory-context` first, then add `raw-history` and
-`naive-vector-rag` once fixture adapters exist.
+All 17 cases execute both implemented baselines. In conflict cases the
+no-memory executor returns no candidate or governance state and therefore
+misses the common behavior oracle as expected; it does not fabricate a
+conflict-resolution result. The HandoffBase delta uses the exact 17 shared
+cases and states its metric-tagged denominator explicitly.
 
 ## Required Metrics
 
@@ -146,14 +149,17 @@ manual Qwen proof, and future benchmark adapters.
 | `ignored_memory_correct` | Trace ignored-memory ids match token-budget or ranking expectations. |
 | `excluded_memory_correct` | Trace excluded-memory ids match scope, status, sensitivity, or trust rules. |
 | `conflict_created` | Conflict cases create the expected conflict record. |
-| `conflict_action_correct` | Conflict recommendation or resolution is `ask_user`, `supersede`, `merge`, `keep_both`, or `reject` as expected. |
+| `conflict_action_correct` | Conflict recommendation is `ask_user`, `supersede`, `merge`, `keep_both`, or `reject` as expected. |
 | `forget_correct` | Forgotten, expired, archived, deleted, or invalidated memories stop influencing recall. |
-| `update_correct` | Newer corrections, merges, and supersessions produce the expected active memory state. |
+| `update_correct` | Recall honors the fixture's active and superseded memory state. |
 | `scope_isolation_correct` | Tenant, user, project, host, and agent-profile boundaries are preserved. |
 | `token_budget_respected` | Context pack stays within the requested token budget and records ignored memories. |
 
-Result summaries should include both aggregate pass rate and per-metric counts.
-Do not collapse governance failures into a single answer score.
+Result summaries include aggregate, per-family, and per-metric-tagged case
+counts for each baseline. The current schema retains the original case-level
+scoring rule: a case's observed pass is counted under every metric tag attached
+to that case. These are not independently adjudicated sub-scores. Do not
+collapse governance failures into a generic answer-only claim.
 
 ## Current Deterministic Subset
 
@@ -174,12 +180,20 @@ It uses `scripts/run-memory-benchmarks.mjs` and synthetic fixture families under
   agent-profile/project scope isolation, trace ids, forget, and deployment
   gotcha handoff.
 
-The runner currently asserts deterministic local behavior against
-`ContinuityMemoryService`, `InMemoryMemoryStore`, and `MockMemoryProvider`. It
-supports fixture branches that use either the runner-native `op`/`expect` shape
-or the public fixture `operation`/`input`/`expected` shape. It passes a
-synthetic API-key caller context for bootstrap cases so tenant/user scope
-matches the seeded fixture data without using real credentials.
+The explicit registry executes `no-memory` and
+`handoffbase-memory-context`. The HandoffBase executor asserts deterministic
+local behavior against `ContinuityMemoryService`, `InMemoryMemoryStore`, and
+`MockMemoryProvider`; the no-memory executor produces no durable state,
+context, trace, forget state, or governance output. The runner supports either
+the native `op`/`expect` shape or the public
+`operation`/`input`/`expected` shape. It passes a synthetic API-key caller
+context for bootstrap cases so tenant/user scope matches the fixture without
+using real credentials.
+
+Each fixture declares `baselineExpectations`. Observed behavior feeds the
+comparative score; expectation conformance, fixture validity, and executor
+health control the process exit code. An expected no-memory miss therefore
+lowers that baseline's score without making CI fail.
 
 Recorded local result summary lives in
 [`docs/benchmark-results.md`](benchmark-results.md). These results are
@@ -187,20 +201,25 @@ benchmark-inspired local regression results, not official benchmark scores.
 
 ## Runner Architecture
 
-The benchmark runner should preserve the current safe local eval pattern:
+The benchmark runner preserves the current safe local eval pattern:
 
 - Default mode is deterministic, credential-free, network-free, and suitable for
   CI and contributors.
 - Default mode uses synthetic benchmark fixtures and local services; it must not
   read `.env.*`, call Qwen, call a remote MCP endpoint, or require cloud
   resources.
-- Optional Qwen-backed manual proof mode may run the same fixture families with
-  Qwen reasoning, but output must be labeled as manual proof.
+- No Qwen-backed mode exists in this runner. Any future manual mode must remain
+  separate and clearly labeled.
 - Fixtures live under `examples/benchmarks/`.
 - The runner is `scripts/run-memory-benchmarks.mjs`.
 - The npm script is `bench:memory`.
-- Output is compact pass/fail lines plus aggregate, per-family, and per-metric
-  pass counts suitable for safe docs summaries after review.
+- Human output reports every executed baseline, expectation conformance,
+  per-baseline family and metric-tagged totals, and the paired HandoffBase
+  delta over no-memory.
+- `node scripts/run-memory-benchmarks.mjs --json` emits deterministic schema
+  version `1` without timestamps, durations, absolute paths, or generated ids.
+- Missing fixtures are a configuration error; an empty regression suite cannot
+  pass.
 
 Current directory layout:
 
@@ -236,37 +255,38 @@ Acceptable public phrasing:
 > recall, updates, conflicts, forgetting, traceability, token budgets, and
 > cross-host MCP handoff.
 
-## Recommended First Implementation
+## Fixture And Executor Contract
 
-Start with a small JSON fixture schema:
+Each case uses a common behavior oracle plus explicit executed baselines and
+expected score outcomes:
 
 ```json
 {
   "id": "cross-host-procedure-handoff",
-  "family": "cross-host-handoff",
   "seedMemories": [],
   "steps": [],
   "baselines": ["no-memory", "handoffbase-memory-context"],
-  "expected": {
-    "metrics": {
-      "answer_correct": true,
-      "trace_id_present": true,
-      "scope_isolation_correct": true
-    }
-  }
+  "baselineExpectations": {
+    "no-memory": { "pass": false },
+    "handoffbase-memory-context": { "pass": true }
+  },
+  "metrics": ["answer_correct", "trace_id_present"]
 }
 ```
 
-The first implementation should:
+The runner:
 
 - Use deterministic assertions against memory ids, statuses, trace ids, context
   blocks, conflict records, and final answer/action fields.
 - Require no Qwen key, HandoffBase token, remote endpoint, database, ECS
   restart, or paid cloud dependency.
 - Reuse `ContinuityMemoryService`, `InMemoryMemoryStore`, and
-  `MockMemoryProvider` before adding adapters.
+  `MockMemoryProvider` for the HandoffBase executor.
 - Keep all fixture data synthetic and public-safe.
-- Print a compact result summary plus a safe Markdown table.
+- Validate that baseline ids are unique, registered, and paired exactly with
+  boolean expectations. HandoffBase cannot be declared an expected failure.
+- Separate an observed benchmark miss from a fixture error, executor error, or
+  expectation mismatch.
 - Treat missing traces, wrong conflict state, stale-memory reuse, or scope leaks
   as failures even when the final answer text looks plausible.
 

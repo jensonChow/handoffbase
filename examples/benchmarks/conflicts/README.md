@@ -18,6 +18,9 @@ The action set intentionally includes `keep_both` for project-scoped overlap
 cases, because keeping both memories can be correct when scopes differ.
 
 These fixtures have no Qwen, DashScope, remote MCP endpoint, database, ECS, or
-cloud dependency. They are docs/fixtures only. A benchmark runner is still
-required to execute the cases and score the expected metrics described in
-[`docs/benchmarks.md`](../../../docs/benchmarks.md).
+cloud dependency. `npm run bench:memory` executes both registered baselines.
+HandoffBase validates the deterministic candidate, conflict, recommendation,
+and vault-count assertions. No-memory returns no candidate or governance state
+and records the expected miss without fabricating a conflict-resolution
+result. See [`docs/benchmarks.md`](../../../docs/benchmarks.md) for the
+comparison boundary.

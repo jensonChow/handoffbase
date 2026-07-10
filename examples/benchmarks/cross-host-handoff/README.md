@@ -11,8 +11,8 @@ agent-profile-specific memory it is not allowed to use.
 
 All data is synthetic and public-safe. The cases do not include real people,
 credentials, account ids, endpoint secrets, public IPs, private project details,
-or cloud resources. They have no Qwen or cloud dependency and are intended for a
-future deterministic local benchmark runner.
+or cloud resources. They have no Qwen or cloud dependency and are executed by
+the deterministic local benchmark runner.
 
 ## Files
 
@@ -30,6 +30,9 @@ The fixture family follows a Host A -> Host B -> Host C isolation story:
 4. Trace ids and used-memory ids make the handoff inspectable.
 5. `memory_forget` invalidates memory so later cross-host recall stops using it.
 
-These fixtures are data only. They require a benchmark runner to execute and
-should be reported as a deterministic benchmark-inspired subset, as described in
+`npm run bench:memory` executes each case through both `no-memory` and
+`handoffbase-memory-context`. Fixture-defined expected misses for no-memory are
+score outcomes, while expectation conformance keeps the regression harness
+green. Results should be reported only as the deterministic benchmark-inspired
+local subset described in
 [`../../../docs/benchmarks.md`](../../../docs/benchmarks.md).
