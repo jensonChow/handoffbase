@@ -218,6 +218,7 @@ test("selection and CLI parsing are strict and deterministic", async () => {
     backend: "raw-history",
     readerMode: "deterministic",
     memoryProviderMode: "mock",
+    embeddingMode: "off",
     limit: 2,
     questionId: "synthetic_beta",
     resume: true
@@ -234,6 +235,7 @@ test("selection and CLI parsing are strict and deterministic", async () => {
     backend: "handoffbase",
     readerMode: "qwen",
     memoryProviderMode: "qwen",
+    embeddingMode: "off",
     resume: false
   });
   assert.deepEqual(parseLongMemEvalArgs(["--help"]), { help: true });

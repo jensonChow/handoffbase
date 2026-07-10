@@ -19,11 +19,16 @@ The two runtime choices are explicit and independent:
 - `--reader deterministic|qwen` controls final answer generation.
 - `--memory-provider mock|qwen` controls HandoffBase extraction, conflict
   detection, and context-pack reasoning when `--backend handoffbase` is used.
+- `--embeddings off|mock|qwen` controls semantic recall. `qwen` embeds memories
+  and queries with a Qwen/DashScope embedding model (default `text-embedding-v4`
+  at 1536 dims) so `memory_recall` ranks by cosine similarity; `mock` uses the
+  deterministic offline embedding provider; `off` (default) keeps lexical recall.
+  Applies only to `--backend handoffbase`.
 
-The defaults are `--reader deterministic --memory-provider mock`. Those
-defaults do not inspect Qwen/DashScope environment values and are the only
-modes used by the tiny-fixture CI tests. `--memory-provider qwen` is rejected
-unless the backend is `handoffbase`.
+The defaults are `--reader deterministic --memory-provider mock --embeddings
+off`. Those defaults do not inspect Qwen/DashScope environment values and are the
+only modes used by the tiny-fixture CI tests. `--memory-provider qwen` and
+`--embeddings` other than `off` are rejected unless the backend is `handoffbase`.
 
 Run the CI-sized matrix with:
 
@@ -112,10 +117,63 @@ not a durable Postgres benchmark mode. Both Qwen roles can make many model
 requests, so a full official dataset run requires an intentional credential,
 quota, cost, and timeout review before execution.
 
+## Scoring hypotheses into a QA accuracy
+
+`hypotheses.jsonl` on its own is not a score. `scripts/benchmarks/longmemeval-score.mjs`
+turns it into a QA-accuracy number by judging each hypothesis against the gold
+answer. It reimplements LongMemEval's per-question-type correctness prompts
+(including the abstention variant), but it is an **independent reimplementation,
+not the official GPT-4o evaluator**, and every artifact says so
+(`official_qa_evaluator: false`).
+
+Two judge modes:
+
+- `--judge deterministic` (default): credential-free, network-free. A coarse
+  substring/abstention proxy for CI and quick local checks — not a quality
+  metric.
+- `--judge qwen`: uses the `QWEN_`/`DASHSCOPE_` conventions with a judge model
+  (default `qwen-max`, override with `QWEN_JUDGE_MODEL`) to reproduce the
+  official yes/no correctness check in spirit.
+
+```sh
+node scripts/benchmarks/longmemeval-score.mjs \
+  --dataset /absolute/path/to/longmemeval_s.json \
+  --hypotheses /absolute/path/to/results/hypotheses.jsonl \
+  --output /absolute/path/to/results/scoring.json \
+  --judge qwen --judge-model qwen-max
+```
+
+`scoring.json` reports overall accuracy, per-question-type accuracy, and a
+separate answered-vs-abstention split, alongside the judge label, dataset digest,
+and the `official_qa_evaluator: false` flag. Report it as "a stratified subset
+scored by a Qwen judge," never as the official LongMemEval leaderboard number.
+
+## End-to-end real run (owner checklist)
+
+1. Download the official LongMemEval-S dataset locally (see the upstream repo);
+   pass its path with `--dataset`. Nothing here downloads or vendors it.
+2. Build once: `npm run build --workspace @handoffbase/memory-core && npm run build:server`.
+3. Export `DASHSCOPE_API_KEY` (or `QWEN_API_KEY`) in the shell — never in the command.
+4. For a stratified subset (`--limit N`, or curate a subset file), run three
+   backends into separate output dirs to get a floor, our system, and a
+   full-context ceiling:
+   - `--backend no-memory --reader qwen` (floor),
+   - `--backend handoffbase --reader qwen --embeddings qwen` (HandoffBase; Qwen
+     drives recall embeddings, and add `--memory-provider qwen` to also drive
+     extraction),
+   - `--backend raw-history --reader qwen` (full-context ceiling).
+5. Score each `hypotheses.jsonl` with `--judge qwen`.
+6. Compare the overall/per-type accuracies. Cost scales with question count and
+   history length; a ~50-question subset with the Qwen reader plus a Qwen judge
+   is on the order of ~1M tokens — start small (`--limit 5`) to calibrate before
+   a larger run, and watch the Qwen free-tier quota.
+
 ## Outputs
 
 - `hypotheses.jsonl`: official evaluator input. Every line has exactly
   `question_id` and `hypothesis`.
+- `scoring.json` (from the scoring step): judge-scored QA accuracy, explicitly
+  labeled `official_qa_evaluator: false`.
 - `retrieval-evidence.jsonl`: HandoffBase-internal retrieval/evidence details,
   including pre-context-pack retrieved session ids, best-effort
   reader-context session ids, gold evidence ids, trace presence, and internal
@@ -130,13 +188,13 @@ quota, cost, and timeout review before execution.
 - `.longmemeval-run-state.json`: canonical resume state. It contains no raw
   histories, prompts, environment values, or credentials.
 
-Only `hypotheses.jsonl` should be passed to the official LongMemEval QA
-evaluator. The adapter does not install or invoke that evaluator, does not run
-a paid judge, and does not calculate an official QA score. Run the official
-evaluator separately according to the pinned upstream LongMemEval instructions
-and record its dataset version, evaluator model, evaluator configuration, and
-output before reporting any official score. Internal evidence metrics are not
-an official QA score.
+The adapter (`longmemeval-run.mjs`) itself never calculates a score; it only
+emits `hypotheses.jsonl` plus internal retrieval metrics. Scoring is a separate,
+explicit step (`longmemeval-score.mjs`, above). That scorer's judge — even in
+`--judge qwen` mode — is an independent reimplementation and is **not** the
+official LongMemEval GPT-4o evaluator. To claim an official score, run the
+pinned upstream evaluator separately and record its dataset version, evaluator
+model, configuration, and output. Internal evidence metrics are not a QA score.
 
 ## Injectable boundaries
 
@@ -192,9 +250,11 @@ official `answer_...` naming convention.
   the injected wrapper, but a future durable remote wrapper must implement
   deduplication to guarantee exactly-once writes across a crash between a
   remote write and the local checkpoint.
-- Official QA evaluation is intentionally separate because it may require a
-  credentialed evaluator. No score in these outputs is an official LongMemEval
-  result.
+- Official QA evaluation is intentionally separate. The included scorer
+  (`longmemeval-score.mjs`) produces a judge-scored accuracy that is explicitly
+  labeled `official_qa_evaluator: false`; it has not been run on the full
+  official dataset in this repository, and no score in these outputs is an
+  official LongMemEval result.
 
 The fixture under `fixtures/` is tiny synthetic data used only by tests. It is
 not copied from LongMemEval and must not be presented as benchmark evidence.

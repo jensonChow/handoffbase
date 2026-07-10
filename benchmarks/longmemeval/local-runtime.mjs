@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 
 export const LONGMEMEVAL_READER_MODES = Object.freeze(["deterministic", "qwen"]);
 export const LONGMEMEVAL_MEMORY_PROVIDER_MODES = Object.freeze(["mock", "qwen"]);
+export const LONGMEMEVAL_EMBEDDING_MODES = Object.freeze(["off", "mock", "qwen"]);
 
 const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_QWEN_MODEL = "qwen-plus";
@@ -195,6 +196,10 @@ export async function createLocalHandoffBaseBoundary(options) {
   if (!LONGMEMEVAL_MEMORY_PROVIDER_MODES.includes(memoryProviderMode)) {
     throw new LongMemEvalRuntimeConfigurationError("memoryProviderMode must be mock or qwen.");
   }
+  const embeddingMode = options.embeddingMode ?? "off";
+  if (!LONGMEMEVAL_EMBEDDING_MODES.includes(embeddingMode)) {
+    throw new LongMemEvalRuntimeConfigurationError("embeddingMode must be off, mock, or qwen.");
+  }
   const fixedNow = new Date(options.fixedNow ?? "2026-01-01T00:00:00.000Z");
   if (!Number.isFinite(fixedNow.getTime())) {
     throw new Error("fixedNow must be a valid timestamp.");
@@ -206,15 +211,22 @@ export async function createLocalHandoffBaseBoundary(options) {
     env: options.env,
     fetch: options.fetch
   });
+  // Pass `null` (not undefined) for "off" so the service never silently
+  // auto-enables Qwen embeddings from ambient credentials during a benchmark.
+  const embeddingProvider = embeddingMode === "off"
+    ? null
+    : createEmbeddingProvider({ core, embeddingMode, env: options.env, fetch: options.fetch });
   const service = new serviceModule.ContinuityMemoryService({
     store,
     provider,
+    embeddingProvider,
     seedDemoMemories: false
   });
   const rememberReceipts = new Map();
 
+  const embeddingLabel = embeddingMode === "off" ? "" : `/${embeddingMode}-embeddings`;
   return {
-    label: `local-continuity-memory-service/${memoryProviderMode}-provider/in-memory`,
+    label: `local-continuity-memory-service/${memoryProviderMode}-provider${embeddingLabel}/in-memory`,
     providerMode: memoryProviderMode,
     supportsIdempotency: true,
     async memory_remember(input, adapterContext) {
@@ -249,6 +261,27 @@ function createMemoryProvider({ core, memoryProviderMode, env, fetch }) {
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     model: config.model,
+    timeoutMs: config.timeoutMs,
+    fetch
+  });
+}
+
+function createEmbeddingProvider({ core, embeddingMode, env, fetch }) {
+  if (embeddingMode === "mock") {
+    return new core.MockEmbeddingProvider();
+  }
+  const resolvedEnv = env ?? process.env;
+  const config = resolveQwenRuntimeConfig(resolvedEnv);
+  const model = firstNonEmpty(resolvedEnv.QWEN_EMBEDDING_MODEL, resolvedEnv.DASHSCOPE_EMBEDDING_MODEL);
+  const dimensionsRaw = firstNonEmpty(
+    resolvedEnv.QWEN_EMBEDDING_DIMENSIONS,
+    resolvedEnv.DASHSCOPE_EMBEDDING_DIMENSIONS
+  );
+  return new core.QwenEmbeddingProvider({
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    model,
+    dimensions: dimensionsRaw ? Number(dimensionsRaw) : undefined,
     timeoutMs: config.timeoutMs,
     fetch
   });

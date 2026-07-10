@@ -8,6 +8,7 @@ import {
   runLongMemEval
 } from "../../benchmarks/longmemeval/adapter.mjs";
 import {
+  LONGMEMEVAL_EMBEDDING_MODES,
   LONGMEMEVAL_MEMORY_PROVIDER_MODES,
   LONGMEMEVAL_READER_MODES,
   LongMemEvalRuntimeConfigurationError,
@@ -28,6 +29,7 @@ export function parseLongMemEvalArgs(argv) {
     ["--backend", "backend"],
     ["--reader", "readerMode"],
     ["--memory-provider", "memoryProviderMode"],
+    ["--embeddings", "embeddingMode"],
     ["--limit", "limit"],
     ["--question-id", "questionId"]
   ]);
@@ -82,14 +84,21 @@ export function parseLongMemEvalArgs(argv) {
   }
   options.readerMode ??= "deterministic";
   options.memoryProviderMode ??= "mock";
+  options.embeddingMode ??= "off";
   if (!LONGMEMEVAL_READER_MODES.includes(options.readerMode)) {
     throw new LongMemEvalValidationError("--reader must be deterministic or qwen.");
   }
   if (!LONGMEMEVAL_MEMORY_PROVIDER_MODES.includes(options.memoryProviderMode)) {
     throw new LongMemEvalValidationError("--memory-provider must be mock or qwen.");
   }
+  if (!LONGMEMEVAL_EMBEDDING_MODES.includes(options.embeddingMode)) {
+    throw new LongMemEvalValidationError("--embeddings must be off, mock, or qwen.");
+  }
   if (options.backend !== "handoffbase" && options.memoryProviderMode !== "mock") {
     throw new LongMemEvalValidationError("--memory-provider qwen requires --backend handoffbase.");
+  }
+  if (options.backend !== "handoffbase" && options.embeddingMode !== "off") {
+    throw new LongMemEvalValidationError("--embeddings requires --backend handoffbase.");
   }
   if (options.limit !== undefined) {
     if (!/^[1-9]\d*$/.test(options.limit)) {
@@ -118,6 +127,7 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
     ? await createLocalHandoffBaseBoundary({
         rootDir,
         memoryProviderMode: args.memoryProviderMode,
+        embeddingMode: args.embeddingMode,
         env: runtime.env,
         fetch: runtime.fetch,
         provider: runtime.memoryProvider
@@ -131,8 +141,9 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
   });
   process.stdout.write(
     `LongMemEval adapter ${result.status}: ${result.completedQuestions}/${result.selectedQuestions} questions ` +
-    `(reader=${args.readerMode}, memory-provider=${args.memoryProviderMode}).\n` +
-    "Official hypotheses: hypotheses.jsonl; internal metrics: retrieval-evidence.jsonl and summary.json.\n"
+    `(reader=${args.readerMode}, memory-provider=${args.memoryProviderMode}, embeddings=${args.embeddingMode}).\n` +
+    "Official hypotheses: hypotheses.jsonl; internal metrics: retrieval-evidence.jsonl and summary.json.\n" +
+    "Score hypotheses with scripts/benchmarks/longmemeval-score.mjs to produce a QA accuracy number.\n"
   );
 }
 
@@ -164,13 +175,16 @@ function helpText() {
     --backend no-memory|raw-history|handoffbase \\
     [--reader deterministic|qwen] \\
     [--memory-provider mock|qwen] \\
+    [--embeddings off|mock|qwen] \\
     [--limit N] [--question-id ID] [--resume]
 
-Defaults are --reader deterministic and --memory-provider mock. Those defaults
-are credential-free and deterministic. Qwen modes read only the existing
-QWEN_*/DASHSCOPE_* process environment conventions; the runner never loads an
-.env file or downloads a dataset. Local handoffbase mode requires existing
-memory-core and server build artifacts.
+Defaults are --reader deterministic, --memory-provider mock, and --embeddings
+off. Those defaults are credential-free and deterministic. --embeddings mock|qwen
+enables semantic recall (qwen requires QWEN_*/DASHSCOPE_* and applies only to
+--backend handoffbase). Qwen modes read only the existing QWEN_*/DASHSCOPE_*
+process environment conventions; the runner never loads an .env file or downloads
+a dataset. Local handoffbase mode requires existing memory-core and server build
+artifacts.
 `;
 }
 
