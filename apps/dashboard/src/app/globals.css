@@ -178,6 +178,57 @@ textarea {
   flex: 0 0 auto;
 }
 
+.runtime-status {
+  margin-top: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.runtime-status > span:last-child {
+  display: grid;
+  gap: 5px;
+}
+
+.runtime-status strong {
+  font-size: 13px;
+}
+
+.runtime-status small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.runtime-status-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--subtle);
+  box-shadow: 0 0 0 3px rgba(115, 125, 134, 0.14);
+}
+
+.runtime-status-mock_demo .runtime-status-dot {
+  background: var(--violet);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.14);
+}
+
+.runtime-status-server_in_memory .runtime-status-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(242, 184, 75, 0.14);
+}
+
+.runtime-status-shared_persistent_store .runtime-status-dot {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.14);
+}
+
 .workspace {
   min-width: 0;
   padding: 24px;
@@ -785,6 +836,47 @@ textarea {
 
 .error-state {
   border-color: #7f2a32;
+}
+
+.configuration-error {
+  border-color: #7a5618;
+  background: var(--amber-bg);
+}
+
+.mutation-error {
+  align-items: flex-start;
+}
+
+.mutation-error > div,
+.configuration-error > div {
+  flex: 1;
+}
+
+.mutation-progress {
+  border: 1px solid #1d5d70;
+  border-radius: 8px;
+  background: #0f3541;
+  color: var(--text);
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.is-spinning {
+  animation: dashboard-spin 0.8s linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-spinning {
+    animation: none;
+  }
 }
 
 .loading-panel {

@@ -1,14 +1,17 @@
 import {
   InMemoryMemoryStore,
+  type AddMemoryConflictInput,
   type CreateMemoryInput,
   type JsonObject,
   type MemoryRecord as CoreMemoryRecord,
+  type MemoryScopeFilter,
   type MemoryStore,
-  type MemoryTrace
+  type MemoryTrace,
+  type RunRecord
 } from "@handoffbase/memory-core";
 import type {
-  ConflictCandidate,
   DashboardSnapshot,
+  DashboardRuntimeMode,
   MemoryPatch,
   MemoryRecord as DashboardMemoryRecord
 } from "@/lib/memory-client";
@@ -20,8 +23,44 @@ import {
 } from "./dashboard-memory-mappers";
 
 const DEFAULT_TENANT_ID = "tenant_demo";
+const DEFAULT_SCOPE: MemoryScopeFilter = {
+  tenantId: DEFAULT_TENANT_ID,
+  userId: "user_demo"
+};
 const DASHBOARD_ACTOR = { type: "dashboard" as const, id: "dashboard" };
 const SEED_NOW = "2026-07-07T00:30:00.000Z";
+
+export type DashboardServerRuntimeMode = Extract<
+  DashboardRuntimeMode,
+  "server_in_memory" | "shared_persistent_store"
+>;
+
+export type DashboardTraceLoader = (input: {
+  store: MemoryStore;
+  scope: MemoryScopeFilter;
+}) => Promise<MemoryTrace[]>;
+
+export type DashboardMemoryLoader = (input: {
+  store: MemoryStore;
+  scope: MemoryScopeFilter;
+}) => Promise<CoreMemoryRecord[]>;
+
+export type DashboardMemoryStoreBinding = {
+  store: MemoryStore;
+  mode: DashboardServerRuntimeMode;
+  scope: MemoryScopeFilter;
+  seedDemoData: boolean;
+  loadMemories?: DashboardMemoryLoader;
+  loadTraces?: DashboardTraceLoader;
+};
+
+export type DashboardMemoryStoreFactory = () =>
+  | DashboardMemoryStoreBinding
+  | Promise<DashboardMemoryStoreBinding>;
+
+export type DashboardMemoryBackendOptions = Partial<
+  Omit<DashboardMemoryStoreBinding, "store">
+>;
 
 export class DashboardMemoryNotFoundError extends Error {
   constructor(memoryId: string) {
@@ -30,35 +69,65 @@ export class DashboardMemoryNotFoundError extends Error {
   }
 }
 
+export class DashboardMemoryConfigurationError extends Error {
+  constructor(message = "Dashboard memory store configuration is unavailable.") {
+    super(message);
+    this.name = "DashboardMemoryConfigurationError";
+  }
+}
+
 export class DashboardMemoryBackend {
+  private readonly storeFactory: DashboardMemoryStoreFactory;
+  private bindingPromise: Promise<DashboardMemoryStoreBinding> | undefined;
   private seedPromise: Promise<void> | undefined;
   private traceIds: string[] = [];
-  private conflicts: ConflictCandidate[] = [];
 
-  constructor(private readonly store: MemoryStore) {}
+  constructor(
+    storeOrFactory: MemoryStore | DashboardMemoryStoreFactory =
+      createDefaultDashboardMemoryStoreBinding,
+    options: DashboardMemoryBackendOptions = {}
+  ) {
+    if (typeof storeOrFactory === "function") {
+      this.storeFactory = storeOrFactory;
+      return;
+    }
+
+    const binding: DashboardMemoryStoreBinding = {
+      store: storeOrFactory,
+      mode: options.mode ?? "server_in_memory",
+      scope: options.scope ?? DEFAULT_SCOPE,
+      seedDemoData: options.seedDemoData ?? options.scope === undefined,
+      loadMemories: options.loadMemories,
+      loadTraces: options.loadTraces
+    };
+    this.storeFactory = () => binding;
+  }
 
   async listDashboard(): Promise<DashboardSnapshot> {
-    await this.ensureSeeded();
+    const binding = await this.getReadyBinding();
+    const { scope, store } = binding;
 
-    const [memories, events, traces] = await Promise.all([
-      this.store.listMemories({ includeExpiredByValidity: true }),
-      this.store.listEvents({ tenantId: DEFAULT_TENANT_ID }),
-      this.listSeededTraces()
+    const [memories, events, traces, conflicts] = await Promise.all([
+      this.listScopedMemories(binding),
+      store.listEvents({ tenantId: scope.tenantId }),
+      this.listScopedTraces(binding),
+      store.listConflicts({ tenantId: scope.tenantId, statuses: ["open"] })
     ]);
 
     return toDashboardSnapshot({
+      runtimeMode: binding.mode,
       memories,
       events,
       traces,
-      conflicts: this.conflicts
+      conflicts
     });
   }
 
   async updateMemory(memoryId: string, patch: MemoryPatch): Promise<DashboardMemoryRecord> {
-    await this.ensureSeeded();
+    const binding = await this.getReadyBinding();
 
-    const current = await this.requireVisibleMemory(memoryId);
-    const result = await this.store.updateMemory(
+    const current = await this.requireVisibleMemory(binding, memoryId);
+    const result = await binding.store.updateMemory(
       memoryId,
       toCoreMemoryPatch(patch, current),
       {
@@ -68,14 +137,14 @@ export class DashboardMemoryBackend {
       }
     );
 
-    return this.toDashboardMemoryWithEventCount(result.memory);
+    return this.toDashboardMemoryWithEventCount(binding.store, result.memory);
   }
 
   async approveMemory(memoryId: string): Promise<DashboardMemoryRecord> {
-    await this.ensureSeeded();
+    const binding = await this.getReadyBinding();
 
-    const current = await this.requireVisibleMemory(memoryId);
-    const result = await this.store.updateMemory(
+    const current = await this.requireVisibleMemory(binding, memoryId);
+    const result = await binding.store.updateMemory(
       memoryId,
       {
         status: "active",
@@ -91,16 +160,16 @@ export class DashboardMemoryBackend {
       }
     );
 
-    return this.toDashboardMemoryWithEventCount(result.memory);
+    return this.toDashboardMemoryWithEventCount(binding.store, result.memory);
   }
 
   async invalidateMemory(memoryId: string, reason: string): Promise<DashboardMemoryRecord> {
-    await this.ensureSeeded();
+    const binding = await this.getReadyBinding();
 
-    const current = await this.requireVisibleMemory(memoryId);
+    const current = await this.requireVisibleMemory(binding, memoryId);
     const now = new Date();
     const normalizedReason = reason.trim() || "Invalidated from Memory Vault dashboard.";
-    const result = await this.store.updateMemory(
+    const result = await binding.store.updateMemory(
       memoryId,
       {
         status: "invalidated",
@@ -118,35 +187,61 @@ export class DashboardMemoryBackend {
       }
     );
 
-    return this.toDashboardMemoryWithEventCount(result.memory);
+    return this.toDashboardMemoryWithEventCount(binding.store, result.memory);
   }
 
   async deleteMemory(memoryId: string, reason: string): Promise<void> {
-    await this.ensureSeeded();
-    await this.requireVisibleMemory(memoryId);
+    const binding = await this.getReadyBinding();
+    await this.requireVisibleMemory(binding, memoryId);
 
-    await this.store.deleteMemory(memoryId, {
+    await binding.store.deleteMemory(memoryId, {
       actor: DASHBOARD_ACTOR,
       reason: reason.trim() || "Deleted from Memory Vault dashboard.",
       metadata: { dashboardAction: "delete" }
     });
   }
 
-  private ensureSeeded(): Promise<void> {
-    this.seedPromise ??= this.seed();
-    return this.seedPromise;
+  private async getReadyBinding(): Promise<DashboardMemoryStoreBinding> {
+    const binding = await this.getBinding();
+
+    if (binding.seedDemoData) {
+      this.seedPromise ??= this.seed(binding.store).catch((error: unknown) => {
+        this.seedPromise = undefined;
+        throw error;
+      });
+      await this.seedPromise;
+    }
+
+    return binding;
   }
 
-  private async seed(): Promise<void> {
+  private getBinding(): Promise<DashboardMemoryStoreBinding> {
+    this.bindingPromise ??= Promise.resolve()
+      .then(() => this.storeFactory())
+      .then((binding) => validateStoreBinding(binding))
+      .catch((error: unknown) => {
+        this.bindingPromise = undefined;
+
+        if (error instanceof DashboardMemoryConfigurationError) {
+          throw error;
+        }
+
+        throw new DashboardMemoryConfigurationError();
+      });
+
+    return this.bindingPromise;
+  }
+
+  private async seed(store: MemoryStore): Promise<void> {
     for (const seedMemory of seedMemories) {
-      await this.store.addMemory(seedMemory.input, {
+      await store.addMemory(seedMemory.input, {
         actor: { type: "agent", id: seedMemory.actorId ?? "dashboard-seed" },
         reason: seedMemory.reason,
         now: new Date(seedMemory.now)
       });
     }
 
-    await this.store.updateMemory(
+    await store.updateMemory(
       "mem_expired_006",
       {
         status: "superseded",
@@ -165,12 +260,17 @@ export class DashboardMemoryBackend {
       }
     );
 
-    await this.seedRunsAndTraces();
-    this.conflicts = seedConflicts;
+    await store.addConflict(seedConflict, {
+      actor: { type: "system", id: "conflict-check" },
+      reason: seedConflict.reason,
+      now: new Date("2026-07-06T10:21:00.000Z")
+    });
+
+    await this.seedRunsAndTraces(store);
   }
 
-  private async seedRunsAndTraces(): Promise<void> {
-    await this.store.addRun({
+  private async seedRunsAndTraces(store: MemoryStore): Promise<void> {
+    await store.addRun({
       id: "run_2026_0706_02",
       tenantId: DEFAULT_TENANT_ID,
       userId: "user_demo",
@@ -181,7 +281,7 @@ export class DashboardMemoryBackend {
       startedAt: "2026-07-06T14:10:00.000Z",
       metadata: {}
     });
-    await this.store.addRun({
+    await store.addRun({
       id: "run_2026_0706_03",
       tenantId: DEFAULT_TENANT_ID,
       userId: "user_demo",
@@ -194,7 +294,7 @@ export class DashboardMemoryBackend {
     });
 
     const traces = await Promise.all([
-      this.store.addTrace({
+      store.addTrace({
         id: "trace_0706_02",
         tenantId: DEFAULT_TENANT_ID,
         runId: "run_2026_0706_02",
@@ -225,7 +325,7 @@ export class DashboardMemoryBackend {
           }
         })
       }),
-      this.store.addTrace({
+      store.addTrace({
         id: "trace_0706_03",
         tenantId: DEFAULT_TENANT_ID,
         runId: "run_2026_0706_03",
@@ -254,15 +354,57 @@ export class DashboardMemoryBackend {
     this.traceIds = traces.map((trace) => trace.id);
   }
 
-  private async listSeededTraces(): Promise<MemoryTrace[]> {
-    const traces = await Promise.all(this.traceIds.map((traceId) => this.store.getTrace(traceId)));
+  private async listSeededTraces(store: MemoryStore): Promise<MemoryTrace[]> {
+    const traces = await Promise.all(this.traceIds.map((traceId) => store.getTrace(traceId)));
     return traces.filter((trace): trace is MemoryTrace => trace !== undefined);
   }
 
-  private async requireVisibleMemory(memoryId: string): Promise<CoreMemoryRecord> {
-    const memory = await this.store.getMemory(memoryId);
+  private async listScopedTraces(
+    binding: DashboardMemoryStoreBinding
+  ): Promise<MemoryTrace[]> {
+    const traces = binding.loadTraces
+      ? await binding.loadTraces({ store: binding.store, scope: binding.scope })
+      : await this.listSeededTraces(binding.store);
+    const scopedTraces = await Promise.all(
+      traces.map(async (trace) => {
+        if (trace.tenantId !== binding.scope.tenantId || !trace.runId) {
+          return undefined;
+        }
 
-    if (!memory || !isDashboardVisibleMemory(memory)) {
+        const run = await binding.store.getRun(trace.runId);
+        return run && runMatchesScope(run, binding.scope) ? trace : undefined;
+      })
+    );
+
+    return scopedTraces.filter((trace): trace is MemoryTrace => trace !== undefined);
+  }
+
+  private async listScopedMemories(
+    binding: DashboardMemoryStoreBinding
+  ): Promise<CoreMemoryRecord[]> {
+    const memories = binding.loadMemories
+      ? await binding.loadMemories({ store: binding.store, scope: binding.scope })
+      : await binding.store.listMemories({
+          ...(binding.mode === "shared_persistent_store"
+            ? { scope: binding.scope }
+            : {}),
+          includeExpiredByValidity: true
+        });
+
+    return memories.filter((memory) => memoryMatchesScope(memory, binding.scope));
+  }
+
+  private async requireVisibleMemory(
+    binding: DashboardMemoryStoreBinding,
+    memoryId: string
+  ): Promise<CoreMemoryRecord> {
+    const memory = await binding.store.getMemory(memoryId);
+
+    if (
+      !memory ||
+      !memoryMatchesScope(memory, binding.scope) ||
+      !isDashboardVisibleMemory(memory)
+    ) {
       throw new DashboardMemoryNotFoundError(memoryId);
     }
 
@@ -270,34 +412,142 @@ export class DashboardMemoryBackend {
   }
 
   private async toDashboardMemoryWithEventCount(
+    store: MemoryStore,
     memory: CoreMemoryRecord
   ): Promise<DashboardMemoryRecord> {
-    const events = await this.store.listEvents({ memoryId: memory.id });
+    const events = await store.listEvents({ memoryId: memory.id });
     return toDashboardMemory(memory, events.length);
   }
 }
 
 type GlobalDashboardMemoryState = typeof globalThis & {
   __handoffbaseDashboardMemoryBackend?: DashboardMemoryBackend;
+  __handoffbaseDashboardMemoryStoreFactory?: DashboardMemoryStoreFactory;
 };
+
+export function createDefaultDashboardMemoryStoreBinding(): DashboardMemoryStoreBinding {
+  return {
+    store: new InMemoryMemoryStore(),
+    mode: "server_in_memory",
+    scope: { ...DEFAULT_SCOPE },
+    seedDemoData: true
+  };
+}
 
 export function getDashboardMemoryBackend(): DashboardMemoryBackend {
   const globalState = globalThis as GlobalDashboardMemoryState;
 
   globalState.__handoffbaseDashboardMemoryBackend ??= new DashboardMemoryBackend(
-    new InMemoryMemoryStore()
+    globalState.__handoffbaseDashboardMemoryStoreFactory ??
+      createDefaultDashboardMemoryStoreBinding
   );
 
   return globalState.__handoffbaseDashboardMemoryBackend;
 }
 
-export function resetDashboardMemoryBackendForTest(): DashboardMemoryBackend {
+export function configureDashboardMemoryStoreFactory(
+  factory: DashboardMemoryStoreFactory
+): void {
   const globalState = globalThis as GlobalDashboardMemoryState;
+
+  if (globalState.__handoffbaseDashboardMemoryBackend) {
+    throw new DashboardMemoryConfigurationError(
+      "Configure the dashboard memory store factory before the first API request."
+    );
+  }
+
+  globalState.__handoffbaseDashboardMemoryStoreFactory = factory;
+}
+
+export function resetDashboardMemoryBackendForTest(
+  storeOrFactory: MemoryStore | DashboardMemoryStoreFactory =
+    createDefaultDashboardMemoryStoreBinding,
+  options: DashboardMemoryBackendOptions = {}
+): DashboardMemoryBackend {
+  const globalState = globalThis as GlobalDashboardMemoryState;
+  delete globalState.__handoffbaseDashboardMemoryStoreFactory;
   globalState.__handoffbaseDashboardMemoryBackend = new DashboardMemoryBackend(
-    new InMemoryMemoryStore()
+    storeOrFactory,
+    options
   );
 
   return globalState.__handoffbaseDashboardMemoryBackend;
+}
+
+function validateStoreBinding(
+  binding: DashboardMemoryStoreBinding
+): DashboardMemoryStoreBinding {
+  if (!binding?.store) {
+    throw new DashboardMemoryConfigurationError(
+      "The dashboard memory store factory did not return a store."
+    );
+  }
+
+  if (
+    binding.mode !== "server_in_memory" &&
+    binding.mode !== "shared_persistent_store"
+  ) {
+    throw new DashboardMemoryConfigurationError(
+      "The dashboard memory store factory returned an unsupported mode."
+    );
+  }
+
+  if (!binding.scope?.tenantId.trim() || !binding.scope.userId.trim()) {
+    throw new DashboardMemoryConfigurationError(
+      "The dashboard memory store factory must provide a tenant and user scope."
+    );
+  }
+
+  if (binding.mode === "shared_persistent_store" && binding.seedDemoData) {
+    throw new DashboardMemoryConfigurationError(
+      "Shared persistent stores cannot enable dashboard demo seeding."
+    );
+  }
+
+  if (
+    binding.seedDemoData &&
+    (binding.scope.tenantId !== DEFAULT_SCOPE.tenantId ||
+      binding.scope.userId !== DEFAULT_SCOPE.userId)
+  ) {
+    throw new DashboardMemoryConfigurationError(
+      "Dashboard demo seeding requires the built-in demo scope."
+    );
+  }
+
+  return {
+    ...binding,
+    scope: { ...binding.scope }
+  };
+}
+
+function memoryMatchesScope(
+  memory: CoreMemoryRecord,
+  scope: MemoryScopeFilter
+): boolean {
+  const scopeEntries = Object.entries(scope) as Array<
+    [keyof MemoryScopeFilter, string | undefined]
+  >;
+
+  return scopeEntries.every(
+    ([key, value]) => value === undefined || memory.scope[key] === value
+  );
+}
+
+function runMatchesScope(run: RunRecord, scope: MemoryScopeFilter): boolean {
+  if (run.tenantId !== scope.tenantId || run.userId !== scope.userId) {
+    return false;
+  }
+
+  if (scope.sessionId !== undefined || scope.toolId !== undefined) {
+    return false;
+  }
+
+  return (
+    (scope.agentProfileId === undefined ||
+      run.agentProfileId === scope.agentProfileId) &&
+    (scope.projectId === undefined || run.projectId === scope.projectId) &&
+    (scope.hostId === undefined || run.hostId === scope.hostId)
+  );
 }
 
 function traceMetadata(metadata: JsonObject): JsonObject {
@@ -492,31 +742,19 @@ const seedMemories: Array<{
   }
 ];
 
-const seedConflicts: ConflictCandidate[] = [
-  {
-    id: "conflict_001",
-    status: "needs_review",
-    conflictType: "supersede",
-    severity: "high",
-    incoming:
-      "User now prioritizes founder network, credentials, and useful startup resources above prize money.",
-    existing:
-      "User appears to prioritize hackathon prize money when choosing opportunities.",
-    recommendation:
-      "Supersede the older decision memory and keep the new user preference active.",
-    memoryType: "user_preference",
-    scopeLabel: "user_demo / opportunity-scout"
-  },
-  {
-    id: "conflict_placeholder",
-    status: "placeholder",
-    conflictType: "placeholder",
-    severity: "low",
-    incoming: "Conflict detection endpoint is not wired yet.",
-    existing: "Backend will provide candidate pairs from Qwen conflict checks.",
-    recommendation:
-      "This panel is ready for the future conflict review API response.",
-    memoryType: "procedure",
-    scopeLabel: "all scopes"
+const seedConflict: AddMemoryConflictInput = {
+  id: "conflict_001",
+  tenantId: DEFAULT_TENANT_ID,
+  candidateMemoryId: "mem_user_pref_001",
+  existingMemoryId: "mem_expired_006",
+  conflictType: "supersedes",
+  severity: "high",
+  recommendedAction: "supersede_existing",
+  reason:
+    "The user-confirmed preference supersedes the older prize-first inference.",
+  confidence: 0.96,
+  metadata: {
+    provider: "qwen",
+    source: "dashboard-demo"
   }
-];
+};

@@ -99,8 +99,8 @@ export type MemoryTrace = {
 
 export type ConflictCandidate = {
   id: string;
-  status: "needs_review" | "placeholder";
-  conflictType: "supersede" | "merge" | "reject" | "scope_narrowing" | "placeholder";
+  status: "open" | "resolved" | "dismissed";
+  conflictType: "contradiction" | "supersedes" | "duplicate" | "scope_overlap" | "none";
   severity: "low" | "medium" | "high";
   incoming: string;
   existing: string;
@@ -109,7 +109,15 @@ export type ConflictCandidate = {
   scopeLabel: string;
 };
 
+export type DashboardRuntimeMode =
+  | "mock_demo"
+  | "server_in_memory"
+  | "shared_persistent_store";
+
 export type DashboardSnapshot = {
+  runtime: {
+    mode: DashboardRuntimeMode;
+  };
   memories: MemoryRecord[];
   events: MemoryEvent[];
   traces: MemoryTrace[];
@@ -139,9 +147,21 @@ export type HttpMemoryClientOptions = {
   headers?: HeadersInit;
 };
 
-export type CreateMemoryClientOptions =
-  | ({ mode?: "mock" } & HttpMemoryClientOptions)
-  | ({ mode: "http" } & HttpMemoryClientOptions);
+export type CreateMemoryClientOptions = HttpMemoryClientOptions & {
+  mode?: MemoryClientMode;
+};
+
+export class MemoryClientError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, options: { status: number; code?: string }) {
+    super(message);
+    this.name = "MemoryClientError";
+    this.status = options.status;
+    this.code = options.code;
+  }
+}
 
 export class HttpMemoryClient implements MemoryClient {
   private readonly baseUrl: string;
@@ -208,7 +228,11 @@ export class HttpMemoryClient implements MemoryClient {
     });
 
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response));
+      const error = await readErrorResponse(response);
+      throw new MemoryClientError(error.message, {
+        status: response.status,
+        code: error.code
+      });
     }
 
     if (response.status === 204) {
@@ -219,24 +243,33 @@ export class HttpMemoryClient implements MemoryClient {
   }
 }
 
-async function readErrorMessage(response: Response) {
+async function readErrorResponse(response: Response): Promise<{
+  message: string;
+  code?: string;
+}> {
   const fallback = `Memory dashboard API failed with ${response.status}`;
 
   try {
-    const body = (await response.json()) as { error?: string; message?: string };
-    return body.error ?? body.message ?? fallback;
+    const body = (await response.json()) as {
+      code?: string;
+      error?: string;
+      message?: string;
+    };
+    return {
+      message: body.error ?? body.message ?? fallback,
+      code: body.code
+    };
   } catch {
-    return fallback;
+    return { message: fallback };
   }
 }
 
 export function createMemoryClient(options: CreateMemoryClientOptions = {}): MemoryClient {
-  const mode = options.mode ?? defaultMemoryClientMode();
+  const mode = options.mode ?? "http";
 
   if (mode === "http") {
     return new HttpMemoryClient({
-      ...options,
-      baseUrl: options.baseUrl ?? defaultMemoryClientBaseUrl()
+      ...options
     });
   }
 
@@ -244,11 +277,3 @@ export function createMemoryClient(options: CreateMemoryClientOptions = {}): Mem
 }
 
 export { createMockMemoryClient } from "./mock-memory-client";
-
-function defaultMemoryClientMode(): MemoryClientMode {
-  return process.env.NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_CLIENT === "http" ? "http" : "mock";
-}
-
-function defaultMemoryClientBaseUrl(): string | undefined {
-  return process.env.NEXT_PUBLIC_HANDOFFBASE_DASHBOARD_API_BASE_URL;
-}

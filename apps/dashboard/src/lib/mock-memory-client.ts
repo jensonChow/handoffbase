@@ -347,8 +347,8 @@ const traces: MemoryTrace[] = [
 const conflicts: ConflictCandidate[] = [
   {
     id: "conflict_001",
-    status: "needs_review",
-    conflictType: "supersede",
+    status: "open",
+    conflictType: "supersedes",
     severity: "high",
     incoming:
       "User now prioritizes founder network, credentials, and useful startup resources above prize money.",
@@ -358,18 +358,6 @@ const conflicts: ConflictCandidate[] = [
       "Supersede the older decision memory and keep the new user preference active.",
     memoryType: "user_preference",
     scopeLabel: "user_demo / opportunity-scout"
-  },
-  {
-    id: "conflict_placeholder",
-    status: "placeholder",
-    conflictType: "placeholder",
-    severity: "low",
-    incoming: "Conflict detection endpoint is not wired yet.",
-    existing: "Backend will provide candidate pairs from Qwen conflict checks.",
-    recommendation:
-      "This panel is ready for the future conflict review API response.",
-    memoryType: "procedure",
-    scopeLabel: "all scopes"
   }
 ];
 
@@ -379,7 +367,7 @@ function clone<T>(value: T): T {
 
 function delay() {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, 240);
+    globalThis.setTimeout(resolve, 240);
   });
 }
 
@@ -410,6 +398,9 @@ export function createMockMemoryClient(): MemoryClient {
       await delay();
 
       return clone({
+        runtime: {
+          mode: "mock_demo"
+        },
         memories,
         events,
         traces,

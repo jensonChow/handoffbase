@@ -2,6 +2,7 @@ import {
   getEffectiveMemoryStatus,
   type JsonObject,
   type JsonValue,
+  type MemoryConflictRecord as CoreMemoryConflictRecord,
   type MemoryEvent as CoreMemoryEvent,
   type MemoryEventType as CoreMemoryEventType,
   type MemoryRecord as CoreMemoryRecord,
@@ -13,6 +14,7 @@ import {
 import type {
   ConflictCandidate,
   DashboardSnapshot,
+  DashboardRuntimeMode,
   MemoryEvent as DashboardMemoryEvent,
   MemoryPatch,
   MemoryRecord as DashboardMemoryRecord,
@@ -31,10 +33,11 @@ const VISIBLE_CORE_STATUSES: CoreMemoryStatus[] = [
 ];
 
 type DashboardSnapshotInput = {
+  runtimeMode: DashboardRuntimeMode;
   memories: CoreMemoryRecord[];
   events: CoreMemoryEvent[];
   traces: CoreMemoryTrace[];
-  conflicts: ConflictCandidate[];
+  conflicts: CoreMemoryConflictRecord[];
   now?: Date;
 };
 
@@ -49,15 +52,25 @@ export function toDashboardSnapshot(input: DashboardSnapshotInput): DashboardSna
   const memoryById = new Map(visibleMemories.map((memory) => [memory.id, memory]));
 
   return {
+    runtime: {
+      mode: input.runtimeMode
+    },
     memories: visibleMemories.map((memory) =>
       toDashboardMemory(memory, eventCounts.get(memory.id) ?? 0, now)
     ),
     events: input.events.flatMap((event) => {
+      if (!event.memoryId || !memoryById.has(event.memoryId)) {
+        return [];
+      }
+
       const mapped = toDashboardEvent(event);
       return mapped ? [mapped] : [];
     }),
     traces: input.traces.map((trace) => toDashboardTrace(trace, memoryById)),
-    conflicts: input.conflicts
+    conflicts: input.conflicts.flatMap((conflict) => {
+      const mapped = toDashboardConflict(conflict, memoryById);
+      return mapped ? [mapped] : [];
+    })
   };
 }
 
@@ -176,6 +189,49 @@ function toDashboardTrace(
       toTraceMemoryRef(memoryId, memoryById, trace.selectionReasons[memoryId], scoreByMemoryId)
     ),
     metadata: primitiveMetadata(trace.metadata)
+  };
+}
+
+function toDashboardConflict(
+  conflict: CoreMemoryConflictRecord,
+  memoryById: Map<string, CoreMemoryRecord>
+): ConflictCandidate | undefined {
+  const candidate = conflict.candidateMemoryId
+    ? memoryById.get(conflict.candidateMemoryId)
+    : undefined;
+  const existing = conflict.existingMemoryId
+    ? memoryById.get(conflict.existingMemoryId)
+    : undefined;
+  const referencedIds = [
+    conflict.candidateMemoryId,
+    conflict.existingMemoryId
+  ].filter((memoryId): memoryId is string => memoryId !== undefined);
+
+  if (
+    referencedIds.length === 0 ||
+    referencedIds.some((memoryId) => !memoryById.has(memoryId))
+  ) {
+    return undefined;
+  }
+
+  const scopeMemory = candidate ?? existing;
+
+  if (!scopeMemory) {
+    return undefined;
+  }
+
+  return {
+    id: conflict.id,
+    status: conflict.status,
+    conflictType: conflict.conflictType,
+    severity: conflict.severity,
+    incoming: candidate?.canonicalText ?? "Candidate memory is unavailable.",
+    existing: existing?.canonicalText ?? "Existing memory is unavailable.",
+    recommendation: conflict.reason
+      ? `${formatToken(conflict.recommendedAction)}: ${conflict.reason}`
+      : formatToken(conflict.recommendedAction),
+    memoryType: candidate?.type ?? existing?.type ?? "project_fact",
+    scopeLabel: coreScopeLabel(scopeMemory)
   };
 }
 
@@ -337,4 +393,16 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
 
 function formatToken(value: string): string {
   return value.replace(/_/g, " ");
+}
+
+function coreScopeLabel(memory: CoreMemoryRecord): string {
+  return [
+    memory.scope.userId,
+    memory.scope.projectId,
+    memory.scope.agentProfileId,
+    memory.scope.hostId,
+    memory.scope.toolId
+  ]
+    .filter((value): value is string => value !== undefined)
+    .join(" / ");
 }
