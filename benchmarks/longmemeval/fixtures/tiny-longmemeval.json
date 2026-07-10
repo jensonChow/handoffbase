@@ -1,0 +1,114 @@
+[
+  {
+    "question_id": "synthetic_alpha",
+    "question_type": "single-session-user",
+    "question": "What launch codename did I choose for Project Atlas?",
+    "answer": "Juniper",
+    "question_date": "2025/01/15 (Wed) 10:00",
+    "haystack_session_ids": [
+      "answer_synthetic_alpha",
+      "filler_synthetic_alpha"
+    ],
+    "haystack_dates": [
+      "2025/01/12 (Sun) 14:30",
+      "2025/01/10 (Fri) 09:00"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "role": "user",
+          "content": "I chose the launch codename Juniper for Project Atlas.",
+          "has_answer": true
+        },
+        {
+          "role": "assistant",
+          "content": "I will refer to the launch as Juniper."
+        }
+      ],
+      [
+        {
+          "role": "user",
+          "content": "Project Atlas dashboard should use a monospace font.",
+          "has_answer": false
+        },
+        {
+          "role": "assistant",
+          "content": "Noted the typography preference."
+        }
+      ]
+    ],
+    "answer_session_ids": [
+      "answer_synthetic_alpha"
+    ],
+    "fixture_notice": "Synthetic test data; not an official benchmark example."
+  },
+  {
+    "question_id": "synthetic_beta",
+    "question_type": "single-session-user",
+    "question": "What garden codename did I choose for Project Birch?",
+    "answer": "Saffron",
+    "question_date": "2025/02/10 (Mon) 10:00",
+    "haystack_session_ids": [
+      "answer_synthetic_beta",
+      "filler_synthetic_beta"
+    ],
+    "haystack_dates": [
+      "2025/02/03 (Mon) 11:00",
+      "2025/02/04 (Tue) 16:15"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "role": "user",
+          "content": "I chose the garden codename Saffron for Project Birch.",
+          "has_answer": true
+        },
+        {
+          "role": "assistant",
+          "content": "Saffron is recorded as the garden codename."
+        }
+      ],
+      [
+        {
+          "role": "user",
+          "content": "Project Birch uses a weekly planning cadence."
+        },
+        {
+          "role": "assistant",
+          "content": "I will keep the weekly cadence in mind."
+        }
+      ]
+    ],
+    "answer_session_ids": [
+      "answer_synthetic_beta"
+    ],
+    "fixture_notice": "Synthetic test data; not an official benchmark example."
+  },
+  {
+    "question_id": "synthetic_gamma_abs",
+    "question_type": "single-session-user",
+    "question": "What telescope model did I buy?",
+    "answer": "I don't know.",
+    "question_date": "2025/02/10 (Mon) 10:00",
+    "haystack_session_ids": [
+      "filler_synthetic_gamma"
+    ],
+    "haystack_dates": [
+      "2025/02/04 (Tue) 16:15"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "role": "user",
+          "content": "We talked about weekend hiking routes."
+        },
+        {
+          "role": "assistant",
+          "content": "The northern trail is the quieter option."
+        }
+      ]
+    ],
+    "answer_session_ids": [],
+    "fixture_notice": "Synthetic test data; not an official benchmark example."
+  }
+]
