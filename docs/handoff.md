@@ -1,111 +1,107 @@
 # Current Handoff
 
-Updated: 2026-07-10 (later "focus on the product" session — product correctness
-review + fixes, then the adoption layer)
+Updated: 2026-07-11 (dashboard v2 redesign session — imported a Claude Design
+project and rebuilt the Memory Vault UI to match, wired to real data)
 
 ## Outcome
 
-This session did an adversarially-verified correctness review of the actual
-product code and fixed everything that survived, then shipped a credential-free
-adoption layer. Two commits landed on `main` **locally** (HEAD `cf36ddf`), which
-is **2 commits ahead of `origin/main` (`61edd32`) and has NOT been pushed**.
-Working tree clean; `npm run check` green end to end. No dataset download, no
-paid Qwen/OpenAI call, no cloud mutation, Docker restart, repo-visibility, or
-push was performed.
+This session imported the **HandoffBase Dashboard v2** design from the owner's
+Claude Design project (`claude.ai/design/p/4b149ed0…`, read via the `DesignSync`
+MCP) and rebuilt the authenticated Memory Vault dashboard to match it — a full
+five-view redesign wired to the **real** `memory-client`, not the design's mock.
+One feature commit landed on `main` (`48f4ad8`); this handoff refresh is the
+follow-up docs commit. Working tree clean; full `npm run check` green end to end.
+No dataset download, no paid Qwen/OpenAI call, no cloud mutation or Docker
+restart, no repo-visibility change.
 
 Commits (newest first):
 
-- `cf36ddf` docs: add adoption layer (connect recipes, community health, vault visual)
-- `fb2adfd` fix(security): close api-key auth bypass and verified store/service bugs
+- `<this docs commit>` docs: refresh handoff for the dashboard v2 session
+- `48f4ad8` feat(dashboard): implement v2 Memory Vault redesign from Claude Design import
 
 ## What Shipped
 
-### `fb2adfd` — 1 HIGH security bug + 9 verified correctness bugs (with 12 tests)
+### `48f4ad8` — dashboard v2 redesign (design import → real product)
 
-Method: a 2-phase Workflow (6 finders across service/stores/lifecycle/embeddings/
-MCP-auth → 2 independent skeptics per finding, refute-by-default). 16 raw findings
-→ 10 confirmed (2/2 votes) → all fixed. Each fix has a credential-free regression
-test traced to fail without it.
+Source of truth: `docs/design/HandoffBase-Dashboard-v2.dc.html` (the design file,
+saved in-repo for provenance). The `.dc.html` template DSL was ported to
+React/TSX and bound to the live snapshot.
 
-- **Cross-tenant auth bypass (HIGH).** `src/auth/request.ts` looked callers up
-  with `config.apiKeys[apiKey]` on a plain (prototyped) object, so
-  `Bearer constructor` / `__proto__` / `toString` / `valueOf` resolved to a
-  truthy `Object.prototype` member → a caller with `tenantId`/`userId` undefined,
-  which `scopeMatches` treats as "match everything" → any unauthenticated request
-  could read **every tenant's** memories in `api_key` mode. Fixed with
-  `Object.hasOwn` + a null-prototype `apiKeys` map (`src/auth/config.ts`) +
-  tenant/user validation. Proven at runtime.
-- **Sanitizer fail-open (MED).** credential/token redaction now matches
-  JSON-quoted keys (`{"password":"…"}`, quote between key and `:`), in both
-  `reasoning/structured-output.ts` and `sensitive.ts`.
-- **Sanitizer over-redaction (MED).** the phone regex no longer eats ISO dates
-  (`2024-01-15`) or dotted version strings into `[REDACTED_PHONE]`.
-- **Postgres parity (MED ×3).** default `listMemories` now hides explicit
-  `status='expired'` rows (effective-status, matching in-memory); a defined-but-
-  empty `types/statuses/signals/conflictTypes` array matches nothing (not
-  everything) across the list builders; the pgvector distance is guarded by
-  `vector_dims` so a wrong-dimension query embedding degrades to 0 instead of
-  aborting the recall transaction.
-- **Service (MED ×2 + LOW ×1).** feedback scope-compat uses narrowing semantics
-  so a session/tool-scoped memory can be paired with a run; `continuity_bootstrap`
-  respects a token budget too small for any memory (was dumping every recalled
-  memory); `memory_update` rejects the reserved `deleted`/`superseded` statuses
-  (would bypass hard-delete redaction / throw a raw validation 500).
+- **Five-view IA** replacing the old flat tab set: **Overview** (cross-agent
+  handoff hero + memory-health metrics + review-queue preview + latest-trace
+  explainer), **Memory Vault** (search + type/status/host filters + table +
+  provenance/edit/lifecycle detail panel), **Review Queue** (pending candidates +
+  governed six-action conflict resolution), **Traces** (context-pack budget bar +
+  used/ignored/excluded groups + feedback), **Audit Log** (all/deletions filter).
+- **Theme system.** Dark "Amber Archive" / light "Paper Ledger" toggle, driven by
+  a CSS custom-property token block in `globals.css` (`:root` + `[data-theme]`,
+  stamped on `<html>`), persisted to `localStorage`. Google fonts (Space Grotesk /
+  IBM Plex Mono / Source Serif 4) added in `layout.tsx`.
+- **"Connect an agent" MCP modal** — streamable-HTTP endpoint + copy, nine tool
+  cards, and per-host connect snippets (Claude Code / Codex / Cursor).
+- **Real data, not mock copy.** Every mutation still goes through the existing
+  `memory-client` → refresh loop (approve / reject / invalidate / delete / update /
+  resolve-conflict / feedback); the login gate, session, and runtime-mode status
+  are intact. The design's showcase numbers are **derived** from the real
+  snapshot — handoff hero from actual traces, metric counts from real records, the
+  `~est / budget` token figure from context-pack length, and resource URIs from a
+  memory's type + scope — so the UI stays honest against arbitrary data.
+- **Deliberate deltas from the old UI (following the v2 design):** trace feedback
+  now surfaces the *queued pending correction* instead of a copy-a-regression-
+  fixture control; the detail panel edits text/confidence/importance while
+  validity dates are read-only. Refresh + sign-out were kept in the header (the
+  design omitted them). Icons use `lucide-react` (already a dependency) instead of
+  the design's runtime unpkg icon fetch.
 
-Two LOW findings deliberately deferred: `reflect` over-reports `invalidated_memories`
-ids it did not actually invalidate; `recall` `limit<=0` throws in Postgres but is
-coerced in-memory.
-
-### `cf36ddf` — adoption layer (credential-free)
-
-- `examples/mcp/`: README rewritten for Codex + Claude Code + Cursor; added
-  `claude-code.mcp.json` (`.mcp.json`, `type:"http"`) and `cursor-mcp.json`
-  (`.cursor/mcp.json`). Tokens stay in env vars via `${VAR}` expansion.
-- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/*`,
-  `.github/PULL_REQUEST_TEMPLATE.md`. Security reports route to GitHub private
-  advisories; no personal email is published.
-- `docs/assets/memory-vault.svg`: a theme-accurate Memory Vault visual built from
-  the real seeded `server_in_memory` demo state (verified live at `:3001`). It is
-  a hand-built SVG, **not** a raster screenshot — no headless browser was
-  available to capture a committable PNG.
+Files: `apps/dashboard/src/components/memory-vault-dashboard.tsx` (full rewrite),
+`apps/dashboard/src/app/globals.css` (token system), `apps/dashboard/src/app/layout.tsx`
+(fonts), `apps/dashboard/test/memory-vault-dashboard.test.ts` (updated),
+`docs/design/HandoffBase-Dashboard-v2.dc.html` (design provenance, new).
 
 ## Validation
 
-Final `npm run check` (Qwen credentials cleared) passed end to end:
-memory-core **54**, auth **10**, runtime 26, server **82**, dashboard 33, memory
-eval 8/8, comparative benchmark HandoffBase 17/17 vs no-memory 0/17, LongMemEval
-tiny 9/9 (`official_qa_evaluator=not-run`), cross-host E2E 1/1, markdown links
-pass (54 files / 73 links), tracked-secret scan pass. 12 new regression tests
-added (auth prototype-pollution; JSON-quoted-secret + date-preservation
-sanitizer; Postgres list-builder + vector-dim-guard; feedback session-scope;
-bootstrap budget; `memory_update` reserved-status). No paid Qwen/OpenAI call.
+Full `npm run check` (Qwen credentials cleared) passed end to end: memory-core
+**54**, auth **10**, runtime 26, server **82**, dashboard **33**, memory eval 8/8,
+comparative benchmark HandoffBase 17/17 vs no-memory 0/17, LongMemEval tiny 9/9
+(`official_qa_evaluator=not-run`), cross-host E2E 1/1, markdown links pass, tracked-
+secret scan pass. Additionally drove the built app live in mock mode across all
+five views, both themes, the Connect modal, and a real approve mutation
+(round-tripped: pending 2→1, Review badge 3→2, Audit 6→7, `last sync` reset).
 
-## Product-Completeness Verdict (code-grounded, 2026-07-10)
+The dashboard test was updated to the new component structure while preserving the
+security-relevant guarantees: the audit log renders only safe tombstone fields
+(never `canonicalText`/`rawSource`), the conflict card exposes all six resolution
+actions with required audit inputs, and the feedback flow persists a queued
+pending correction without leaking internal fixture payloads.
 
-- **Credible hackathon submission: YES** — unchanged, now with a hardened auth
-  boundary and real store-parity test coverage.
-- **Star / adoptable OSS repo: CLOSER** — connect recipes + community-health
-  files landed; still missing README hero + badges + a real raster screenshot/GIF.
-- **Production: NO** — unchanged; still in-memory default, ECS stopped, no
-  durable cloud Postgres/TLS/backup/rate-limit. (Not claimed.)
+## Product-Completeness Verdict (code-grounded, 2026-07-11)
+
+- **Credible hackathon submission: YES** — unchanged engine; the product's primary
+  surface is now a polished, on-brand dashboard that demonstrably reflects real
+  governed state.
+- **Star / adoptable OSS repo: CLOSER** — the v2 dashboard is the strongest
+  candidate for the README hero screenshot/GIF; still missing the README hero +
+  badges + a committed raster capture.
+- **Production: NO** — unchanged; in-memory default, ECS stopped, no durable cloud
+  Postgres/TLS/backup/rate-limit. (Not claimed.)
 
 ## Remaining Work
 
 Star-OSS gaps (no keys needed):
 
-1. README hero + badges (License/CI/Node/MCP) + a real raster screenshot or GIF
-   (couldn't produce a committable PNG in-agent — no headless Chrome; the SVG is
-   the stand-in). `CONTRIBUTING`/`CoC`/`SECURITY` and Claude Code/Cursor recipes
-   are now DONE.
+1. README hero + badges (License/CI/Node/MCP) + a real raster screenshot or GIF —
+   now easier to justify: the v2 dashboard is the shot to capture (Overview or
+   Traces view). Connect recipes + community-health files remain DONE.
 2. No reproducible path uses real Qwen (semantic recall wired but never run live).
 3. No cold-vs-warm learning-curve artifact.
-4. The two deferred LOW correctness findings above.
+4. Two deferred LOW correctness findings: `reflect` over-reports invalidated ids;
+   `recall` `limit<=0` parity (Postgres throws vs in-memory coerces).
 
 Owner-only / ops:
 
-- **Push** `main` to origin (2 local commits ahead; this session did not push).
 - Make the GitHub repo public; add the URL to Devpost under Track 1.
-- Record the two demo videos (scripts in `docs/submission/`).
+- Record the two demo videos (scripts in `docs/submission/`) — the v2 dashboard is
+  worth featuring in the walkthrough.
 - Real LongMemEval run: download LongMemEval-S + export `DASHSCOPE_API_KEY`
   (+ `OPENAI_API_KEY` for the gpt-4o judge), then `bench:longmemeval:compare`.
 - If a live endpoint is required: rebuild ECS from current HEAD (do NOT restart
@@ -119,42 +115,40 @@ TLS/monitoring/backup/rate-limiting.
 
 ## Next Priority
 
-The biggest remaining product move is **capacity-bounded strategic forgetting**
-(the explicit Track-1 ask, and a genuinely new capability) — bound a scope's
-active memory footprint and demonstrate governed eviction + recall within a
-limited context window. Otherwise: README hero + badges + a real screenshot, then
-one real-signal artifact (live-embedding recall or cold-vs-warm learning).
+The biggest remaining product move is still **capacity-bounded strategic
+forgetting** (the explicit Track-1 ask). Otherwise, capitalize on the new UI:
+README hero + badges + a real screenshot of the v2 dashboard, then one real-signal
+artifact (live-embedding recall or a cold-vs-warm learning curve).
 
 Do not claim an official benchmark score, durable cloud proof, live public
 endpoint, or production SaaS readiness. Keep every judge labeled
-`official_qa_evaluator: false`. Do not push, make the repo public, run paid
-Qwen/OpenAI, download the official dataset, mutate cloud, or restart Docker
-without the required inputs/authorization.
+`official_qa_evaluator: false`. Do not make the repo public, run paid Qwen/OpenAI,
+download the official dataset, mutate cloud, or restart Docker without the required
+inputs/authorization.
 
 ## Next Session Prompt
 
 ```text
-Read agent.md, all memory/*.md, docs/handoff.md, README.md, package.json,
-src/auth/request.ts, src/auth/config.ts, src/services/continuity-memory-service.ts,
-packages/memory-core/src/postgres-store.ts, and
-packages/memory-core/src/reasoning/structured-output.ts before changing product
-behavior.
+Read agent.md, all memory/*.md, docs/handoff.md, README.md, package.json, and (for
+the dashboard) apps/dashboard/src/components/memory-vault-dashboard.tsx +
+apps/dashboard/src/app/globals.css + docs/design/HandoffBase-Dashboard-v2.dc.html
+before changing behavior.
 
-Current: HEAD cf36ddf on main, clean, CI green — but 2 commits AHEAD of origin
-and NOT pushed. This session closed a real HIGH cross-tenant api-key auth bypass
-(prototype-chain lookup) + 9 verified store/service correctness bugs (12 new
-regression tests, fb2adfd) and shipped the connect-recipe/community-file adoption
-layer (cf36ddf).
+Current: HEAD on main is the dashboard v2 redesign (48f4ad8) + this handoff refresh,
+pushed to origin, clean, full CI green. This session imported the v2 design from the
+owner's Claude Design project and rebuilt the Memory Vault dashboard (5 views, dark
+"Amber Archive" / light "Paper Ledger" theme toggle, Connect-an-agent MCP modal) as
+React/TSX wired to the real memory-client — showcase values derived from the live
+snapshot, not hardcoded.
 
-Preserve: the nine-tool contract; embeddings default-off so the deterministic
-17/17 + credential-free CI never change; every benchmark score labeled
-official_qa_evaluator:false; honest historical Alibaba proof; credential-free
-mock/in-memory defaults; the new invariants now under test (own-property api-key
-lookup, JSON-quoted-secret redaction, date-safe phone redaction, Postgres↔in-memory
-list/recall parity, memory_update reserved-status guard).
+Preserve: the nine-tool contract; embeddings default-off so the deterministic 17/17
++ credential-free CI never change; every benchmark score labeled
+official_qa_evaluator:false; honest historical Alibaba proof; the dashboard's real-
+data wiring (do not re-hardcode showcase numbers) and its security guarantees (audit
+never renders canonical content; all six conflict actions; feedback correction flow).
 
 Highest-value next work: capacity-bounded strategic forgetting (Track-1 ask), OR
-README hero+badges + a real screenshot, plus one real-signal artifact. Do not
-push, make the repo public, run paid Qwen/OpenAI, or mutate cloud without
+README hero+badges + a real screenshot of the v2 dashboard, plus one real-signal
+artifact. Do not make the repo public, run paid Qwen/OpenAI, or mutate cloud without
 authorization.
 ```
