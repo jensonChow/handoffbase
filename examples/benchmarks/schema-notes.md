@@ -8,6 +8,13 @@ examples/benchmarks/conflicts/cases.json
 examples/benchmarks/cross-host-handoff/cases.json
 ```
 
+One family is deliberately excluded from default discovery and runs only via
+the `--fixture` flag, so the pinned 17-case suite stays byte-stable:
+
+```text
+examples/benchmarks/capacity-pressure/capacity-pressure.fixture.json
+```
+
 Each fixture file has this top-level shape:
 
 ```json
@@ -43,6 +50,11 @@ Each fixture file has this top-level shape:
 - `long-memory`
 - `conflicts`
 - `cross-host-handoff`
+- `capacity-pressure` (standalone; `--fixture` only)
+
+The `forget` step supports the per-memory modes plus `enforce_capacity`, which
+requires a positive integer `capacity`, forbids `memoryId`, and accepts
+optional `dryRun` and `scopes`.
 
 ## Baselines And Expected Outcomes
 

@@ -26,6 +26,11 @@ Supported fixture families:
 - `long-memory`: benchmark-inspired long-horizon recall, update, and stale-memory cases.
 - `conflicts`: contradiction, duplicate, supersede, merge, and review-governance cases.
 - `cross-host-handoff`: host/session handoff cases that exercise `continuity_bootstrap`, scoped memory, and trace ids.
+- `capacity-pressure`: strategic forgetting (`memory_forget` mode `enforce_capacity`) and strict token-budget trimming cases. This family is deliberately stored as `capacity-pressure/capacity-pressure.fixture.json` (not `cases.json`), so default discovery skips it and the pinned 17-case suite stays byte-stable. Run it standalone:
+
+  ```bash
+  node scripts/run-memory-benchmarks.mjs --json --fixture examples/benchmarks/capacity-pressure/capacity-pressure.fixture.json
+  ```
 
 Each case declares the baseline executors that actually run and a
 `baselineExpectations` contract. The implemented executors are:

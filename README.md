@@ -325,7 +325,7 @@ TLS endpoint or managed SaaS service.
 | `memory_remember` | Create durable memory candidates from corrections, notes, or observations. |
 | `memory_reflect` | Reflect on a completed agent run and propose durable memories. |
 | `memory_update` | Edit, merge, or supersede an existing memory record. |
-| `memory_forget` | Invalidate, archive, expire, or physically hard-delete an existing memory while retaining only a redacted audit tombstone. |
+| `memory_forget` | Invalidate, archive, expire, or physically hard-delete an existing memory, or run an `enforce_capacity` strategic-forgetting sweep that archives the lowest-retention memories beyond a caller-declared capacity. |
 | `memory_trace` | Explain which memories were used, ignored, or excluded. |
 | `memory_feedback` | Record helpful or unhelpful feedback for a memory or trace and optionally propose a pending correction. |
 | `memory_resolve_conflict` | Apply an authorized conflict decision and persist its lifecycle and audit effects. |
@@ -360,13 +360,13 @@ TLS endpoint or managed SaaS service.
 | Remember | `memory_remember` extracts candidate memories from explicit notes, corrections, or observations. |
 | Review | Candidates can remain `pending` for user or dashboard review before activation. |
 | Recall | `memory_recall` retrieves scoped, valid memories and returns a trace id. |
-| Bootstrap | `continuity_bootstrap` builds a token-budgeted context pack for a new host/session. |
+| Bootstrap | `continuity_bootstrap` builds a token-budgeted context pack for a new host/session. The budget is enforced server-side on the rendered context lines — `estimated_tokens <= token_budget` holds by construction (heuristic chars/4 estimator, not an official tokenizer), trimmed memories are recorded on the trace, and a provider echoing a bogus budget cannot bypass it. |
 | Reflect | `memory_reflect` turns run outcomes into procedure, decision, tool, failure, or outcome memories. |
 | Trace | `memory_trace` and `memory://traces/{trace_id}` explain selected, ignored, and excluded memories. |
 | Feedback | `memory_feedback` records user judgment and can create a pending correction memory for review. |
 | Resolve | `memory_resolve_conflict` accepts or rejects a candidate, supersedes an existing memory, merges, keeps both, or dismisses the conflict. |
 | Update | `memory_update` edits, merges, or supersedes stale or conflicting memories. |
-| Forget | `memory_forget` invalidates, archives, expires, or physically hard-deletes memory records while keeping a content-redacted audit tombstone. |
+| Forget | `memory_forget` invalidates, archives, expires, or physically hard-deletes memory records while keeping a content-redacted audit tombstone. Its `enforce_capacity` mode is governed strategic forgetting: a dry-run-first sweep that archives (never deletes) the lowest-retention active memories beyond a declared capacity, emits one audit event per eviction, and writes a `capacity_sweep` trace explaining every decision. The retention score is the non-query projection of the recall ranking, so what recall would rank last is what capacity pressure evicts first. A sweep only evicts memories at least as narrow as its own scope — a project-scoped sweep never archives user-wide memories other projects still recall — and dry-run and apply use identical eligibility. |
 
 Memory types currently modeled:
 
