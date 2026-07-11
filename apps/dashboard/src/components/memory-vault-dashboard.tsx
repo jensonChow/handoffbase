@@ -302,6 +302,8 @@ const ghostBtn: CSSProperties = {
 };
 
 const selectStyle: CSSProperties = {
+  flex: "1 1 120px",
+  minWidth: 0,
   minHeight: 38,
   padding: "0 10px",
   border: "1px solid var(--line)",
@@ -1032,14 +1034,14 @@ export function MemoryVaultDashboard({
                 title="Dark — Amber Archive"
                 onClick={() => setTheme("dark")}
               >
-                <Moon size={14} aria-hidden />
+                <Moon size={15} aria-hidden />
               </ThemeSegButton>
               <ThemeSegButton
                 active={theme === "light"}
                 title="Light — Paper Ledger"
                 onClick={() => setTheme("light")}
               >
-                <Sun size={14} aria-hidden />
+                <Sun size={15} aria-hidden />
               </ThemeSegButton>
             </div>
           </div>
@@ -1702,7 +1704,18 @@ function OverviewView({
                         gap: 8
                       }}
                     >
-                      <strong style={{ fontFamily: mono, fontSize: 13, minWidth: 0 }}>{step.hostId}</strong>
+                      <strong
+                        style={{
+                          fontFamily: mono,
+                          fontSize: 13,
+                          minWidth: 0,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                      >
+                        {step.hostId}
+                      </strong>
                       <span
                         style={{
                           fontFamily: mono,
@@ -2014,7 +2027,7 @@ function VaultView({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search memories, sources, scopes…"
+              placeholder="Search memories…"
               style={{
                 minHeight: 38,
                 border: 0,
@@ -2907,8 +2920,8 @@ function TracesView({
               “{selectedTrace.query}”
             </p>
             <div style={{ border: "1px solid var(--line2)", borderRadius: 10, background: "var(--inset)", padding: 12, display: "grid", gap: 4 }}>
-              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <small style={{ ...uppercaseLabel, flex: "1 1 auto", whiteSpace: "nowrap" }}>
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <small style={{ ...uppercaseLabel, flex: "1 1 auto", minWidth: 0 }}>
                   context pack sent to the agent
                 </small>
                 <span style={{ display: "flex", alignItems: "center", gap: 7, flex: "0 0 auto" }}>

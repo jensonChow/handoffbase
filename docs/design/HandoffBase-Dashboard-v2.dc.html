@@ -104,10 +104,10 @@
         <span style="font-family:var(--font-mono);font-size:12px;color:var(--subtle)">last sync 2 min ago</span>
         <div role="group" aria-label="Theme" style="display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden">
           <button type="button" onClick="{{ setDark }}" title="Dark — Amber Archive" style="{{ darkBtnStyle }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#moon"></use></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
           </button>
           <button type="button" onClick="{{ setLight }}" title="Light — Paper Ledger" style="{{ lightBtnStyle }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#sun"></use></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
           </button>
         </div>
       </div>
@@ -123,15 +123,15 @@
             <strong style="font-family:var(--font-display);font-size:15px">Cross-agent handoff — Jul 6 → 7</strong>
             <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">1 preference · 1 procedure · 1 failure memory carried across hosts</span>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 44px 1fr 44px 1fr;align-items:stretch">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr);align-items:stretch">
             <button type="button" onClick="{{ goTraces }}" style="border:1px solid var(--line);border-radius:10px;background:var(--inset);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
-              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">codex</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 10:15</span></span>
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">codex</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 10:15</span></span>
               <span style="font-size:13px;color:var(--muted);line-height:1.45">Session 1 — user corrects ranking logic</span>
               <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--chip);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px;justify-self:start">+ wrote user_preference</span>
             </button>
             <div style="display:grid;place-items:center;color:var(--accent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg></div>
             <button type="button" onClick="{{ goTraces }}" style="border:1px solid var(--line);border-radius:10px;background:var(--inset);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
-              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">claude-code</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 15:24</span></span>
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">claude-code</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 15:24</span></span>
               <span style="font-size:13px;color:var(--muted);line-height:1.45">Recalled 2 memories, reflected on a failure</span>
               <span style="display:flex;gap:6px;flex-wrap:wrap">
                 <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--good) 40%, transparent);background:color-mix(in srgb, var(--good) 8%, transparent);color:var(--good);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px">✓ recalled ×2</span>
@@ -140,7 +140,7 @@
             </button>
             <div style="display:grid;place-items:center;color:var(--accent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg></div>
             <button type="button" onClick="{{ goTraces }}" style="border:1px dashed color-mix(in srgb, var(--accent) 55%, transparent);border-radius:10px;background:color-mix(in srgb, var(--accent) 5%, transparent);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
-              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">cursor</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 7 · 09:02</span></span>
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">cursor</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 7 · 09:02</span></span>
               <span style="font-size:13px;color:var(--muted);line-height:1.45">New session bootstrapped with full context</span>
               <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--chip);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px;justify-self:start">↓ bootstrap · 4 memories</span>
             </button>
@@ -220,19 +220,19 @@
           <div style="display:flex;align-items:stretch;gap:10px;flex-wrap:wrap">
             <label style="flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;background:var(--inset);padding:0 10px;color:var(--subtle)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#search"></use></svg>
-              <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search memories, sources, scopes…" style="min-height:38px;border:0;background:transparent;padding:0;color:var(--text);outline:none;width:100%;font-size:13.5px">
+              <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search memories…" style="min-height:38px;border:0;background:transparent;padding:0;color:var(--text);outline:none;width:100%;font-size:13.5px">
             </label>
-            <select value="{{ typeFilter }}" onChange="{{ onTypeFilter }}" aria-label="Filter by type" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+            <select value="{{ typeFilter }}" onChange="{{ onTypeFilter }}" aria-label="Filter by type" style="flex:1 1 120px;min-width:0;min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
               <sc-for list="{{ typeOptions }}" as="opt" hint-placeholder-count="3">
                 <option value="{{ opt.value }}">{{ opt.label }}</option>
               </sc-for>
             </select>
-            <select value="{{ statusFilter }}" onChange="{{ onStatusFilter }}" aria-label="Filter by status" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+            <select value="{{ statusFilter }}" onChange="{{ onStatusFilter }}" aria-label="Filter by status" style="flex:1 1 120px;min-width:0;min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
               <sc-for list="{{ statusOptions }}" as="opt" hint-placeholder-count="3">
                 <option value="{{ opt.value }}">{{ opt.label }}</option>
               </sc-for>
             </select>
-            <select value="{{ hostFilter }}" onChange="{{ onHostFilter }}" aria-label="Filter by host" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+            <select value="{{ hostFilter }}" onChange="{{ onHostFilter }}" aria-label="Filter by host" style="flex:1 1 120px;min-width:0;min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
               <sc-for list="{{ hostOptions }}" as="opt" hint-placeholder-count="3">
                 <option value="{{ opt.value }}">{{ opt.label }}</option>
               </sc-for>
@@ -546,8 +546,8 @@
             </div>
             <p style="margin:0;font-family:var(--font-display);font-size:17px;line-height:1.45;color:var(--text)">"{{ traceQuery }}"</p>
             <div style="border:1px solid var(--line2);border-radius:10px;background:var(--inset);padding:12px;display:grid;gap:4px">
-              <span style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase;flex:1 1 auto;white-space:nowrap">context pack sent to the agent</small>
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase;flex:1 1 auto;min-width:0">context pack sent to the agent</small>
                 <span style="display:flex;align-items:center;gap:7px;flex:0 0 auto">
                   <span style="width:70px;height:4px;border-radius:99px;background:var(--line2);overflow:hidden;display:inline-block"><span style="{{ traceBudgetBarStyle }}"></span></span>
                   <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);white-space:nowrap">{{ traceTokens }}</small>
