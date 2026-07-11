@@ -218,3 +218,25 @@ test("browser client source contains no public auth or database configuration", 
   assert.equal(/authorization|database_url|postgres_url|auth_token/i.test(source), false);
   assert.equal(/localStorage|sessionStorage/.test(source), false);
 });
+
+test("default HttpMemoryClient (no injected fetcher) routes through the global fetch", async () => {
+  // Regression: the default browser path constructs the client with no fetcher,
+  // so it must call the global fetch via a wrapper. A bare `this.fetcher = fetch`
+  // reference would throw "Illegal invocation" in a browser and, being captured
+  // at construction, would ignore this later-installed spy. The wrapper resolves
+  // `fetch` at call time, so swapping the global AFTER construction proves it.
+  const original = globalThis.fetch;
+  const client = new HttpMemoryClient({ baseUrl: "http://dashboard.test" });
+  const calls: string[] = [];
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return Response.json({ authenticated: false, runtime: { mode: "server_in_memory" } });
+    }) as typeof fetch;
+
+    await client.getSession();
+    assert.deepEqual(calls, ["http://dashboard.test/api/dashboard/session"]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

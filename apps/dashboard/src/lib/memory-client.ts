@@ -240,7 +240,10 @@ export class HttpMemoryClient implements MemoryClient {
 
   constructor(options: HttpMemoryClientOptions = {}) {
     this.baseUrl = options.baseUrl?.replace(/\/$/, "") ?? "";
-    this.fetcher = options.fetcher ?? fetch;
+    // Wrap the global fetch instead of storing a bare reference: calling
+    // `this.fetcher(...)` on a bare `fetch` sets `this` to this instance, which
+    // throws "Illegal invocation" in a browser (the default server-backed mode).
+    this.fetcher = options.fetcher ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
     this.headers = options.headers;
   }
 
