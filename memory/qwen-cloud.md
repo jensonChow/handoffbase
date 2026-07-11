@@ -12,6 +12,7 @@ Qwen Cloud must be central to the Track 1 submission. It should power memory rea
 - Build token-budgeted context packs.
 - Reflect on completed agent runs.
 - Explain why memories were used or ignored.
+- Power semantic recall via embeddings (`QwenEmbeddingProvider`, default `text-embedding-v4` @ 1536 dims) so Qwen drives retrieval, not only extraction. Default off; enabled by credentials or `HANDOFFBASE_EMBEDDINGS=mock`. See [[architecture]] Semantic Recall.
 
 ## Long-Term Constraint
 
@@ -35,7 +36,9 @@ CI and local `npm run check` must pass without Qwen credentials. The GitHub Acti
 
 `benchmarks/longmemeval` 现在提供显式 opt-in 的 `--reader qwen` 和 `--memory-provider qwen`。它复用现有 Qwen/DashScope env conventions，但不会加载 `.env.*`、不会把 credential/base URL 写入 artifacts，并且 errors 不回显 response body 或 credential。默认与 CI tiny fixture 固定使用 deterministic reader + mock provider，即使 shell 中存在 Qwen key 也不会自动切换。
 
-截至 2026-07-10，只完成了 fake-fetch/config coverage 和 tiny deterministic matrix；没有下载 official LongMemEval dataset、没有运行 full credentialed Qwen adapter、没有调用 official paid judge，因此没有 official LongMemEval score。
+截至 2026-07-10，adapter 之外新增了 QA scorer（`benchmarks/longmemeval/scorer.mjs` + `npm run bench:longmemeval:score`）和一键对比 orchestrator（`compare.mjs` + `npm run bench:longmemeval:compare`）。scorer 忠实复刻 LongMemEval 各 question-type + abstention 的 correctness prompt，judge 支持 `deterministic`（CI/离线）、`qwen`（默认 qwen-max）和 `openai`（默认 gpt-4o，`OPENAI_API_KEY`，用于匹配官方 evaluator 模型以便和 Zep/Mem0 公布数字对比）。所有 scoring artifact 标 `official_qa_evaluator: false`——是独立复刻，不是官方 GPT-4o evaluator。
+
+仍然：没有下载 official LongMemEval dataset、没有运行 full credentialed Qwen adapter、没有跑真正的 headline benchmark，因此没有任何 real score（fake-fetch/deterministic 之外的一切都要 owner 提供 dataset + key 才能跑）。成本速查（sourced，`BENCHMARK-COST.md`）：LongMemEval-S = 500 题、每题约 115k tokens；full 500×3 backend 约 $7（去掉 full-context ceiling）到 $30（含 ceiling），gpt-4o judge 只加约 $0.01/question；free 1M Qwen tokens 只覆盖约 1.7%，所以 full run 不可能免费；真正约束是 wall-clock（约 26k 次 API 调用）。推荐：stratified ~100–150 子集先验证，headline 用 Config B（reader=qwen + embeddings=qwen + judge=gpt-4o），ceiling 只在子集上跑。
 
 ## Credentialed Validation State
 

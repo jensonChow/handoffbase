@@ -47,6 +47,12 @@ Public architecture narrative must distinguish code capability from deployment p
 - 内置 InMemory/Postgres stores 的 correction + feedback 是单一 unit-of-work。第三方 custom `MemoryStore` 若没有实现 optional atomic feedback method，service 只能做普通异常补偿；该 fallback 不具 process-crash atomicity 或 idempotency key。
 - Postgres recall 为保证 lifecycle/delete 一致性，会对本次 selected + ignored references 按 id 一次性 `FOR NO KEY UPDATE` 并用 fresh row 重验。当前 ignored query 无上限，因此大 vault 下存在 O(n) lock amplification；production 优化应改成有限相关样本或汇总 trace，而不是弱化一致性锁。
 
+## Semantic Recall (Embeddings)
+
+- `packages/memory-core/src/embeddings/` 定义 `EmbeddingProvider` 接口（`embed(texts)`、`model`、`dimensions`）加 `cosineSimilarity`，并实现 `QwenEmbeddingProvider`（DashScope OpenAI-compatible `/embeddings`，默认 `text-embedding-v4` @ 1536 维，匹配 `memory_embeddings.embedding vector(1536)` 列，免 migration）和 deterministic `MockEmbeddingProvider`（离线/CI）。
+- `ContinuityMemoryService` 在 write（`remember`/`reflect`）和 recall（`recall`/`continuity_bootstrap`）时做 best-effort embed：embedding 失败绝不让写入失败。In-memory store 在 lexical 分数上叠加 `SEMANTIC_RECALL_WEIGHT * max(0, cosine)`；Postgres recall 已有的 pgvector `1 - (e.embedding <=> $n::vector)` 通过 `MemoryRecallQuery.queryEmbedding` 接入。
+- 默认 **OFF**：有 Qwen/DashScope credential 时自动启用 Qwen embeddings，否则退回 lexical，所以 credential-free CI 与 deterministic 17/17 benchmark 逐字不变。`HANDOFFBASE_EMBEDDINGS=mock|off` 可强制覆盖。runtime 通过 `embeddingMode`（qwen/mock/none）在 `getRuntimeInfo()` 与 `/health` 暴露当前模式。
+
 ## Provider Abstraction
 
 Memory Core 只能依赖 `MemoryReasoningProvider` 接口。比赛版实现 `QwenMemoryProvider`，长期可以增加 OpenAI、Anthropic 或本地模型 provider。
@@ -66,7 +72,7 @@ GitHub Actions 使用 Node 22、`npm ci` 和 `npm run check`。`check` 包含 ty
 
 ## Deployment Boundary
 
-比赛版部署在 Alibaba Cloud。业务层保持标准 HTTP、Postgres/pgvector、Docker/container 形态，避免长期绑定某个云厂商。当前 Docker profile 启动 `node dist/index.js`；`/health` 只暴露 name/version/transport/path/auth/provider/store mode，`/ready` 只暴露 dependency status metadata，二者都不暴露密钥、连接串或 provider response body。
+比赛版部署在 Alibaba Cloud。业务层保持标准 HTTP、Postgres/pgvector、Docker/container 形态，避免长期绑定某个云厂商。当前 Docker profile 启动 `node dist/index.js`；`/health` 只暴露 name/version/transport/path/auth/provider/store/embedding mode，`/ready` 只暴露 dependency status metadata，二者都不暴露密钥、连接串或 provider response body。
 
 ## Data Boundary
 

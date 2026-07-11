@@ -1,271 +1,165 @@
 # Current Handoff
 
-Updated: 2026-07-10T12:51:15Z
+Updated: 2026-07-10 (end of Qwen-semantic-recall + benchmark-harness + dashboard-fix session)
 
 ## Outcome
 
-The product-completeness remediation is implemented in the working tree. The
-user-listed P0/P1 issues are closed:
+This session shipped five commits to `main` (all CI-green) that close the two
+highest-leverage "path to win" gaps (Qwen invisible; no benchmark harness) and
+fix a real flagship-UI bug found during a product-completeness assessment. No
+dataset was downloaded, no paid Qwen/OpenAI call was made, no cloud mutation,
+Docker restart, or repo-visibility change was performed.
 
-- Dashboard authentication and caller isolation,
-- disabled Conflict actions and lifecycle bypasses,
-- ambiguous hard-delete/audit semantics,
-- the missing product feedback-to-regression loop, and
-- unreliable local/remote onboarding and readiness checks.
+Commits (newest first):
 
-The final security/semantics review found no remaining P0/P1 blocker among
-those issues. No commit, push, pull request, merge, cloud mutation, real Qwen
-request, or real database mutation was performed.
+- `a5943c8` fix(dashboard): bind global fetch so the Memory Vault works in a browser
+- `de24716` feat(bench): OpenAI GPT-4o reader and judge for LongMemEval
+- `f3554a2` feat(bench): one-command LongMemEval comparison orchestrator
+- `4c1dea6` feat(bench): LongMemEval QA scorer + Qwen semantic recall in the loop
+- `eff14d8` feat: Qwen-backed semantic recall via embedding provider
+
+`HEAD = origin/main = a5943c8`, working tree clean, latest CI run `success`.
 
 ## What The Product Is Now
 
-HandoffBase is an MCP-native, cross-session and cross-host memory handoff layer
-for AI agents. Hosts connect to one Remote Streamable HTTP `/mcp` endpoint. A
-caller-scoped `ContinuityMemoryService` coordinates provider reasoning,
-lifecycle governance, conflict resolution, feedback, traces, and a selectable
-in-memory or Postgres store.
+HandoffBase is an MCP-native, cross-session/cross-host memory-handoff layer:
+9 tools, 9 `memory://` resources, 4 prompts over one Remote Streamable HTTP
+`/mcp` endpoint, a caller-scoped `ContinuityMemoryService`, governed lifecycle
+(pending/supersede/expire/hard-delete+tombstone/conflict/feedback), an
+authenticated Next.js Memory Vault, and selectable in-memory or Postgres/pgvector
+storage. Reasoning is isolated behind `MemoryReasoningProvider` (Qwen or Mock).
 
-The current surface is:
+New this session:
 
-- 9 tools, including `memory_resolve_conflict` and `memory_feedback`,
-- 9 `memory://` resources,
-- 4 reusable prompts,
-- a Next.js Memory Vault for vault/pending/trace/conflict/feedback/delete-audit
-  workflows, and
-- deterministic eval, comparative benchmark, LongMemEval-format, and real
-  loopback cross-host gates.
+- **Semantic recall.** `packages/memory-core/src/embeddings/` adds an
+  `EmbeddingProvider` (`QwenEmbeddingProvider`, default `text-embedding-v4` @
+  1536 dims to match the `vector(1536)` column; deterministic
+  `MockEmbeddingProvider`) + `cosineSimilarity`. The service embeds on write
+  (`remember`/`reflect`) and on query (`recall`/`continuity_bootstrap`),
+  best-effort so an embedding failure never fails a write. In-memory store
+  blends cosine into ranking; Postgres pgvector recall receives the query
+  embedding via `MemoryRecallQuery.queryEmbedding`. **Default OFF** (Qwen when
+  credentials exist, else lexical; `HANDOFFBASE_EMBEDDINGS=mock|off` overrides),
+  so the deterministic 17/17 benchmark and credential-free CI are unchanged.
+  `embeddingMode` (qwen/mock/none) is surfaced in `getRuntimeInfo()` and `/health`.
+- **LongMemEval QA scorer + orchestrator.** The adapter already emitted
+  `hypotheses.jsonl`; now `benchmarks/longmemeval/scorer.mjs`
+  (`npm run bench:longmemeval:score`) judges them into overall / per-type /
+  answered-vs-abstention accuracy, and `compare.mjs`
+  (`npm run bench:longmemeval:compare`) runs all backends + scores + writes a
+  markdown comparison table under the output dir (never a tracked doc). Judges:
+  `deterministic` (CI), `qwen` (qwen-max), `openai` (gpt-4o). `--reader openai`
+  and `--embeddings off|mock|qwen` are also wired. Every artifact is stamped
+  `official_qa_evaluator: false`.
+- **Dashboard browser fix.** The browser client stored a bare `fetch` reference
+  and called it as a method → "Illegal invocation" in a real browser on the
+  default server-in-memory path; Node tolerated it so all tests + CI were green
+  over it. Fixed + regression-tested; **verified live in a browser** (Memory
+  Vault renders with seeded data, all tabs, no console errors).
 
-The product is a functional open-source memory-infrastructure MVP, not a
-production SaaS. The historical Alibaba proof remains
-`authMode=api_key` / `providerMode=qwen` / `storeMode=in-memory` and predates
-the current nine-tool build.
+It remains a functional open-source memory-infrastructure MVP, not production
+SaaS. The historical Alibaba proof is still `authMode=api_key` /
+`providerMode=qwen` / `storeMode=in-memory` and predates the current build.
 
-## Implemented
+## Product-Completeness Verdict (code-grounded, 2026-07-10)
 
-### Dashboard authentication and governance
+- **Credible hackathon submission: YES** — core loop real and passing, cross-host
+  continuity proven over the wire, memory-on-vs-off benchmark, demoable offline.
+- **Star / adoptable OSS repo: NOT YET** — see gaps below.
+- **Production: NO** — in-memory default with no demonstrated restart-survival,
+  Postgres only tested vs a fake client, no rate-limit/backup/TLS, ECS stopped.
+  (Honestly not claimed.)
 
-- Added API-key sign-in that issues an HMAC-signed, HttpOnly,
-  SameSite=Strict session cookie. The cookie stores only a key fingerprint and
-  expiry, not the raw key, caller identity, or scope grant.
-- Every request resolves the fingerprint against the current API-key mapping,
-  so key revocation and grant narrowing apply to existing sessions.
-- Production Dashboard access fails closed when auth is disabled.
-- Production mutations require exact same-origin `Origin`. The effective
-  origin supports direct Host and reverse-proxy forwarded host/protocol; proxy
-  docs require forwarded headers to be overwritten, not trusted from clients.
-- Caller tenant/user comes only from the auth mapping. Optional
-  `HANDOFFBASE_DASHBOARD_*` values narrow the view and never establish identity.
-- Strict `allowedProjectIds` / `allowedAgentProfileIds` grants reject missing or
-  out-of-grant dimensions, including legacy unscoped trace/context/feedback and
-  deletion tombstones.
-- All Dashboard writes now use a caller-bound `ContinuityMemoryService`; direct
-  Store access remains only for caller-scoped snapshots/audit reads.
-- Generic Edit cannot change lifecycle status. Pending approval uses an atomic
-  `expected_status=pending` precondition and returns recoverable 409 on a race.
-- Conflict actions now support all six service actions, require audit reason,
-  require merged text for merge, and return a safe 409 when an action is not
-  applicable to the current lifecycle state.
-- The UI now includes Trace feedback and a global Audit / Deletion History.
+## Validation
 
-### Physical hard delete and concurrency
-
-- `hard_delete` physically removes the memory row and embedding instead of
-  retaining a hidden `status=deleted` row.
-- Linked event, trace, conflict, and feedback content is redacted. The retained
-  delete event is a caller-scoped tombstone containing stable identity/scope,
-  actor/time, status, and no deleted text/context/reason fixture.
-- Dashboard snapshots retain the authorized deletion tombstone after the
-  memory disappears.
-- Postgres delete/write races are closed: feedback, recall, addTrace,
-  addConflict, and resolveConflict lock and revalidate referenced records in a
-  consistent transaction order. Delete-first makes the later reference write
-  fail; reference-write-first makes delete wait and then redact it.
-- Postgres recall locks selected/ignored references in sorted order with
-  `FOR NO KEY UPDATE`, then revalidates fresh scope/type/lifecycle state before
-  touch/trace/event persistence. A changed selected memory aborts with zero
-  writes; an ignored memory that became recallable is omitted from ignored
-  evidence.
-
-### Feedback-to-regression loop
-
-- Added typed ninth tool `memory_feedback` for memory, trace, or combined
-  helpful/unhelpful feedback.
-- Unhelpful feedback may create a governed pending `user_correction` memory.
-  Built-in InMemory/Postgres stores persist correction + feedback as one unit;
-  Postgres uses one transaction and rolls both back on failure.
-- Feedback target scope is caller-authorized. Corrections and fixture fields
-  reject credentials and redact detected email/phone content.
-- The output regression draft excludes real record ids and scope values.
-- Added `npm run feedback:to-benchmark`, explicit
-  `--public-safe-confirmed`, no-overwrite output, CLI help, and repeatable
-  `bench:memory -- --fixture` inputs. The converter rejects helpful-only,
-  uncorrected, identified, unknown-field, UUID, and sensitive drafts.
-- Feedback-derived cases are additive local regressions and do not mutate the
-  canonical 17-case suite or become an official benchmark score automatically.
-
-### Onboarding, readiness, and migrations
-
-- Root server commands use `scripts/run-server.mjs`, which passes root
-  `.env.local` to Node only when the file exists and never prints values.
-- MCP remains on loopback port 3000; Dashboard defaults to loopback port 3001.
-- Added exact current Codex TOML examples for local and remote Bearer-token MCP
-  registration. Removed obsolete generic JSON host placeholders.
-- `/health` remains side-effect-free liveness/config metadata.
-- `/ready` runs a real current-schema Postgres query and a live one-token Qwen
-  compatible completion probe. Qwen results are cached and concurrent misses
-  share one in-flight call.
-- API-key deployments authenticate `/ready`. Loopback local Qwen may probe with
-  auth disabled; non-loopback auth-disabled Qwen, including the explicit demo
-  bind override, fails before a model call.
-- Auth-disabled servers bind loopback only by default. Non-loopback requires
-  API-key auth or the explicit isolated-demo override.
-- Remote validation is generic by default, checks `/health`, `/ready`, and the
-  exact current manifest, and supports explicit expected-mode variables or the
-  historical Alibaba profile.
-- Postgres migrations are sorted per-file transactions under an advisory lock,
-  recorded in `handoffbase_schema_migrations` with SHA-256 checksums, skipped
-  when current, and rejected on applied-file drift.
-- Dashboard dev uses port 3001. On this macOS environment, default Watchpack hit
-  `EMFILE`; the verified fallback
-  `WATCHPACK_POLLING=true npm run dashboard:dev` returned 200 for `/` and the
-  Dashboard API.
-
-### Documentation and project memory
-
-- README, architecture diagrams, product completeness, lifecycle, workflows,
-  effect, Dashboard demo, deployment, examples, and submission copy now match
-  the authenticated nine-tool product.
-- Durable product/architecture/interface/operations/decision memory has been
-  refreshed in `memory/*.md`.
-- Historical seven-tool ECS and eight-tool Product Proof evidence remains
-  explicitly historical instead of being rewritten as current proof.
-
-## Final Validation
-
-Final `npm run check`, with both Qwen credential variables explicitly cleared:
-passed end to end.
-
-- TypeScript/workspace/server typecheck: passed.
-- Production builds: passed, including all Dashboard pages and seven API route
-  groups under Next.js 16.2.10 Turbopack.
-- MCP smoke: 9 tools, 9 resources, 4 prompts.
-- Memory core: 41/41 passed.
-- Auth: 9/9 passed.
-- Runtime/config/readiness/migration/pg-client: 24/24 passed.
-- Server aggregate: 67/67 passed.
-- Dashboard API/client/session/component: 32/32 passed.
-- Deterministic memory eval: 8/8 passed.
-- Comparative benchmark: HandoffBase 17/17; no-memory 0/17 expected misses;
-  34/34 expectation conformance; 0 execution or fixture errors.
-- LongMemEval tiny: 9/9 question-runs; deterministic reader, mock provider;
-  official evaluator not run.
-- Real loopback cross-host HTTP/MCP E2E: 1/1 passed.
-- Markdown links: 54 tracked Markdown files, 71 relative links, passed.
-- Secret scan: 176 tracked files plus 16 untracked candidates, 192 text files,
-  passed. The scanner now handles unstaged deletions by reading index content
-  and also scans unignored untracked candidates.
-- `git diff --check`: passed.
-
-Optional integration:
-
-- `npm run test:postgres:integration`: exited successfully with its one test
-  safely skipped because `TEST_DATABASE_URL` was not supplied.
-- Docker is not installed, so `npm run test:postgres:restart` was not run.
-- No real Qwen readiness call was made; fake-fetch tests cover request, cache,
-  singleflight, auth, and non-leaking failure behavior.
-
-Production HTTP smoke used only synthetic local credentials and an ephemeral
-in-memory store:
-
-- homepage 200,
-- `127.0.0.1` API-key login 200,
-- authenticated snapshot 200,
-- inapplicable Conflict action 409,
-- applicable `supersede_existing` 200,
-- unhelpful Trace feedback + correction 201,
-- hard delete 204,
-- final snapshot: deleted memory absent, one feedback persisted, conflict
-  closed, one safe deletion tombstone, deleted text absent.
-
-The in-app Browser backend could not attach to the local page, so no visual
-screenshot is claimed. Production HTTP smoke, 32 Dashboard tests, and the
-production build are the UI/runtime evidence. The first default dev attempt
-also proved the documented `EMFILE` failure; polling fallback then returned
-200 for both page and API.
+Final `npm run check`, with Qwen credentials cleared: passed end to end. Suite
+totals: memory-core 46, auth 9, runtime 26, server 79, dashboard 33, memory eval
+8/8, comparative benchmark HandoffBase 17/17 vs no-memory 0/17 (34/34
+expectations), LongMemEval tiny 9/9 (official-evaluator=not-run), cross-host E2E
+1/1, markdown links pass, tracked-secret scan pass. Live dashboard render
+confirmed in a browser (default `server_in_memory` HTTP mode). No paid Qwen/OpenAI
+call; the embedding/reader/judge HTTP paths are unit-tested with injected fetch.
 
 ## Benchmark Truth
 
-The canonical local comparative result remains:
+The canonical local comparative result is unchanged and remains synthetic
+deterministic regression evidence, not an official score: HandoffBase 17/17,
+no-memory 0/17, 34/34 expectations. The new LongMemEval scorer/orchestrator can
+produce a real, comparable QA number, but **the real headline run has not been
+done** — it needs the owner to (1) download LongMemEval-S (500 questions, ~115k
+tokens each) and (2) export `DASHSCOPE_API_KEY` (and `OPENAI_API_KEY` for the
+gpt-4o judge). Sourced cost (`BENCHMARK-COST.md`, kept outside the repo): full
+500×3 ≈ $7 (no ceiling) to $30 (with the full-context ceiling); gpt-4o judge adds
+only ~$0.01/question; the free 1M Qwen tokens cover ~1.7%; the real constraint is
+wall-clock (~26k API calls). Recommended: prove on a stratified ~100–150 subset,
+headline config `--reader qwen --embeddings qwen --judge openai`, ceiling on a
+subset only.
 
-- HandoffBase: 17/17 observed passes,
-- no-memory: 0/17 expected capability misses,
-- 34/34 expectations matched,
-- 43/43 shared metric-tagged cells for HandoffBase versus 0/43 no-memory.
+## Remaining Work
 
-This is deterministic synthetic regression evidence, not an official
-LongMemEval or leaderboard score. No official dataset, credentialed full run,
-or official evaluator was used in this session.
+Star-OSS gaps (no API keys needed, highest adoption leverage):
 
-## Remaining Production Boundaries
+1. Zero visual/adoption assets — no README hero, screenshot, GIF, badges,
+   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`. (A live dashboard screenshot was
+   captured this session and can seed this.)
+2. No connect recipe for Claude Code (`claude mcp add --transport http …`) or
+   Cursor (`.cursor/mcp.json`); `examples/mcp/` ships Codex only.
+3. No reproducible path uses real Qwen — everything defaults to mock; semantic
+   recall is wired but never run live.
+4. "Does it learn" has no cold-vs-warm learning-curve artifact; 17/17-vs-0/17 is
+   a structural floor, not a measured quality delta.
 
-These are follow-up production enhancements, not unresolved items from the
-user-listed audit:
+Ops / owner-only:
 
-1. The full multi-memory Conflict action is still coordinated by a
-   process-local service lock rather than one cross-record Postgres unit of work
-   across every memory mutation and the conflict record.
-2. A third-party custom `MemoryStore` that does not implement the optional
-   atomic feedback method receives ordinary-error compensation, but not
-   process-crash atomicity or an idempotency key. Built-in stores are atomic.
-3. Postgres recall currently locks all ignored records returned by the unbounded
-   ignored query. Correctness is preserved, but a large vault can create O(n)
-   lock amplification; production should retain only a bounded relevant sample
-   or summarized ignored evidence.
-4. No validated durable cloud Postgres deployment, TLS/domain/LB, monitoring,
-   backup/restore, rate limiting, or production key/session administration
-   exists yet.
+- Make the GitHub repo public (history secret-scan was clean this session across
+  all 636 blobs / 89 commits / 24 branches; `.env.hackathon.local` never
+  committed). Add the URL to Devpost under Track 1.
+- Record the two demo videos (main ~3 min + Alibaba proof ~60s); scripts exist
+  in `docs/submission/`.
+- If a live endpoint is required: rebuild ECS from current HEAD (do NOT restart
+  the stale image `b565210` — it exposes 7 tools and would fail
+  `mcp:validate-remote`, which asserts the current 9-tool manifest); revalidate.
+- Real LongMemEval run (see Benchmark Truth).
 
-## Git State
-
-- Current branch: `main`.
-- HEAD: `90119218a7d804f66fcd2c45d2411b09f828ed1f`.
-- `origin/main` is still aligned to that same commit.
-- The remediation is an uncommitted working-tree change set; no files were
-  staged, committed, pushed, merged, or published.
-- The working tree intentionally contains modified, deleted obsolete host JSON
-  examples, and new implementation/test/TOML files for this remediation.
+Production follow-ups (unchanged from prior handoff): cross-record Postgres unit
+of work for multi-memory conflict resolution; process-crash-atomic feedback for
+third-party stores; bounded ignored-lock sample in Postgres recall; durable cloud
+Postgres + TLS/monitoring/backup/rate-limiting.
 
 ## Next Priority
 
-The next product loop should be:
+Recommended next step is the **adoption layer** (README hero rewrite + commit the
+dashboard screenshot + badges + `CONTRIBUTING.md` + Claude Code/Cursor connect
+recipes) — the biggest lever on "star OSS," needs no credentials — then **one
+real-signal artifact** (a live-embedding semantic-recall run OR a cold-vs-warm
+learning demo) to move the headline claim from asserted to demonstrated.
 
-1. review the working-tree diff and commit it intentionally,
-2. collect public-safe real user failures through `memory_feedback`,
-3. convert only reviewed drafts into additive benchmark fixtures,
-4. iterate product behavior against those regressions, and
-5. plan an explicitly approved full official benchmark/evaluator run and a
-   durable deployment proof separately.
-
-Do not claim an official score, durable cloud proof, live public endpoint, or
-production SaaS readiness from the current local evidence.
+Do not claim an official benchmark score, durable cloud proof, live public
+endpoint, or production SaaS readiness from current local evidence. Keep the
+judge labeled as a non-official independent reimplementation.
 
 ## Next Session Prompt
 
 ```text
 Read agent.md, all memory/*.md files, docs/handoff.md, README.md,
-docs/architecture.md, docs/product-completeness.md, docs/product-workflows.md,
-docs/memory-lifecycle.md, docs/benchmarks.md, docs/benchmark-results.md,
-docs/deployment.md, package.json, src/http.ts, src/readiness.ts,
-src/services/continuity-memory-service.ts, packages/memory-core/src/storage.ts,
-packages/memory-core/src/postgres-store.ts, apps/dashboard/src/lib/server/,
-and apps/dashboard/src/components/memory-vault-dashboard.tsx before changing
-product behavior.
+docs/product-completeness.md, docs/benchmarks.md, package.json, src/http.ts,
+src/services/continuity-memory-service.ts, packages/memory-core/src/embeddings/,
+packages/memory-core/src/in-memory-store.ts, benchmarks/longmemeval/, and
+apps/dashboard/src/lib/memory-client.ts before changing product behavior.
 
-Preserve: the nine-tool contract; caller-derived Dashboard identity; signed
-fingerprint-only sessions; caller-bound service mutations; physical hard
-delete plus safe tombstone; atomic built-in feedback correction; the
-feedback-to-regression public-safe review gate; credential-free mock/in-memory
-defaults; honest historical Alibaba proof; and synthetic-vs-official benchmark
-wording. Do not run paid Qwen, official evaluator, cloud mutation, Docker
-restart, commit, push, or merge without the required inputs/authorization.
+Current: HEAD a5943c8 on main, clean, CI green. Semantic recall (Qwen
+embeddings, default off), LongMemEval scorer + compare orchestrator (+gpt-4o
+judge/reader), and a verified dashboard browser fix all landed this session.
+
+Preserve: the nine-tool contract; embeddings default-off so the deterministic
+17/17 + credential-free CI never change; every benchmark score labeled
+`official_qa_evaluator: false` (independent reimpl, not the official GPT-4o
+evaluator); honest historical Alibaba proof; credential-free mock/in-memory
+defaults. Do not run paid Qwen/OpenAI, download the official dataset, mutate
+cloud, restart Docker, or change repo visibility without the required
+inputs/authorization.
+
+Highest-value next work: the adoption layer (README hero, dashboard screenshot,
+badges, CONTRIBUTING, Claude Code/Cursor connect recipes) and one real-signal
+artifact (live-embedding recall or cold-vs-warm learning demo).
 ```

@@ -34,8 +34,10 @@
 - Memory benchmark subset: `npm run bench:memory`.
 - Feedback fixture conversion: `npm run feedback:to-benchmark -- <fixture.json> --public-safe-confirmed [--output <new-file.json>]`.
 - Run an extra converted fixture without changing tracked suites: `npm run bench:memory -- --fixture <converted-file.json>`.
-- LongMemEval generic adapter: `npm run bench:longmemeval -- --dataset <local-json> --output-dir <dir> --backend <mode> ...`.
+- LongMemEval generic adapter: `npm run bench:longmemeval -- --dataset <local-json> --output-dir <dir> --backend <mode> [--reader deterministic|qwen|openai] [--memory-provider mock|qwen] [--embeddings off|mock|qwen] ...`.
 - LongMemEval tiny deterministic matrix: `npm run bench:longmemeval:tiny`.
+- LongMemEval QA 评分（把 `hypotheses.jsonl` 变成准确率）: `npm run bench:longmemeval:score -- --dataset <local-json> --hypotheses <dir>/hypotheses.jsonl [--output <dir>/scoring.json] [--judge deterministic|qwen|openai] [--judge-model qwen-max|gpt-4o]`。judge 是独立复刻的 correctness 检查，所有 artifact 标记 `official_qa_evaluator: false`，不是官方 GPT-4o evaluator。
+- LongMemEval 一键对比（跑全部 backend + 评分 + 生成 markdown 对照表到 `--output-dir/comparison.md`，不写入任何 tracked doc）: `npm run bench:longmemeval:compare -- --dataset <local-json> --output-dir <dir> [--reader qwen] [--embeddings qwen] [--judge openai --judge-model gpt-4o] [--limit N]`。推荐 hackathon headline 配置：`--reader qwen --embeddings qwen --judge openai`（Qwen 产品 + gpt-4o judge 匹配官方 evaluator，成本仅约 $0.01/question）。
 - Cross-host HTTP/MCP E2E: `npm run e2e:cross-host`.
 - Cross-host safe demo: `npm run demo:cross-host`.
 - Postgres migration: `DATABASE_URL=<dedicated-url> npm run db:migrate`.

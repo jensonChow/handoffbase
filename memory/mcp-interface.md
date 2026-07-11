@@ -20,6 +20,8 @@
 
 当前实现已注册以上 9 个 tools，并使用 Zod schemas 定义 input/output。`memory_resolve_conflict` 支持 `accept_candidate`、`reject_candidate`、`supersede_existing`、`merge`、`keep_both` 和 `dismiss_conflict`；`merge` 必须提供 `merged_text`。所有动作必须保留 linked memory 的 scope/source/provenance 和 audit/supersession links。
 
+tool contract 未变（仍是 9/9/4），但 recall 行为增强：启用 embeddings 时 `memory_recall` / `continuity_bootstrap` 在 lexical 分数上叠加 semantic cosine（见 [[architecture]] Semantic Recall）。当前 runtime provider/store/embedding 模式通过 `getRuntimeInfo()` 与 `/health` 的 `embeddingMode`（qwen/mock/none）暴露。注意 `memory_update` 的 `supersede_conflicting` 是被诚实标注的 no-op，真正 supersede 走 `memory_resolve_conflict`。
+
 `memory_feedback` input contract:
 
 - 至少提供 `memory_id` 或 `trace_id`；两者同时提供时必须属于兼容 scope。

@@ -161,3 +161,21 @@
 - Decision: The explicit Postgres migrator uses a per-file transactional ledger with checksum drift detection and an advisory lock.
 - Rationale: Re-running one concatenated migration cannot safely distinguish applied schema versions or concurrent operators. A ledger makes startup-independent migrations repeatable and auditable without mutating schema automatically.
 - Status: active.
+
+## 2026-07-10
+
+- Decision: Semantic recall ships behind an `EmbeddingProvider` abstraction (`QwenEmbeddingProvider` default `text-embedding-v4` @ 1536 dims; deterministic `MockEmbeddingProvider`), embedding on write and query, but DEFAULT OFF (Qwen only when credentials exist; `HANDOFFBASE_EMBEDDINGS=mock|off` overrides). Committed `eff14d8`.
+- Rationale: Qwen was invisible in every reproducible path (the biggest drag on the Innovation criterion); wiring embeddings makes Qwen the visible engine for retrieval, not only extraction. Default-off keeps the credential-free CI and the deterministic 17/17 benchmark byte-for-byte unchanged, and 1536 dims match the existing `vector(1536)` column so no migration is needed.
+- Status: active.
+
+## 2026-07-10
+
+- Decision: A LongMemEval QA scorer (`benchmarks/longmemeval/scorer.mjs`) and one-command comparison orchestrator (`compare.mjs`) were added, with `deterministic` / `qwen` (qwen-max) / `openai` (gpt-4o) judges. Every scoring artifact is stamped `official_qa_evaluator: false`. gpt-4o is offered as the judge specifically because it matches the official evaluator model and costs only ~$0.01/question, making a Qwen-reader run comparable to Zep/Mem0 published numbers. Commits `4c1dea6`, `f3554a2`, `de24716`.
+- Rationale: The adapter stopped at `hypotheses.jsonl` with no score; a memory-track submission needs a credible, comparable QA number. Keeping the judge an explicit independent reimplementation (never claimed as the official GPT-4o evaluator) preserves the honesty posture while producing a real number once the owner supplies the dataset + key.
+- Status: active. Real headline run still pending owner dataset download + paid credentials.
+
+## 2026-07-10
+
+- Decision: Fixed a real browser defect in the dashboard client — `this.fetcher = options.fetcher ?? fetch` called as `this.fetcher(...)` threw "Illegal invocation" in a browser on the default server-in-memory path; wrapped the fallback in an arrow that calls the global fetch, added a late-binding regression test. Commit `a5943c8`. Verified live: the Memory Vault now renders in a real browser.
+- Rationale: Node/undici tolerated the wrong receiver, so all dashboard tests (which always inject a fetcher) and CI stayed green over the defect — the flagship demo was silently broken and had never been rendered in a browser. Tests must now exercise the default `?? fetch` branch.
+- Status: active.
