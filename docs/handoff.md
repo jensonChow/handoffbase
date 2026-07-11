@@ -1,7 +1,7 @@
 # Current Handoff
 
-Updated: 2026-07-11 (dashboard v2 redesign session — imported a Claude Design
-project and rebuilt the Memory Vault UI to match, wired to real data)
+Updated: 2026-07-11 (dashboard v2 redesign, then a same-day re-import applying the
+design's four responsive-overflow fixes)
 
 ## Outcome
 
@@ -16,10 +16,26 @@ restart, no repo-visibility change.
 
 Commits (newest first):
 
-- `<this docs commit>` docs: refresh handoff for the dashboard v2 session
+- `<this docs commit>` docs: refresh handoff (v2 redesign + responsive-fix re-import)
+- `8fc64fc` fix(dashboard): apply v2 design responsive-overflow fixes
+- `6cda341` docs: refresh handoff for the dashboard v2 redesign session
 - `48f4ad8` feat(dashboard): implement v2 Memory Vault redesign from Claude Design import
 
 ## What Shipped
+
+### `8fc64fc` — v2 design responsive-overflow fixes (re-import)
+
+Re-fetched `HandoffBase Dashboard v2.dc.html` (the design had been updated since
+`48f4ad8` with a 78-line diff) and applied its four responsive/overflow fixes —
+**no feature change**: theme toggle icons at 15px (already inline via
+`lucide-react`; the design moved off its sprite-fetched `<use>`); continuity-hero
+host names ellipsis-truncate; Vault filter selects use `flex:1 1 120px; min-width:0`
+so they shrink/wrap instead of overflowing (+ shorter "Search memories…"
+placeholder); the trace context-pack header wraps (`flex-wrap` + label `min-width:0`
+in place of `nowrap`) so the token-budget bar drops to its own line at tight widths.
+Verified live at a 940px viewport (selects stack, context-pack bar wraps). The
+in-repo design provenance (`docs/design/HandoffBase-Dashboard-v2.dc.html`) was
+refreshed to the new design version.
 
 ### `48f4ad8` — dashboard v2 redesign (design import → real product)
 
