@@ -41,7 +41,8 @@ Public architecture narrative must distinguish code capability from deployment p
 - `PostgresMemoryStore` 支持 core CRUD、supersede、embedding upsert、run/trace insert、structured recall、recall event/trace、memory_conflicts CRUD 和 SQL row mapping；server runtime factory 已通过 `STORE_MODE`/`DATABASE_URL` 选择它，并在 shutdown 时关闭 pool。
 - Memory conflicts are first-class records. `memory_remember` persists provider conflicts as `MemoryConflictRecord` rows/records and holds ask_user、merge、supersede candidates as pending instead of silently changing active memories.
 - `memory_resolve_conflict` 通过 typed `MemoryService` boundary 执行 accept/reject/supersede/merge/keep-both/dismiss，并保留 scope/source/audit/supersession links。当前跨 memory + conflict 的串行化仍是 process-local；Postgres multi-process atomic resolution 仍未实现。
-- API key auth is enforced at the HTTP MCP boundary when `HANDOFFBASE_AUTH_MODE=api_key`; tool input scopes cannot widen the resolved caller tenant/user/project/agent scope.
+- API key auth is enforced at the HTTP MCP boundary when `HANDOFFBASE_AUTH_MODE=api_key`; tool input scopes cannot widen the resolved caller tenant/user/project/agent scope. API-key 查表只接受 config map 的 own property（`Object.hasOwn` + null-prototype map），并要求解析出的 caller 具备非空 string tenant/user，否则 401——否则 `Bearer constructor`/`__proto__`/`toString`/`valueOf` 等 `Object.prototype` 成员名会绕过 invalid-key 检查，变成 tenant/user=undefined、match-all 的 caller（已修复的跨租户越权，commit `fb2adfd`）。
+- `PostgresMemoryStore` 的 list/recall 必须与 in-memory reference 语义一致：默认 `listMemories` 排除 effective-expired（含显式 `status=expired`，不只是 validity-expired）；defined-but-empty 的 types/statuses/signals/conflictTypes allowlist 表示 match-nothing 而非 no-filter；pgvector 距离按 `vector_dims` 守卫，query embedding 维度不匹配时退回 0，而不是让整次 recall 抛错。
 - `memory_feedback` 可针对 memory、trace 或二者记录 helpful/unhelpful；unhelpful correction 创建 pending `user_correction` memory，并返回不含真实 id/scope value 的 regression fixture。Postgres correction + feedback 使用同一 store transaction；feedback target、recall trace 和 conflict link 在写入时加锁/重验，避免与 hard delete 竞态重新持久化已删除内容。
 - `hard_delete` 物理删除 memory 与 embedding，同时在同一 store mutation 中脱敏历史 event/trace/conflict/feedback 内容；保留的 delete event 只含稳定 id、scope、actor/time/status 等安全 tombstone。Dashboard 的全局 audit view 仍能显示该 tombstone。
 - 内置 InMemory/Postgres stores 的 correction + feedback 是单一 unit-of-work。第三方 custom `MemoryStore` 若没有实现 optional atomic feedback method，service 只能做普通异常补偿；该 fallback 不具 process-crash atomicity 或 idempotency key。
@@ -50,7 +51,7 @@ Public architecture narrative must distinguish code capability from deployment p
 ## Semantic Recall (Embeddings)
 
 - `packages/memory-core/src/embeddings/` 定义 `EmbeddingProvider` 接口（`embed(texts)`、`model`、`dimensions`）加 `cosineSimilarity`，并实现 `QwenEmbeddingProvider`（DashScope OpenAI-compatible `/embeddings`，默认 `text-embedding-v4` @ 1536 维，匹配 `memory_embeddings.embedding vector(1536)` 列，免 migration）和 deterministic `MockEmbeddingProvider`（离线/CI）。
-- `ContinuityMemoryService` 在 write（`remember`/`reflect`）和 recall（`recall`/`continuity_bootstrap`）时做 best-effort embed：embedding 失败绝不让写入失败。In-memory store 在 lexical 分数上叠加 `SEMANTIC_RECALL_WEIGHT * max(0, cosine)`；Postgres recall 已有的 pgvector `1 - (e.embedding <=> $n::vector)` 通过 `MemoryRecallQuery.queryEmbedding` 接入。
+- `ContinuityMemoryService` 在 write（`remember`/`reflect`）和 recall（`recall`/`continuity_bootstrap`）时做 best-effort embed：embedding 失败绝不让写入失败。In-memory store 在 lexical 分数上叠加 `SEMANTIC_RECALL_WEIGHT * max(0, cosine)`；Postgres recall 已有的 pgvector `1 - (e.embedding <=> $n::vector)` 通过 `MemoryRecallQuery.queryEmbedding` 接入，并用 `vector_dims(e.embedding) <> queryDim` 的 CASE 短路守卫，维度不匹配时得 0，与 in-memory `cosineSimilarity`（长度不匹配返回 0）对齐。
 - 默认 **OFF**：有 Qwen/DashScope credential 时自动启用 Qwen embeddings，否则退回 lexical，所以 credential-free CI 与 deterministic 17/17 benchmark 逐字不变。`HANDOFFBASE_EMBEDDINGS=mock|off` 可强制覆盖。runtime 通过 `embeddingMode`（qwen/mock/none）在 `getRuntimeInfo()` 与 `/health` 暴露当前模式。
 
 ## Provider Abstraction
@@ -58,6 +59,8 @@ Public architecture narrative must distinguish code capability from deployment p
 Memory Core 只能依赖 `MemoryReasoningProvider` 接口。比赛版实现 `QwenMemoryProvider`，长期可以增加 OpenAI、Anthropic 或本地模型 provider。
 
 Qwen prompt 构建前必须先经过 provider input sanitizer。sanitizer 会递归清理敏感 key/value、截断大型结构，并复用 sensitive-data redaction，防止 tool logs、headers、cookies、tokens 或 private keys 进入 provider prompt。
+
+写入 memory 的文本走 `assessMemorySafety`/`rejectSensitiveText` 的正则脱敏/拒绝：credential/token pattern 必须覆盖 JSON-quoted key（`"password":"…"`，key 与 `:` 间有引号），phone pattern 必须收紧为真实电话形态，不能把 ISO 日期（`2024-01-15`）或点分版本号误脱敏成 `[REDACTED_PHONE]`（commit `fb2adfd`）。
 
 ## Runtime Readiness Boundary
 
