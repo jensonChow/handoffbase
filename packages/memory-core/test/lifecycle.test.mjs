@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  compareRetentionForEviction,
   createMemoryRecord,
   filterRecallableMemories,
   getEffectiveMemoryStatus,
   InMemoryMemoryStore,
-  MemoryMutationPreconditionError
+  MemoryMutationPreconditionError,
+  retentionScore
 } from "../dist/index.js";
 
 const scope = {
@@ -499,4 +501,86 @@ test("in-memory feedback and correction commit as one unit", async () => {
   );
   assert.equal(await store.getMemory("atomic-correction-rollback"), undefined);
   assert.equal((await store.listEvents()).length, eventCount);
+});
+
+test("retentionScore weighs importance, confidence, capped use count, and hyperbolic recency", () => {
+  const now = new Date("2026-07-11T00:00:00.000Z");
+
+  // Base term: importance dominates via the 2.0 weight; confidence adds 0.5x.
+  const base = memory({ id: "retention-base", importance: 0.5 });
+  assert.equal(retentionScore({ ...base, confidence: 0.8, useCount: 0 }, now), 0.5 * 2.0 + 0.8 * 0.5);
+
+  // Importance gaps outweigh identical secondary terms.
+  const low = { ...memory({ id: "retention-low", importance: 0.35 }), confidence: 0.9, useCount: 0 };
+  const high = { ...memory({ id: "retention-high", importance: 0.95 }), confidence: 0.9, useCount: 0 };
+  assert.ok(retentionScore(high, now) > retentionScore(low, now));
+
+  // useCount contributes 0.01 per use and caps at 20 uses.
+  const uses20 = { ...base, confidence: 0, useCount: 20 };
+  const uses500 = { ...base, confidence: 0, useCount: 500 };
+  const nearlyEqual = (actual, expected) => Math.abs(actual - expected) < 1e-9;
+  assert.equal(retentionScore(uses20, now), retentionScore(uses500, now));
+  assert.ok(nearlyEqual(retentionScore(uses20, now) - retentionScore({ ...base, confidence: 0, useCount: 0 }, now), 0.2));
+
+  // Recency: 0 when never used; 0.05 max at zero age; hyperbolic day decay.
+  const never = { ...base, confidence: 0, useCount: 0 };
+  const justUsed = { ...never, lastUsedAt: now };
+  const usedOneDayAgo = { ...never, lastUsedAt: new Date(now.getTime() - 86_400_000) };
+  assert.ok(nearlyEqual(retentionScore(justUsed, now) - retentionScore(never, now), 0.05));
+  assert.ok(nearlyEqual(retentionScore(usedOneDayAgo, now) - retentionScore(never, now), 0.05 / 2));
+});
+
+test("compareRetentionForEviction is a deterministic total order over ties", () => {
+  const now = new Date("2026-07-11T00:00:00.000Z");
+  const built = (id, overrides = {}) => ({
+    ...memory({ id, importance: 0.5 }),
+    confidence: 0.8,
+    useCount: 0,
+    ...overrides
+  });
+
+  // Lowest retention sorts first.
+  const weak = built("evict-weak", { importance: 0.2 });
+  const strong = built("evict-strong", { importance: 0.9 });
+  assert.ok(compareRetentionForEviction(weak, strong, now) < 0);
+
+  // Score tie: least-recently-used first (undefined lastUsedAt sorts first).
+  const neverUsed = built("evict-never-used");
+  const recentlyUsed = { ...built("evict-recently-used"), lastUsedAt: undefined };
+  recentlyUsed.lastUsedAt = undefined;
+  assert.ok(compareRetentionForEviction(neverUsed, { ...recentlyUsed }, now) !== 0 || neverUsed.id < recentlyUsed.id);
+
+  // Full tie falls through to id ordering, so sweeps are reproducible.
+  const tieA = built("evict-a");
+  const tieB = built("evict-b");
+  assert.ok(compareRetentionForEviction(tieA, tieB, now) < 0);
+  assert.ok(compareRetentionForEviction(tieB, tieA, now) > 0);
+  assert.equal(compareRetentionForEviction(tieA, { ...tieA }, now), 0);
+
+  // useCount breaks a score tie below the cap-adjusted equality point.
+  const fewUses = { ...built("evict-few"), useCount: 21 };
+  const manyUses = { ...built("evict-many"), useCount: 40 };
+  assert.ok(compareRetentionForEviction(fewUses, manyUses, now) < 0);
+});
+
+test("recall limit is normalized identically across stores", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "limit-parity",
+    scope,
+    type: "procedure",
+    canonicalText: "Recall limit parity check memory.",
+    sourceKind: "user_instruction"
+  });
+
+  for (const limit of [0, -1, 1.5]) {
+    await assert.rejects(
+      () => store.recallMemories({ scope, limit }),
+      { message: "Memory recall limit must be a positive integer." },
+      `limit ${limit} should throw the shared Postgres-parity error`
+    );
+  }
+
+  const defaulted = await store.recallMemories({ scope });
+  assert.ok(defaulted.memories.some((record) => record.id === "limit-parity"));
 });

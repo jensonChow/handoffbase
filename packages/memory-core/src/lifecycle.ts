@@ -259,6 +259,69 @@ export function touchMemoryUsage(memory: MemoryRecord, at: Date = new Date()): M
   return touched;
 }
 
+export function normalizeRecallLimit(limit: number | undefined): number {
+  if (limit === undefined) {
+    return 10;
+  }
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("Memory recall limit must be a positive integer.");
+  }
+
+  return limit;
+}
+
+/**
+ * Retention priority for capacity-bounded forgetting. This is exactly the
+ * non-query projection of the Postgres recall ranking (buildRecallScoreSql):
+ * importance and confidence at the same 2.0/0.5 weights, useCount capped at
+ * 20 contributing 0.01 per use, and a hyperbolic recency term worth at most
+ * 0.05 that decays with days since last use. Recall priority and forgetting
+ * priority are one ordering: what recall would rank last is what capacity
+ * pressure evicts first.
+ */
+export function retentionScore(memory: MemoryRecord, now: Date = new Date()): number {
+  const recency =
+    memory.lastUsedAt === undefined
+      ? 0
+      : 0.05 / (1 + Math.max(0, (now.getTime() - memory.lastUsedAt.getTime()) / 86_400_000));
+
+  return memory.importance * 2.0 + memory.confidence * 0.5 + Math.min(memory.useCount, 20) * 0.01 + recency;
+}
+
+/**
+ * Deterministic total order for eviction: lowest retention first, then the
+ * least-recently-used, least-used, least-recently-updated, oldest, and
+ * finally id — so capacity sweeps are reproducible for any input order.
+ */
+export function compareRetentionForEviction(a: MemoryRecord, b: MemoryRecord, now: Date = new Date()): number {
+  const scoreDelta = retentionScore(a, now) - retentionScore(b, now);
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  const lastUsedDelta = (a.lastUsedAt?.getTime() ?? 0) - (b.lastUsedAt?.getTime() ?? 0);
+  if (lastUsedDelta !== 0) {
+    return lastUsedDelta;
+  }
+
+  if (a.useCount !== b.useCount) {
+    return a.useCount - b.useCount;
+  }
+
+  const updatedDelta = a.updatedAt.getTime() - b.updatedAt.getTime();
+  if (updatedDelta !== 0) {
+    return updatedDelta;
+  }
+
+  const createdDelta = a.createdAt.getTime() - b.createdAt.getTime();
+  if (createdDelta !== 0) {
+    return createdDelta;
+  }
+
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 export function createRunRecord(input: CreateRunInput, now: Date = new Date()): RunRecord {
   const run: RunRecord = {
     id: input.id ?? generateUuid(),

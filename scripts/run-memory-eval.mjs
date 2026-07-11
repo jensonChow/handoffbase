@@ -29,7 +29,8 @@ await seedStore(store, dataset.seedMemories);
 const service = new ContinuityMemoryService({
   store,
   provider: new MockMemoryProvider(),
-  seedDemoMemories: false
+  seedDemoMemories: false,
+  clock: () => fixedNow
 });
 
 const handlers = {
@@ -40,7 +41,9 @@ const handlers = {
   "token-budget-ignored": runTokenBudgetCase,
   "remember-candidate": runRememberCandidateCase,
   "controlled-conflict": runControlledConflictCase,
-  "forget-invalidation": runForgetInvalidationCase
+  "forget-invalidation": runForgetInvalidationCase,
+  "capacity-eviction": runCapacityEvictionCase,
+  "budget-trim-partial": runBudgetTrimCase
 };
 
 for (const testCase of dataset.cases) {
@@ -235,6 +238,134 @@ async function runForgetInvalidationCase(testCase) {
   assert(
     !recall.memories.some((memory) => memory.id === testCase.expected.notRecalledMemoryId),
     "invalidated memory should not be recalled"
+  );
+}
+
+async function runCapacityEvictionCase(testCase) {
+  // Isolated store so archiving does not disturb the shared-store cases.
+  const capacityStore = new InMemoryMemoryStore({ clock: () => fixedNow });
+  await seedIsolatedStore(capacityStore, testCase.input.seedMemories);
+  const capacityService = new ContinuityMemoryService({
+    store: capacityStore,
+    provider: new MockMemoryProvider(),
+    seedDemoMemories: false,
+    clock: () => fixedNow
+  });
+
+  const sweepInput = {
+    mode: "enforce_capacity",
+    capacity: testCase.input.capacity,
+    reason: testCase.input.reason,
+    scopes: toolScopes
+  };
+
+  // Dry run returns the full eviction plan without mutating anything.
+  const plan = await capacityService.forget({ ...sweepInput, dry_run: true });
+  assert(plan.dry_run === true, "capacity dry run should report dry_run true");
+  const plannedIds = plan.evicted_memories.map((entry) => entry.memory_id);
+  assertSameIds(plannedIds, testCase.expected.evictedMemoryIds, "capacity dry run plan");
+  for (const entry of plan.evicted_memories) {
+    assert(typeof entry.retention_score === "number", "capacity dry run should report retention scores");
+    assert(entry.event_id === undefined, "capacity dry run must not emit events");
+  }
+  const stillActive = await capacityStore.listMemories({ statuses: ["active"] });
+  assert(
+    stillActive.length === testCase.input.seedMemories.length,
+    "capacity dry run must not mutate any memory"
+  );
+
+  // Apply archives exactly the planned victims, each with its own event.
+  const applied = await capacityService.forget(sweepInput);
+  assert(applied.dry_run === false, "capacity apply should report dry_run false");
+  const evictedIds = applied.evicted_memories.map((entry) => entry.memory_id);
+  assertSameIds(evictedIds, testCase.expected.evictedMemoryIds, "capacity apply eviction");
+  for (const entry of applied.evicted_memories) {
+    assertNonEmptyString(entry.event_id, "each capacity eviction should emit a governance event");
+    assert(entry.status === testCase.expected.evictedStatus, `evictions should be ${testCase.expected.evictedStatus}`);
+  }
+  assert(applied.retained_count === testCase.expected.retainedMemoryIds.length, "capacity apply retained count mismatch");
+  assertNonEmptyString(applied.trace_id, "capacity apply should return a sweep trace id");
+
+  const sweepTrace = await capacityStore.getTrace(applied.trace_id);
+  assert(Boolean(sweepTrace), "capacity sweep trace should be stored");
+  assert(sweepTrace.metadata.stage === testCase.expected.traceStage, "capacity sweep trace stage mismatch");
+  for (const memoryId of testCase.expected.evictedMemoryIds) {
+    assert(sweepTrace.ignoredMemoryIds.includes(memoryId), "sweep trace should list evicted memory");
+    assertNonEmptyString(sweepTrace.selectionReasons[memoryId], "sweep trace should explain each eviction");
+  }
+
+  // Evicted memories stay recoverable (archived, not deleted) and drop out of recall.
+  for (const memoryId of testCase.expected.evictedMemoryIds) {
+    const archived = await capacityStore.getMemory(memoryId);
+    assert(archived && archived.status === testCase.expected.evictedStatus, "evicted memory should remain archived");
+  }
+  const recall = await capacityService.recall({
+    query: testCase.input.query,
+    scopes: toolScopes,
+    limit: 5
+  });
+  const recalledIds = recall.memories.map((memory) => memory.id);
+  for (const memoryId of testCase.expected.retainedMemoryIds) {
+    assert(recalledIds.includes(memoryId), "retained memory should still be recalled after the sweep");
+  }
+  for (const memoryId of testCase.expected.evictedMemoryIds) {
+    assert(!recalledIds.includes(memoryId), "evicted memory must not be recalled after the sweep");
+  }
+}
+
+async function runBudgetTrimCase(testCase) {
+  const budgetStore = new InMemoryMemoryStore({ clock: () => fixedNow });
+  await seedIsolatedStore(budgetStore, testCase.input.seedMemories);
+  const budgetService = new ContinuityMemoryService({
+    store: budgetStore,
+    provider: new MockMemoryProvider(),
+    seedDemoMemories: false,
+    clock: () => fixedNow
+  });
+
+  const output = await budgetService.recall({
+    query: testCase.input.query,
+    scopes: toolScopes,
+    limit: testCase.input.limit,
+    token_budget: testCase.input.tokenBudget
+  });
+
+  assert(output.token_budget === testCase.input.tokenBudget, "recall should echo the caller token budget");
+  assert(
+    typeof output.estimated_tokens === "number" && output.estimated_tokens <= output.token_budget,
+    "estimated tokens must not exceed the token budget"
+  );
+  assertIncludes(output.context_block, testCase.expected.retainedText, "budget trim should retain the top memory");
+  for (const excluded of testCase.expected.excludedTexts) {
+    assert(!output.context_block.includes(excluded), "budget trim should exclude over-budget memories");
+  }
+
+  const trace = await budgetStore.getTrace(output.trace_id);
+  assert(Boolean(trace), "budget trim trace should be stored");
+  assert(trace.ignoredMemoryIds.includes(testCase.expected.trimmedMemoryId), "trace should list the trimmed memory");
+  assertIncludes(
+    trace.selectionReasons[testCase.expected.trimmedMemoryId] ?? "",
+    testCase.expected.trimReasonIncludes,
+    "trace should carry the server-trim reason"
+  );
+}
+
+async function seedIsolatedStore(memoryStore, memories) {
+  for (const memory of memories) {
+    await memoryStore.addMemory(toCreateMemoryInput(memory), {
+      actor: { type: "system", id: "eval_seed" },
+      reason: "Seed isolated memory eval fixture.",
+      now: fixedNow
+    });
+  }
+}
+
+function assertSameIds(actualIds, expectedIds, label) {
+  const actual = [...actualIds].sort();
+  const expected = [...expectedIds].sort();
+  assert(
+    actual.length === expected.length && actual.every((id, index) => id === expected[index]),
+    `${label} should target exactly [${expected.join(", ")}] but was [${actual.join(", ")}]`
   );
 }
 

@@ -1,0 +1,190 @@
+{
+  "family": "capacity-pressure",
+  "description": "Strategic forgetting and limited-context-window cases: capacity-bounded eviction by retention score and strict server-side token-budget trimming. Runs standalone via --fixture; not part of the pinned 17-case suite.",
+  "fixedNow": "2026-07-11T00:00:00.000Z",
+  "defaultScope": {
+    "tenantId": "bench-tenant",
+    "userId": "bench-cap-user",
+    "projectId": "bench-cap-project",
+    "agentProfileId": "bench-cap-agent"
+  },
+  "cases": [
+    {
+      "id": "capacity-eviction-archives-lowest-retention",
+      "description": "Under capacity pressure the engine archives exactly the lowest-retention memories, keeps higher-retention ones recallable, and never touches another user's scope.",
+      "capability": "strategic forgetting",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
+      "seedMemories": [
+        {
+          "id": "bench-cap-keep-1",
+          "type": "user_preference",
+          "canonicalText": "Capacity fixture: prioritize infrastructure-grade opportunity signals.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.95,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-cap-keep-2",
+          "type": "procedure",
+          "canonicalText": "Capacity fixture: verify opportunity deadlines from primary sources.",
+          "sourceKind": "user_instruction",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.8,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-cap-keep-3",
+          "type": "project_fact",
+          "canonicalText": "Capacity fixture: the scout project tracks weekly opportunity digests.",
+          "sourceKind": "manual_import",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.65,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-cap-evict-1",
+          "type": "tool_memory",
+          "canonicalText": "Capacity fixture: the digest exporter sometimes needs a retry.",
+          "sourceKind": "agent_observation",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.5,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-cap-evict-2",
+          "type": "outcome_memory",
+          "canonicalText": "Capacity fixture: one digest run finished slightly late last month.",
+          "sourceKind": "run_summary",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.35,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-cap-other-user",
+          "type": "user_preference",
+          "canonicalText": "Capacity fixture: the second user keeps every opportunity note.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.1,
+          "scope": { "userId": "bench-cap-user-b" },
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        }
+      ],
+      "steps": [
+        {
+          "op": "recall",
+          "query": "capacity fixture opportunity signals digests",
+          "limit": 5,
+          "expect": {
+            "memoryIdsPresent": [
+              "bench-cap-keep-1",
+              "bench-cap-keep-2",
+              "bench-cap-keep-3",
+              "bench-cap-evict-1",
+              "bench-cap-evict-2"
+            ]
+          }
+        },
+        {
+          "op": "forget",
+          "mode": "enforce_capacity",
+          "capacity": 3,
+          "reason": "Benchmark capacity sweep keeps the three highest-retention memories.",
+          "expect": { "traceIdPresent": true }
+        },
+        {
+          "op": "recall",
+          "query": "capacity fixture opportunity signals digests",
+          "limit": 5,
+          "expect": {
+            "memoryIdsPresent": ["bench-cap-keep-1", "bench-cap-keep-2", "bench-cap-keep-3"],
+            "memoryIdsAbsent": ["bench-cap-evict-1", "bench-cap-evict-2"],
+            "traceIdPresent": true
+          }
+        },
+        {
+          "op": "recall",
+          "query": "capacity fixture opportunity notes",
+          "limit": 5,
+          "scopes": { "userId": "bench-cap-user-b" },
+          "expect": {
+            "memoryIdsPresent": ["bench-cap-other-user"]
+          }
+        }
+      ],
+      "metrics": ["forget_correct", "scope_isolation_correct"]
+    },
+    {
+      "id": "budget-trim-under-pressure",
+      "description": "A strict server-side token budget retains only the rendered context lines that fit and records the trimmed memory on the trace.",
+      "capability": "limited context windows",
+      "baselines": ["no-memory", "handoffbase-memory-context"],
+      "baselineExpectations": {
+        "no-memory": { "pass": false },
+        "handoffbase-memory-context": { "pass": true }
+      },
+      "seedMemories": [
+        {
+          "id": "bench-budget-top",
+          "type": "user_preference",
+          "canonicalText": "Prefer infrastructure-grade opportunities.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.99,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-budget-trimmed",
+          "type": "user_preference",
+          "canonicalText": "Weight founder-network value over prizes.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.8,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        },
+        {
+          "id": "bench-budget-skipped",
+          "type": "user_preference",
+          "canonicalText": "Verify deadlines from primary sources first.",
+          "sourceKind": "user_statement",
+          "status": "active",
+          "confidence": 0.9,
+          "importance": 0.6,
+          "metadata": { "synthetic": true, "origin": "capacity-pressure-fixture" }
+        }
+      ],
+      "steps": [
+        {
+          "op": "recall",
+          "query": "opportunity ranking preferences",
+          "limit": 5,
+          "tokenBudget": 25,
+          "expect": {
+            "contextIncludes": ["Prefer infrastructure-grade opportunities."],
+            "contextExcludesAny": [
+              "Weight founder-network value over prizes.",
+              "Verify deadlines from primary sources first."
+            ],
+            "memoryIdsAbsentOrContextExcluded": ["bench-budget-trimmed", "bench-budget-skipped"],
+            "traceIgnoredMemoryIds": ["bench-budget-trimmed", "bench-budget-skipped"],
+            "traceIdPresent": true
+          }
+        }
+      ],
+      "metrics": ["token_budget_respected", "ignored_memory_correct"]
+    }
+  ]
+}

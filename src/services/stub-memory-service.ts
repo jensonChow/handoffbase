@@ -100,7 +100,17 @@ export class StubMemoryService implements MemoryService {
   }
 
   async forget(input: MemoryForgetInput): Promise<MemoryForgetOutput> {
-    const statusByMode: Record<MemoryForgetInput["mode"], MemoryStatus> = {
+    if (input.mode === "enforce_capacity") {
+      return {
+        mode: "enforce_capacity",
+        capacity: input.capacity,
+        retained_count: 0,
+        dry_run: input.dry_run,
+        evicted_memories: [],
+      };
+    }
+
+    const statusByMode: Record<Exclude<MemoryForgetInput["mode"], "enforce_capacity">, MemoryStatus> = {
       archive: "archived",
       expire: "expired",
       hard_delete: "deleted",

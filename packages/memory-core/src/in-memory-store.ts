@@ -38,6 +38,7 @@ import {
   createRunRecord,
   getEffectiveMemoryStatus,
   isRecallableMemory,
+  normalizeRecallLimit,
   resolveMemoryConflictRecord,
   scopeMatches,
   supersedeMemoryRecord,
@@ -213,6 +214,7 @@ export class InMemoryMemoryStore implements MemoryStore {
   }
 
   async recallMemories(query: MemoryRecallQuery): Promise<MemoryRecallResult> {
+    const limit = normalizeRecallLimit(query.limit);
     const now = query.now ?? this.clock();
     const scoped = [...this.memories.values()].filter((memory) => {
       if (!scopeMatches(memory.scope, query.scope)) {
@@ -234,7 +236,7 @@ export class InMemoryMemoryStore implements MemoryStore {
     );
     const selected = recallable
       .sort((left, right) => (recallScores.get(right.id) ?? 0) - (recallScores.get(left.id) ?? 0))
-      .slice(0, query.limit ?? 10);
+      .slice(0, limit);
 
     const touched = selected.map((memory) => touchMemoryUsage(memory, now));
     for (const memory of touched) {

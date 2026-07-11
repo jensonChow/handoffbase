@@ -198,6 +198,39 @@ test("benchmark runner consumes an explicit generated feedback fixture outside t
   }
 });
 
+test("capacity-pressure fixture runs standalone via --fixture, deterministically, without touching the pinned suite", () => {
+  const capacityFixturePath = path.join(
+    repositoryRoot,
+    "examples/benchmarks/capacity-pressure/capacity-pressure.fixture.json"
+  );
+
+  // Deliberately NOT named cases.json: default discovery must keep skipping
+  // it so the pinned 17-case / 34-execution suite stays byte-stable.
+  const firstOutput = runJsonBenchmark(["--fixture", capacityFixturePath]);
+  const secondOutput = runJsonBenchmark(["--fixture", capacityFixturePath]);
+  assert.equal(secondOutput, firstOutput, "capacity-pressure double run must be byte-identical");
+
+  const report = JSON.parse(firstOutput);
+  assert.equal(report.fixtureCaseCount, 2);
+  assert.equal(report.baselineExecutionCount, 4);
+  assert.equal(report.errors.length, 0);
+  assert.equal(report.summary.harness.ok, true);
+  assert.equal(report.summary.harness.executionErrors, 0);
+
+  for (const caseId of ["capacity-eviction-archives-lowest-retention", "budget-trim-under-pressure"]) {
+    const noMemory = report.results.find(
+      (result) => result.baseline === "no-memory" && result.caseId === caseId
+    );
+    const handoffbase = report.results.find(
+      (result) => result.baseline === "handoffbase-memory-context" && result.caseId === caseId
+    );
+    assert.equal(noMemory.observedPass, false, `${caseId} remains a no-memory capability miss`);
+    assert.equal(noMemory.expectationMatched, true);
+    assert.equal(handoffbase.observedPass, true, `${caseId} passes deterministically in HandoffBase`);
+    assert.equal(handoffbase.executionError, null);
+  }
+});
+
 function runJsonBenchmark(extraArgs = []) {
   return execFileSync(process.execPath, [runnerPath, "--json", ...extraArgs], {
     cwd: repositoryRoot,

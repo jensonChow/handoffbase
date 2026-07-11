@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const runnerFile = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(runnerFile), "..");
 const benchmarkRoot = path.join(rootDir, "examples/benchmarks");
-const allowedFamilies = new Set(["long-memory", "conflicts", "cross-host-handoff"]);
+const allowedFamilies = new Set(["long-memory", "conflicts", "cross-host-handoff", "capacity-pressure"]);
 const allowedMetrics = new Set([
   "action_correct",
   "answer_correct",
@@ -307,6 +307,9 @@ function normalizeStep(step, caseExpected) {
       memoryId: step.memoryId ?? input.memoryId,
       mode: step.mode ?? input.mode,
       reason: step.reason ?? input.reason,
+      capacity: step.capacity ?? input.capacity,
+      dryRun: step.dryRun ?? input.dryRun ?? input.dry_run,
+      scopes: step.scopes ?? step.scope ?? input.scopes ?? input.scope,
       expect
     });
   }
@@ -450,8 +453,16 @@ function validateStep(step, label) {
     return;
   }
   if (step.op === "forget") {
-    assert(typeof step.memoryId === "string" && step.memoryId.length > 0, `${label} forget must include memoryId.`);
     assert(typeof step.mode === "string" && step.mode.length > 0, `${label} forget must include mode.`);
+    if (step.mode === "enforce_capacity") {
+      assert(
+        Number.isInteger(step.capacity) && step.capacity > 0,
+        `${label} forget enforce_capacity must include a positive integer capacity.`
+      );
+      assert(step.memoryId === undefined, `${label} forget enforce_capacity must not include memoryId.`);
+    } else {
+      assert(typeof step.memoryId === "string" && step.memoryId.length > 0, `${label} forget must include memoryId.`);
+    }
     assert(typeof step.reason === "string" && step.reason.length > 0, `${label} forget must include reason.`);
     validateExpectObject(step.expect, label);
     return;
@@ -566,7 +577,8 @@ async function runHandoffBaseBenchmarkCase(fixture, testCase) {
   const service = new ContinuityMemoryService({
     store,
     provider,
-    seedDemoMemories: false
+    seedDemoMemories: false,
+    clock: () => fixedNow
   });
 
   await seedStore(store, defaultScope, fixedNow, fixture.seedMemories ?? []);
@@ -814,16 +826,31 @@ async function runBootstrapStep({ service, baselineId, defaultScope, step, label
   await assertTraceExpectations(service, output.memory_trace_id, expect, label);
 }
 
-async function runForgetStep({ service, baselineId, step, label }) {
-  const output = await service.forget({
-    memory_id: step.memoryId,
-    mode: step.mode,
-    reason: step.reason
-  });
+async function runForgetStep({ service, baselineId, defaultScope, step, label }) {
+  const input = step.mode === "enforce_capacity"
+    ? {
+        mode: step.mode,
+        reason: step.reason,
+        capacity: step.capacity,
+        dry_run: step.dryRun,
+        scopes: toToolScope(mergeCoreScope(defaultScope, step.scopes ?? {}, `${label} forget scope`))
+      }
+    : {
+        memory_id: step.memoryId,
+        mode: step.mode,
+        reason: step.reason
+      };
+  const output = await service.forget(input);
   assertNoMemoryForgetContract(baselineId, output, label);
 
   if (step.expect.status !== undefined) {
     benchmarkAssert(output.status === step.expect.status, `${label} forgot memory status mismatch.`);
+  }
+  if (step.expect.traceIdPresent === true) {
+    benchmarkAssert(
+      typeof output.trace_id === "string" && output.trace_id.length > 0,
+      `${label} should return a capacity sweep trace id.`
+    );
   }
 }
 

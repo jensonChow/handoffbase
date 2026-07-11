@@ -103,6 +103,8 @@ export const continuityBootstrapOutputShape = {
   context_pack: ContextPackSchema,
   memory_trace_id: z.string().min(1),
   suggested_next_tools: z.array(z.string()),
+  token_budget: z.number().int().positive().optional(),
+  estimated_tokens: z.number().int().nonnegative().optional(),
 };
 
 export const memoryRecallInputShape = {
@@ -117,6 +119,8 @@ export const memoryRecallOutputShape = {
   memories: z.array(MemorySummarySchema),
   context_block: z.string(),
   trace_id: z.string().min(1),
+  token_budget: z.number().int().positive().optional(),
+  estimated_tokens: z.number().int().nonnegative().optional(),
 };
 
 export const memoryRememberInputShape = {
@@ -174,17 +178,60 @@ export const memoryUpdateOutputShape = {
   warnings: z.array(z.string()).optional(),
 };
 
+export const memoryForgetModes = [
+  "invalidate",
+  "archive",
+  "expire",
+  "hard_delete",
+  "enforce_capacity",
+] as const;
+
+export const MemoryForgetModeSchema = z
+  .enum(memoryForgetModes)
+  .describe(
+    "Per-memory modes target one memory_id; enforce_capacity is a scoped strategic-forgetting sweep that archives the lowest-retention active memories beyond the requested capacity.",
+  );
+
 export const memoryForgetInputShape = {
-  memory_id: z.string().min(1),
-  mode: z.enum(["invalidate", "archive", "expire", "hard_delete"]),
+  memory_id: z.string().min(1).optional(),
+  mode: MemoryForgetModeSchema,
   reason: z.string().min(1),
+  scopes: ScopeSchema.optional().describe("Scope for enforce_capacity sweeps; rejected for per-memory modes, which derive scope from the memory itself."),
+  capacity: z
+    .number()
+    .int()
+    .positive()
+    .max(10000)
+    .optional()
+    .describe("Maximum active memories to retain in scope; required for enforce_capacity."),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe("When true, enforce_capacity returns the eviction plan without mutating anything."),
+  protected_types: z
+    .array(MemoryTypeSchema)
+    .optional()
+    .describe("Memory types exempt from enforce_capacity eviction."),
 };
 
-export const memoryForgetOutputShape = {
+export const EvictedMemorySchema = z.object({
   memory_id: z.string().min(1),
-  mode: z.enum(["invalidate", "archive", "expire", "hard_delete"]),
   status: MemoryStatusSchema,
-  event_id: z.string().min(1),
+  retention_score: z.number(),
+  event_id: z.string().min(1).optional(),
+  reason: z.string().min(1),
+});
+
+export const memoryForgetOutputShape = {
+  memory_id: z.string().min(1).optional(),
+  mode: MemoryForgetModeSchema,
+  status: MemoryStatusSchema.optional(),
+  event_id: z.string().min(1).optional(),
+  capacity: z.number().int().positive().optional(),
+  retained_count: z.number().int().nonnegative().optional(),
+  dry_run: z.boolean().optional(),
+  trace_id: z.string().min(1).optional(),
+  evicted_memories: z.array(EvictedMemorySchema).optional(),
 };
 
 export const MemoryFeedbackRegressionFixtureSchema = z.object({
@@ -268,7 +315,42 @@ export const MemoryReflectInputSchema = z.object(memoryReflectInputShape);
 export const MemoryReflectOutputSchema = z.object(memoryReflectOutputShape);
 export const MemoryUpdateInputSchema = z.object(memoryUpdateInputShape);
 export const MemoryUpdateOutputSchema = z.object(memoryUpdateOutputShape);
-export const MemoryForgetInputSchema = z.object(memoryForgetInputShape);
+export const MemoryForgetInputSchema = z.object(memoryForgetInputShape).superRefine((input, context) => {
+  if (input.mode === "enforce_capacity") {
+    if (input.capacity === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["capacity"],
+        message: "capacity is required when mode is enforce_capacity.",
+      });
+    }
+    if (input.memory_id !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["memory_id"],
+        message: "memory_id is not allowed when mode is enforce_capacity; the sweep selects victims by retention score.",
+      });
+    }
+    return;
+  }
+
+  if (input.memory_id === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory_id"],
+      message: `memory_id is required when mode is ${input.mode}.`,
+    });
+  }
+  for (const field of ["capacity", "dry_run", "protected_types", "scopes"] as const) {
+    if (input[field] !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: [field],
+        message: `${field} is only allowed when mode is enforce_capacity.`,
+      });
+    }
+  }
+});
 export const MemoryForgetOutputSchema = z.object(memoryForgetOutputShape);
 export const MemoryFeedbackInputSchema = z.object(memoryFeedbackInputShape).superRefine((input, context) => {
   if (!input.memory_id && !input.trace_id) {

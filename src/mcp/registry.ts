@@ -3,8 +3,8 @@ import * as z from "zod/v4";
 import {
   continuityBootstrapInputShape,
   continuityBootstrapOutputShape,
-  memoryForgetInputShape,
-  memoryForgetOutputShape,
+  MemoryForgetInputSchema,
+  MemoryForgetOutputSchema,
   memoryFeedbackInputShape,
   memoryFeedbackOutputShape,
   memoryRecallInputShape,
@@ -118,8 +118,11 @@ export function registerContinuityMcp(server: McpServer, service: MemoryService)
     {
       title: forget.title,
       description: forget.description,
-      inputSchema: memoryForgetInputShape,
-      outputSchema: memoryForgetOutputShape,
+      // Full schemas (not raw shapes) so the enforce_capacity cross-field
+      // rules in superRefine run at the MCP boundary, matching
+      // memory_resolve_conflict below.
+      inputSchema: MemoryForgetInputSchema,
+      outputSchema: MemoryForgetOutputSchema,
     },
     async (input) => structuredToolResult(await service.forget(input)),
   );

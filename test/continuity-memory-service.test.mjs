@@ -1157,3 +1157,706 @@ test("continuity_bootstrap respects a token budget too small for any memory", as
     pack.failure_memory.length;
   assert.equal(total, 0, "a 1-token budget must not dump every recalled memory into the pack");
 });
+
+// ---------------------------------------------------------------------------
+// Strategic forgetting: memory_forget mode enforce_capacity
+// ---------------------------------------------------------------------------
+
+const capacityScope = {
+  tenantId: "tenant-capacity",
+  userId: "user-capacity",
+  projectId: "project-capacity",
+  agentProfileId: "agent-capacity"
+};
+
+const capacityToolScopes = {
+  tenant_id: capacityScope.tenantId,
+  user_id: capacityScope.userId,
+  project_id: capacityScope.projectId,
+  agent_profile_id: capacityScope.agentProfileId
+};
+
+function capacityCaller(overrides = {}) {
+  return {
+    tenantId: capacityScope.tenantId,
+    userId: capacityScope.userId,
+    actorType: "mcp_host",
+    actorId: "capacity-tester",
+    allowedProjectIds: [capacityScope.projectId],
+    allowedAgentProfileIds: [capacityScope.agentProfileId],
+    authMode: "api_key",
+    ...overrides
+  };
+}
+
+async function seedCapacityFixture(store, { scopePatch = {}, idPrefix = "" } = {}) {
+  const seedScope = { ...capacityScope, ...scopePatch };
+  const seeds = [
+    { id: "cap-keep-1", importance: 0.95, type: "user_preference" },
+    { id: "cap-keep-2", importance: 0.8, type: "procedure" },
+    { id: "cap-keep-3", importance: 0.65, type: "project_fact" },
+    { id: "cap-evict-1", importance: 0.5, type: "tool_memory" },
+    { id: "cap-evict-2", importance: 0.35, type: "outcome_memory" }
+  ];
+  for (const seed of seeds) {
+    await store.addMemory({
+      id: `${idPrefix}${seed.id}`,
+      scope: seedScope,
+      type: seed.type,
+      canonicalText: `Capacity test memory ${idPrefix}${seed.id}.`,
+      sourceKind: "manual_import",
+      status: "active",
+      confidence: 0.9,
+      importance: seed.importance
+    });
+  }
+  return seeds;
+}
+
+function capacityService(store) {
+  return new ContinuityMemoryService({
+    store,
+    provider: new MockMemoryProvider(),
+    seedDemoMemories: false,
+    clock: () => new Date("2026-07-11T00:00:00.000Z")
+  });
+}
+
+test("memory_forget enforce_capacity archives exactly the lowest-retention memories with events and a sweep trace", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const service = capacityService(store);
+  const eventCountBefore = (await store.listEvents()).length;
+
+  const output = await service.forget(
+    {
+      mode: "enforce_capacity",
+      capacity: 3,
+      reason: "Test capacity sweep.",
+      scopes: capacityToolScopes
+    },
+    { caller: capacityCaller() }
+  );
+
+  assert.equal(output.mode, "enforce_capacity");
+  assert.equal(output.capacity, 3);
+  assert.equal(output.dry_run, false);
+  assert.equal(output.retained_count, 3);
+  assert.deepEqual(
+    output.evicted_memories.map((entry) => entry.memory_id).sort(),
+    ["cap-evict-1", "cap-evict-2"]
+  );
+
+  for (const entry of output.evicted_memories) {
+    assert.equal(entry.status, "archived");
+    assert.ok(entry.event_id, "each eviction must emit its own governance event");
+    assert.match(entry.reason, /capacity 3: retention \d+\.\d{4}, rank \d\/5/);
+    const archived = await store.getMemory(entry.memory_id);
+    assert.equal(archived.status, "archived", "eviction must be reversible archive, not delete");
+    assert.ok(archived.canonicalText.length > 0, "archived memory keeps its content");
+  }
+
+  // One update event per eviction, attributed to the authenticated caller
+  // (consistent with every other tool); the sweep provenance lives in the
+  // event reason's capacity/retention/rank marker.
+  const events = (await store.listEvents()).slice(eventCountBefore);
+  const evictionEvents = events.filter((event) => event.eventType === "update");
+  assert.equal(evictionEvents.length, 2);
+  for (const event of evictionEvents) {
+    assert.equal(event.actor.id, "capacity-tester");
+    assert.match(event.reason, /capacity 3: retention/);
+  }
+
+  // Aggregate sweep trace explains retained vs evicted.
+  assert.ok(output.trace_id, "apply must return a sweep trace id");
+  const trace = await store.getTrace(output.trace_id);
+  assert.equal(trace.metadata.stage, "capacity_sweep");
+  assert.equal(trace.metadata.active_count_before, 5);
+  assert.equal(trace.metadata.evicted_count, 2);
+  assert.deepEqual([...trace.selectedMemoryIds].sort(), ["cap-keep-1", "cap-keep-2", "cap-keep-3"]);
+  assert.deepEqual([...trace.ignoredMemoryIds].sort(), ["cap-evict-1", "cap-evict-2"]);
+  assert.match(trace.selectionReasons["cap-evict-2"], /retention/);
+  assert.match(trace.selectionReasons["cap-keep-1"], /Retained within capacity/);
+
+  // Evicted memories drop out of recall; retained ones survive.
+  const recall = await service.recall(
+    { query: "capacity test memory", scopes: capacityToolScopes, limit: 5 },
+    { caller: capacityCaller() }
+  );
+  const recalledIds = recall.memories.map((memory) => memory.id);
+  assert.ok(["cap-keep-1", "cap-keep-2", "cap-keep-3"].every((id) => recalledIds.includes(id)));
+  assert.ok(!recalledIds.includes("cap-evict-1"));
+  assert.ok(!recalledIds.includes("cap-evict-2"));
+});
+
+test("memory_forget enforce_capacity is a no-op under capacity and dry_run never mutates", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const service = capacityService(store);
+
+  // No-op: capacity above the active count.
+  const noop = await service.forget(
+    { mode: "enforce_capacity", capacity: 10, reason: "No-op sweep.", scopes: capacityToolScopes },
+    { caller: capacityCaller() }
+  );
+  assert.equal(noop.retained_count, 5);
+  assert.deepEqual(noop.evicted_memories, []);
+
+  // Dry run: full plan, zero mutation, zero events, zero traces.
+  const eventCountBefore = (await store.listEvents()).length;
+  const plan = await service.forget(
+    { mode: "enforce_capacity", capacity: 3, dry_run: true, reason: "Plan only.", scopes: capacityToolScopes },
+    { caller: capacityCaller() }
+  );
+  assert.equal(plan.dry_run, true);
+  assert.equal(plan.trace_id, undefined, "dry run must not create a trace");
+  assert.deepEqual(
+    plan.evicted_memories.map((entry) => entry.memory_id).sort(),
+    ["cap-evict-1", "cap-evict-2"]
+  );
+  for (const entry of plan.evicted_memories) {
+    assert.equal(typeof entry.retention_score, "number");
+    assert.equal(entry.event_id, undefined, "dry run must not emit events");
+  }
+  assert.equal((await store.listEvents()).length, eventCountBefore, "dry run must not emit events");
+  const actives = await store.listMemories({ scope: capacityScope, statuses: ["active"] });
+  assert.equal(actives.length, 5, "dry run must not archive anything");
+});
+
+test("memory_forget enforce_capacity honors protected_types by evicting the next-lowest instead", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const service = capacityService(store);
+
+  const output = await service.forget(
+    {
+      mode: "enforce_capacity",
+      capacity: 3,
+      reason: "Protect outcome memories.",
+      scopes: capacityToolScopes,
+      protected_types: ["outcome_memory"]
+    },
+    { caller: capacityCaller() }
+  );
+
+  // cap-evict-2 (outcome_memory, lowest retention) is exempt; the two lowest
+  // non-protected candidates go instead: cap-evict-1 and cap-keep-3.
+  assert.deepEqual(
+    output.evicted_memories.map((entry) => entry.memory_id).sort(),
+    ["cap-evict-1", "cap-keep-3"]
+  );
+  assert.equal((await store.getMemory("cap-evict-2")).status, "active");
+});
+
+test("memory_forget enforce_capacity enforces tenant, user, and project authorization and scope isolation", async () => {
+  const unauthorized = [
+    { label: "tenant", caller: capacityCaller({ tenantId: "tenant-other" }) },
+    { label: "user", caller: capacityCaller({ userId: "user-other" }) },
+    { label: "project", caller: capacityCaller({ allowedProjectIds: ["project-other"] }) }
+  ];
+
+  for (const item of unauthorized) {
+    const store = new InMemoryMemoryStore();
+    await seedCapacityFixture(store);
+    const service = capacityService(store);
+    await assert.rejects(
+      () =>
+        service.forget(
+          { mode: "enforce_capacity", capacity: 1, reason: `Unauthorized ${item.label}.`, scopes: capacityToolScopes },
+          { caller: item.caller }
+        ),
+      ScopeGuardError,
+      `unauthorized ${item.label} caller must be rejected`
+    );
+  }
+
+  // Cross-scope isolation: another user's over-capacity memories are neither
+  // counted nor evicted by this user's sweep.
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  await seedCapacityFixture(store, { scopePatch: { userId: "user-capacity-b" }, idPrefix: "b-" });
+  const service = capacityService(store);
+
+  await service.forget(
+    { mode: "enforce_capacity", capacity: 3, reason: "Scoped sweep.", scopes: capacityToolScopes },
+    { caller: capacityCaller() }
+  );
+
+  const otherUserActives = await store.listMemories({
+    scope: { ...capacityScope, userId: "user-capacity-b" },
+    statuses: ["active"]
+  });
+  assert.equal(otherUserActives.length, 5, "the sweep must never touch another user's memories");
+});
+
+test("memory_forget rejects malformed enforce_capacity and per-memory cross-field combinations", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const service = capacityService(store);
+  const caller = capacityCaller();
+
+  // enforce_capacity with memory_id, or without capacity.
+  await assert.rejects(
+    () => service.forget(
+      { mode: "enforce_capacity", capacity: 3, memory_id: "cap-keep-1", reason: "Bad." , scopes: capacityToolScopes },
+      { caller }
+    ),
+    /memory_id is not allowed/
+  );
+  await assert.rejects(
+    () => service.forget(
+      { mode: "enforce_capacity", reason: "Bad.", scopes: capacityToolScopes },
+      { caller }
+    ),
+    /capacity is required/
+  );
+
+  // Per-memory mode with capacity-only fields.
+  await assert.rejects(
+    () => service.forget(
+      { mode: "archive", memory_id: "cap-keep-1", capacity: 3, reason: "Bad." },
+      { caller }
+    ),
+    /capacity is only allowed/
+  );
+  await assert.rejects(
+    () => service.forget(
+      { mode: "archive", memory_id: "cap-keep-1", dry_run: true, reason: "Bad." },
+      { caller }
+    ),
+    /dry_run is only allowed/
+  );
+  await assert.rejects(
+    () => service.forget({ mode: "invalidate", reason: "Bad." }, { caller }),
+    /memory_id is required/
+  );
+});
+
+test("memory_forget enforce_capacity racing a per-memory forget yields exactly one mutation and no double event", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const service = capacityService(store);
+  const caller = capacityCaller();
+
+  const [sweep, single] = await Promise.allSettled([
+    service.forget(
+      { mode: "enforce_capacity", capacity: 3, reason: "Race sweep.", scopes: capacityToolScopes },
+      { caller }
+    ),
+    service.forget(
+      { mode: "invalidate", memory_id: "cap-evict-2", reason: "Race invalidate." },
+      { caller }
+    )
+  ]);
+
+  assert.equal(sweep.status, "fulfilled", sweep.reason?.message);
+  assert.equal(single.status, "fulfilled", single.reason?.message);
+
+  // The raced victim ends in exactly one terminal state and has exactly one
+  // terminal-transition event; the sweep skipped it if the invalidate won.
+  const raced = await store.getMemory("cap-evict-2");
+  assert.ok(["archived", "invalidated"].includes(raced.status));
+  const racedEvents = (await store.listEvents({ memoryId: "cap-evict-2" }))
+    .filter((event) => event.eventType === "update");
+  assert.equal(racedEvents.length, 1, "the raced memory must receive exactly one mutation event");
+});
+
+// ---------------------------------------------------------------------------
+// Limited context window: strict server-side token budget enforcement
+// ---------------------------------------------------------------------------
+
+test("recall trims the provider selection to the caller token budget and records the trim on the trace", async () => {
+  const store = new InMemoryMemoryStore();
+  const budgetScope = { tenantId: "tenant-budget", userId: "user-budget" };
+  const texts = [
+    { id: "budget-top", importance: 0.99, text: "Prefer infrastructure-grade opportunities." },
+    { id: "budget-trimmed", importance: 0.8, text: "Weight founder-network value over prizes." },
+    { id: "budget-skipped", importance: 0.6, text: "Verify deadlines from primary sources first." }
+  ];
+  for (const seed of texts) {
+    await store.addMemory({
+      id: seed.id,
+      scope: budgetScope,
+      type: "user_preference",
+      canonicalText: seed.text,
+      sourceKind: "user_statement",
+      status: "active",
+      confidence: 0.9,
+      importance: seed.importance
+    });
+  }
+  const service = new ContinuityMemoryService({ store, provider: new MockMemoryProvider(), seedDemoMemories: false });
+
+  // Budget 25: the mock provider selects the top two raw texts (11 + 11
+  // estimated tokens), but only the first rendered "- [type] text" line fits.
+  const output = await service.recall({
+    query: "opportunity preferences",
+    scopes: { tenant_id: budgetScope.tenantId, user_id: budgetScope.userId },
+    limit: 5,
+    token_budget: 25
+  });
+
+  assert.equal(output.token_budget, 25);
+  assert.ok(output.estimated_tokens <= output.token_budget, "estimated_tokens must never exceed the budget");
+  assert.match(output.context_block, /Prefer infrastructure-grade opportunities\./);
+  assert.doesNotMatch(output.context_block, /founder-network value/);
+  assert.doesNotMatch(output.context_block, /primary sources first/);
+
+  const trace = await store.getTrace(output.trace_id);
+  assert.ok(trace.ignoredMemoryIds.includes("budget-trimmed"));
+  assert.match(
+    trace.selectionReasons["budget-trimmed"],
+    /Trimmed to fit the token budget of 25 tokens\./,
+    "server trim reason must be distinct from the provider's skip reason"
+  );
+});
+
+test("a provider echoing a bogus token budget cannot bypass the caller budget", async () => {
+  const store = new InMemoryMemoryStore();
+  const echoScope = { tenantId: "tenant-echo", userId: "user-echo" };
+  await store.addMemory({
+    id: "echo-long",
+    scope: echoScope,
+    type: "user_preference",
+    canonicalText: "This over-budget selection was returned by a model that ignored the requested budget entirely.",
+    sourceKind: "user_statement",
+    status: "active"
+  });
+
+  // Qwen-shaped provider: returns an over-budget selection and echoes
+  // tokenBudget 0, the normalizeContextPack fallback for a missing echo.
+  const mock = new MockMemoryProvider();
+  const echoProvider = {
+    extractMemories: (input) => mock.extractMemories(input),
+    classifyMemory: (input) => mock.classifyMemory(input),
+    detectConflicts: (input) => mock.detectConflicts(input),
+    reflectRun: (input) => mock.reflectRun(input),
+    explainMemoryUsage: (input) => mock.explainMemoryUsage(input),
+    async buildContextPack(input) {
+      const line = (memory) => `- [${memory.type}] ${memory.canonicalText}`;
+      return {
+        contextBlock: input.memories.map(line).join("\n"),
+        selectedMemories: input.memories.map((memory) => ({
+          memoryId: memory.id,
+          type: memory.type,
+          text: memory.canonicalText,
+          reason: "Selected by the over-eager stub provider.",
+          score: 1
+        })),
+        ignoredMemories: [],
+        tokenBudget: 0,
+        estimatedTokens: 0,
+        trace: { query: input.query, scope: input.scopes }
+      };
+    }
+  };
+
+  const service = new ContinuityMemoryService({ store, provider: echoProvider, seedDemoMemories: false });
+  const output = await service.recall({
+    query: "anything",
+    scopes: { tenant_id: echoScope.tenantId, user_id: echoScope.userId },
+    token_budget: 5
+  });
+
+  assert.equal(output.token_budget, 5, "output must reflect the caller budget, not the provider echo");
+  assert.equal(output.context_block, "", "an over-budget selection must be trimmed server-side");
+  assert.ok(output.estimated_tokens <= 5);
+});
+
+test("bootstrap surfaces token accounting and stays within the caller budget", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "bootstrap-budget-pref",
+    scope: { tenantId: "demo-tenant", userId: "bootstrap-budget-user" },
+    type: "user_preference",
+    canonicalText: "Keep bootstrap packs short.",
+    sourceKind: "user_statement",
+    status: "active",
+    importance: 0.9
+  });
+  const service = new ContinuityMemoryService({ store, provider: new MockMemoryProvider(), seedDemoMemories: false });
+
+  const output = await service.continuityBootstrap({
+    host: "codex",
+    user_id: "bootstrap-budget-user",
+    token_budget: 40
+  });
+
+  assert.equal(output.token_budget, 40);
+  assert.ok(Number.isInteger(output.estimated_tokens));
+  assert.ok(output.estimated_tokens <= output.token_budget);
+  assert.ok(output.context_pack.user.some((text) => text.includes("Keep bootstrap packs short.")));
+});
+
+test("enforceTokenBudget lets a smaller later memory fit, preserves order, and holds its invariant", async () => {
+  const { enforceTokenBudget } = await import("../dist/services/continuity-memory-service.js");
+  const packMemory = (id, text) => ({ memoryId: id, type: "user_preference", text, reason: "test", score: 1 });
+  const basePack = (memories) => ({
+    contextBlock: "unused-by-enforcer",
+    selectedMemories: memories,
+    ignoredMemories: [{ memoryId: "provider-skip", reason: "Skipped to fit the token budget." }],
+    tokenBudget: 0,
+    estimatedTokens: 0,
+    trace: { query: "q", scope: { tenantId: "t", userId: "u" } }
+  });
+
+  // Skip-and-continue: the long middle memory is trimmed; the short later one fits.
+  const pack = enforceTokenBudget(
+    basePack([
+      packMemory("first", "Short first entry."),
+      packMemory("middle", "This middle entry is deliberately much longer than the remaining budget can accommodate."),
+      packMemory("last", "Tiny.")
+    ]),
+    18
+  );
+  assert.deepEqual(pack.selectedMemories.map((memory) => memory.memoryId), ["first", "last"]);
+  assert.ok(pack.ignoredMemories.some((memory) => memory.memoryId === "middle" && /Trimmed to fit/.test(memory.reason)));
+  assert.ok(pack.ignoredMemories.some((memory) => memory.memoryId === "provider-skip"), "provider skips are preserved");
+  assert.equal(pack.tokenBudget, 18);
+  assert.ok(pack.estimatedTokens <= 18);
+  assert.equal(pack.contextBlock, "- [user_preference] Short first entry.\n- [user_preference] Tiny.");
+
+  // Empty selection stays empty at any budget.
+  const empty = enforceTokenBudget(basePack([]), 1);
+  assert.equal(empty.contextBlock, "");
+  assert.deepEqual(empty.selectedMemories, []);
+  assert.equal(empty.estimatedTokens, 0);
+});
+
+// ---------------------------------------------------------------------------
+// memory_reflect: report only actually-invalidated ids
+// ---------------------------------------------------------------------------
+
+test("reflect reports only actually-invalidated ids, never hallucinated or stale provider ids", async () => {
+  const store = new InMemoryMemoryStore();
+  const reflectScope = { tenantId: "tenant-reflect", userId: "user-reflect" };
+  await store.addMemory({
+    id: "reflect-real-target",
+    scope: reflectScope,
+    type: "project_fact",
+    canonicalText: "This fact is stale and should be invalidated.",
+    sourceKind: "manual_import",
+    status: "active"
+  });
+
+  const mock = new MockMemoryProvider();
+  const reflectProvider = {
+    extractMemories: (input) => mock.extractMemories(input),
+    classifyMemory: (input) => mock.classifyMemory(input),
+    detectConflicts: (input) => mock.detectConflicts(input),
+    buildContextPack: (input) => mock.buildContextPack(input),
+    explainMemoryUsage: (input) => mock.explainMemoryUsage(input),
+    async reflectRun() {
+      return {
+        summary: "Run reflection with one real and one hallucinated invalidation.",
+        newMemories: [],
+        invalidatedMemories: [
+          { memoryId: "reflect-real-target", reason: "Confirmed stale." },
+          { memoryId: "reflect-hallucinated-id", reason: "Provider made this up." }
+        ]
+      };
+    }
+  };
+
+  const service = new ContinuityMemoryService({ store, provider: reflectProvider, seedDemoMemories: false });
+  const output = await service.reflect({
+    run_id: "reflect-regression-run",
+    summary: "Regression check for invalidated id reporting.",
+    scopes: { tenant_id: reflectScope.tenantId, user_id: reflectScope.userId }
+  });
+
+  assert.deepEqual(output.invalidated_memories, ["reflect-real-target"], "only the real id may be reported");
+  assert.equal((await store.getMemory("reflect-real-target")).status, "invalidated");
+  const hallucinatedEvents = await store.listEvents({ memoryId: "reflect-hallucinated-id" });
+  assert.equal(hallucinatedEvents.length, 0, "no event may reference the hallucinated id");
+});
+
+// ---------------------------------------------------------------------------
+// enforce_capacity: eviction eligibility (scope narrowness + caller authority)
+// ---------------------------------------------------------------------------
+
+async function seedBroadMemory(store) {
+  // A user-wide memory with no project/agent dimension: it appears in every
+  // narrowed recall view (undefined dimensions are wildcards) but belongs to
+  // a broader scope than any project-scoped sweep.
+  await store.addMemory({
+    id: "cap-broad-user-wide",
+    scope: { tenantId: capacityScope.tenantId, userId: capacityScope.userId },
+    type: "user_preference",
+    canonicalText: "Capacity test broad user-wide memory.",
+    sourceKind: "user_statement",
+    status: "active",
+    confidence: 0.9,
+    importance: 0.1
+  });
+}
+
+test("enforce_capacity never aborts mid-sweep on broader memories a restricted caller cannot archive; dry-run and apply agree", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  await seedBroadMemory(store);
+  const service = capacityService(store);
+  // Restricted caller: allowed lists are set, so the broad memory (no
+  // project/agent dimension) is outside its mutation authority.
+  const caller = capacityCaller();
+  const sweepInput = {
+    mode: "enforce_capacity",
+    capacity: 3,
+    reason: "Restricted-caller sweep.",
+    scopes: capacityToolScopes
+  };
+
+  // 6 actives (5 scoped + 1 broad), capacity 3 -> excess 3, but only the 5
+  // scoped memories are eligible; the broad one counts toward capacity yet
+  // must never be planned, evicted, or crash the loop.
+  const plan = await service.forget({ ...sweepInput, dry_run: true }, { caller });
+  const plannedIds = plan.evicted_memories.map((entry) => entry.memory_id).sort();
+  assert.ok(!plannedIds.includes("cap-broad-user-wide"), "dry run must not plan a broader-scope victim");
+
+  const applied = await service.forget(sweepInput, { caller });
+  const evictedIds = applied.evicted_memories.map((entry) => entry.memory_id).sort();
+  assert.deepEqual(evictedIds, plannedIds, "apply must evict exactly what dry run planned");
+  assert.ok(applied.trace_id, "the sweep must complete and produce its audit trace");
+  assert.equal((await store.getMemory("cap-broad-user-wide")).status, "active");
+
+  const trace = await store.getTrace(applied.trace_id);
+  assert.equal(trace.metadata.ineligible_count, 1, "the broad memory is counted as ineligible");
+});
+
+test("a project/agent-scoped sweep from an unrestricted caller never archives broader user-wide memories", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  await seedBroadMemory(store);
+  const service = capacityService(store);
+  // Unrestricted caller (no allowed lists): authority alone would permit
+  // archiving the broad memory — scope narrowness must still forbid it.
+  const caller = capacityCaller({ allowedProjectIds: undefined, allowedAgentProfileIds: undefined });
+
+  // 6 actives, capacity 5 -> exactly one eviction. The broad memory has the
+  // LOWEST retention (importance 0.1) but must be passed over in favor of the
+  // lowest-retention memory that is fully inside the sweep scope.
+  const output = await service.forget(
+    { mode: "enforce_capacity", capacity: 5, reason: "Narrow sweep.", scopes: capacityToolScopes },
+    { caller }
+  );
+
+  assert.deepEqual(
+    output.evicted_memories.map((entry) => entry.memory_id),
+    ["cap-evict-2"],
+    "the lowest-retention IN-SCOPE memory is evicted, not the broader one"
+  );
+  assert.equal((await store.getMemory("cap-broad-user-wide")).status, "active");
+});
+
+// ---------------------------------------------------------------------------
+// enforce_capacity: race-skipped victims must not be reported as retained
+// ---------------------------------------------------------------------------
+
+test("victims skipped mid-race are reported as skipped, never as retained, and retained_count stays truthful", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  // Inject a concurrent invalidate between the sweep's active snapshot and
+  // its victim locks: the snapshot is computed first, the mutation lands,
+  // then the stale snapshot is returned to the sweep.
+  const originalList = store.listMemories.bind(store);
+  let injected = false;
+  store.listMemories = async (filter) => {
+    const snapshot = await originalList(filter);
+    if (!injected && filter?.statuses?.includes("active")) {
+      injected = true;
+      await store.updateMemory(
+        "cap-evict-2",
+        { status: "invalidated" },
+        { actor: { type: "user", id: "race-injector" }, reason: "Concurrent invalidate during sweep." }
+      );
+    }
+    return snapshot;
+  };
+  const service = capacityService(store);
+
+  const output = await service.forget(
+    { mode: "enforce_capacity", capacity: 3, reason: "Race sweep.", scopes: capacityToolScopes },
+    { caller: capacityCaller() }
+  );
+
+  // 5 actives in the snapshot, capacity 3, victims [cap-evict-2, cap-evict-1];
+  // cap-evict-2 was concurrently invalidated -> skipped, one real eviction.
+  assert.deepEqual(output.evicted_memories.map((entry) => entry.memory_id), ["cap-evict-1"]);
+  assert.equal(output.retained_count, 3, "retained_count must exclude the skipped victim");
+
+  const trace = await store.getTrace(output.trace_id);
+  assert.ok(!trace.selectedMemoryIds.includes("cap-evict-2"), "a concurrently-forgotten memory must not be traced as retained");
+  assert.ok(trace.ignoredMemoryIds.includes("cap-evict-2"));
+  assert.match(trace.selectionReasons["cap-evict-2"], /Skipped by the capacity sweep/);
+  assert.equal(trace.metadata.skipped_count, 1);
+  assert.equal(trace.metadata.evicted_count, 1);
+});
+
+test("a cross-process style precondition failure on archive is treated as a skip, not an overwrite or crash", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  const originalUpdate = store.updateMemory.bind(store);
+  let sawExpectedStatus = false;
+  let threw = false;
+  store.updateMemory = async (id, patch, options) => {
+    if (patch?.status === "archived") {
+      sawExpectedStatus = options?.expectedStatus === "active";
+      if (!threw && id === "cap-evict-2") {
+        // Simulate another server instance winning the row-locked update on a
+        // shared Postgres store after our in-process re-fetch.
+        threw = true;
+        throw new MemoryMutationPreconditionError("cap-evict-2", "active", "invalidated");
+      }
+    }
+    return originalUpdate(id, patch, options);
+  };
+  const service = capacityService(store);
+
+  const output = await service.forget(
+    { mode: "enforce_capacity", capacity: 3, reason: "Precondition sweep.", scopes: capacityToolScopes },
+    { caller: capacityCaller() }
+  );
+
+  assert.ok(sawExpectedStatus, "capacity archives must carry expectedStatus 'active'");
+  assert.deepEqual(output.evicted_memories.map((entry) => entry.memory_id), ["cap-evict-1"]);
+  assert.equal(output.retained_count, 3);
+  const trace = await store.getTrace(output.trace_id);
+  assert.match(trace.selectionReasons["cap-evict-2"], /Skipped by the capacity sweep/);
+});
+
+// ---------------------------------------------------------------------------
+// enforceTokenBudget: provider echoing an id in both lists must not duplicate
+// ---------------------------------------------------------------------------
+
+test("enforceTokenBudget keeps each memory id exactly once when a provider echoes it in both lists", async () => {
+  const { enforceTokenBudget } = await import("../dist/services/continuity-memory-service.js");
+  const packMemory = (id, text) => ({ memoryId: id, type: "user_preference", text, reason: "test", score: 1 });
+
+  const pack = enforceTokenBudget(
+    {
+      contextBlock: "unused",
+      selectedMemories: [
+        packMemory("fits", "Short."),
+        packMemory("dup", "This entry is far too long to fit inside the tiny budget used by this regression test.")
+      ],
+      // The provider echoed "dup" as ignored too, and also echoed "fits"
+      // (which the server retains) as ignored — both must be dropped in
+      // favor of the server-side outcome.
+      ignoredMemories: [
+        { memoryId: "dup", reason: "Skipped to fit the token budget." },
+        { memoryId: "fits", reason: "Skipped to fit the token budget." },
+        { memoryId: "other", reason: "Skipped to fit the token budget." }
+      ],
+      tokenBudget: 0,
+      estimatedTokens: 0,
+      trace: { query: "q", scope: { tenantId: "t", userId: "u" } }
+    },
+    8
+  );
+
+  const dupEntries = pack.ignoredMemories.filter((memory) => memory.memoryId === "dup");
+  assert.equal(dupEntries.length, 1, "an id echoed in both lists must appear exactly once");
+  assert.match(dupEntries[0].reason, /Trimmed to fit the token budget/, "the server-side outcome wins");
+  assert.ok(!pack.ignoredMemories.some((memory) => memory.memoryId === "fits"), "a retained id must not stay in ignored");
+  assert.ok(pack.ignoredMemories.some((memory) => memory.memoryId === "other"), "genuine provider skips are preserved");
+});

@@ -37,6 +37,7 @@ import {
   createMemoryRecord,
   createRunRecord,
   isRecallableMemory,
+  normalizeRecallLimit,
   resolveMemoryConflictRecord,
   scopeMatches,
   supersedeMemoryRecord,
@@ -1901,18 +1902,6 @@ function requiredScopeString(value: string, field: string): string {
   }
 
   return normalized;
-}
-
-function normalizeRecallLimit(limit: number | undefined): number {
-  if (limit === undefined) {
-    return 10;
-  }
-
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new Error("Memory recall limit must be a positive integer.");
-  }
-
-  return limit;
 }
 
 function tokenizeRecallQuery(query: string | undefined): string[] {

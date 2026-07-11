@@ -11,9 +11,14 @@ import {
   assertMemoryExpectedStatus,
   assessMemorySafety,
   assertNoSensitiveText,
+  compareRetentionForEviction,
+  estimateTokens,
+  MemoryMutationPreconditionError,
   redactSensitiveText,
   rejectSensitiveText,
+  retentionScore,
   type ConflictResult,
+  type ContextPack,
   type ContextPackInput,
   type CreateMemoryInput,
   type JsonObject,
@@ -57,6 +62,7 @@ import {
   ContinuityBootstrapInput,
   ContinuityBootstrapOutput,
   MemoryForgetInput,
+  MemoryForgetInputSchema,
   MemoryForgetOutput,
   MemoryFeedbackInput,
   MemoryFeedbackInputSchema,
@@ -101,6 +107,11 @@ export interface ContinuityMemoryServiceOptions {
    */
   embeddingProvider?: EmbeddingProvider | null;
   seedDemoMemories?: boolean;
+  /**
+   * Injectable clock for deterministic retention scoring in capacity sweeps.
+   * Benchmarks and evals pass a fixed date; production uses the real clock.
+   */
+  clock?: () => Date;
 }
 
 interface BuiltContextPack {
@@ -155,9 +166,11 @@ export class ContinuityMemoryService implements MemoryService {
   private readonly seedDemoMemories: boolean;
   private readonly conflictResolutionLocks = new Map<string, Promise<void>>();
   private readonly memoryMutationLocks = new Map<string, Promise<void>>();
+  private readonly clock: () => Date;
   private seedPromise?: Promise<void>;
 
   constructor(options: ContinuityMemoryServiceOptions = {}) {
+    this.clock = options.clock ?? (() => new Date());
     this.store = options.store ?? new InMemoryMemoryStore();
     this.provider = options.provider ?? createDefaultReasoningProvider();
     this.embeddingProvider =
@@ -254,6 +267,8 @@ export class ContinuityMemoryService implements MemoryService {
       context_pack: groupContextPack(pack.selectedMemories.map((memory) => memory.text), recall.memories),
       memory_trace_id: trace.id,
       suggested_next_tools: ["memory_recall", "memory_reflect"],
+      token_budget: pack.tokenBudget,
+      estimated_tokens: pack.estimatedTokens,
     };
   }
 
@@ -280,6 +295,8 @@ export class ContinuityMemoryService implements MemoryService {
       memories: recall.memories.map((memory) => toMemorySummary(memory, pack.selectedMemoryIds.get(memory.id))),
       context_block: pack.contextBlock,
       trace_id: trace.id,
+      token_budget: pack.tokenBudget,
+      estimated_tokens: pack.estimatedTokens,
     };
   }
 
@@ -401,6 +418,9 @@ export class ContinuityMemoryService implements MemoryService {
       newMemories.push(toCandidateMemory(candidate, result.memory.status, result.memory.id));
     }
 
+    // Report only ids that were actually invalidated: the provider can suggest
+    // stale or hallucinated ids that resolve to no stored memory.
+    const invalidatedIds: string[] = [];
     for (const invalidated of reflection.invalidatedMemories) {
       await this.withMemoryMutationLocks([invalidated.memoryId], async () => {
         const memory = await this.store.getMemory(invalidated.memoryId);
@@ -415,6 +435,7 @@ export class ContinuityMemoryService implements MemoryService {
               runId: run.id,
             },
           );
+          invalidatedIds.push(invalidated.memoryId);
         }
       });
     }
@@ -430,7 +451,7 @@ export class ContinuityMemoryService implements MemoryService {
 
     return {
       new_memories: newMemories,
-      invalidated_memories: reflection.invalidatedMemories.map((memory) => memory.memoryId),
+      invalidated_memories: invalidatedIds,
       trace_id: trace.id,
     };
   }
@@ -752,48 +773,243 @@ export class ContinuityMemoryService implements MemoryService {
   }
 
   async forget(input: MemoryForgetInput, context: MemoryServiceContext = {}): Promise<MemoryForgetOutput> {
-    return await this.withMemoryMutationLocks([input.memory_id], async () => {
+    // Defensive re-parse so the enforce_capacity cross-field rules hold even
+    // for direct service callers that bypass the MCP boundary.
+    const parsed = MemoryForgetInputSchema.parse(input);
+    const mode = parsed.mode;
+    if (mode === "enforce_capacity") {
+      return await this.enforceCapacity(parsed, context);
+    }
+
+    const memoryId = parsed.memory_id;
+    if (memoryId === undefined) {
+      throw new Error(`memory_forget mode ${mode} requires memory_id.`);
+    }
+
+    return await this.withMemoryMutationLocks([memoryId], async () => {
       await this.ensureSeeded();
-      await this.requireMutableMemory(input.memory_id, context.caller, "memory_forget");
-      const statusByMode: Record<MemoryForgetInput["mode"], MemoryStatus> = {
+      await this.requireMutableMemory(memoryId, context.caller, "memory_forget");
+      const statusByMode: Record<Exclude<MemoryForgetInput["mode"], "enforce_capacity">, MemoryStatus> = {
         archive: "archived",
         expire: "expired",
         hard_delete: "deleted",
         invalidate: "invalidated",
       };
-      const status = statusByMode[input.mode];
-      if (input.mode === "hard_delete") {
-        const result = await this.store.deleteMemory(input.memory_id, {
+      const status = statusByMode[mode];
+      if (mode === "hard_delete") {
+        const result = await this.store.deleteMemory(memoryId, {
               actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
-              reason: input.reason,
+              reason: parsed.reason,
             });
         return {
           memory_id: result.deletedMemoryId,
-          mode: input.mode,
-          status: "deleted",
+          mode,
+          status: "deleted" as MemoryStatus,
           event_id: result.event.id,
         };
       }
 
       const result = await this.store.updateMemory(
-              input.memory_id,
+              memoryId,
               {
                 status,
                 validUntil: status === "expired" || status === "invalidated" ? new Date().toISOString() : undefined,
               },
               {
                 actor: callerActor(context.caller, { type: "user", id: "memory_forget" }),
-                reason: input.reason,
+                reason: parsed.reason,
               },
             );
 
       return {
         memory_id: result.memory.id,
-        mode: input.mode,
+        mode,
         status: result.memory.status,
         event_id: result.event.id,
       };
     });
+  }
+
+  /**
+   * Strategic forgetting: archive the lowest-retention active memories in
+   * scope so at most `capacity` remain. Victims are chosen by the same
+   * ordering recall ranks with (retentionScore), evictions are reversible
+   * (archive, never delete), every eviction emits its own governance event,
+   * and an aggregate capacity_sweep trace explains the decision.
+   */
+  private async enforceCapacity(
+    input: MemoryForgetInput,
+    context: MemoryServiceContext,
+  ): Promise<MemoryForgetOutput> {
+    await this.ensureSeeded();
+    const capacity = input.capacity;
+    if (capacity === undefined) {
+      throw new Error("memory_forget mode enforce_capacity requires capacity.");
+    }
+
+    const now = this.clock();
+    const scope = scopeFromTool(input.scopes, context.caller);
+    if (!scope.tenantId || !scope.userId) {
+      throw new ScopeGuardError("memory_forget enforce_capacity requires a tenant- and user-scoped caller.");
+    }
+
+    const actives = await this.store.listMemories({ scope, statuses: ["active"], now });
+    const protectedTypes = new Set(input.protected_types ?? []);
+    // Eviction eligibility, decided upfront and identically for dry-run and
+    // apply: (1) not a protected type; (2) the memory's scope is at least as
+    // narrow as the sweep scope — a project-scoped sweep must never archive a
+    // user-wide memory that other projects still recall (listMemories treats
+    // undefined memory dimensions as wildcards, so broader memories DO appear
+    // in the active snapshot and DO count toward capacity); (3) the caller
+    // has mutation authority over the memory's own scope — a restricted
+    // API key must not abort the sweep mid-loop on a broader memory it could
+    // never archive.
+    const callerCanMutate = (memory: MemoryRecord): boolean => {
+      try {
+        assertScopedRequestNarrowed(memory.scope, context.caller, "memory_forget");
+        return true;
+      } catch (error) {
+        if (error instanceof ScopeGuardError) {
+          return false;
+        }
+        throw error;
+      }
+    };
+    const candidates = actives.filter(
+      (memory) =>
+        !protectedTypes.has(memory.type) &&
+        memoryScopeWithinSweepScope(memory.scope, scope) &&
+        callerCanMutate(memory),
+    );
+    // Capacity bounds the TOTAL active count; protection, scope narrowness,
+    // and caller authority only control eviction eligibility. If ineligible
+    // memories alone exceed the capacity, the sweep is best-effort: it evicts
+    // every candidate it may touch.
+    const excess = Math.min(actives.length - capacity, candidates.length);
+    const dryRun = input.dry_run ?? false;
+    const ineligibleCount = actives.length - candidates.length;
+
+    if (excess <= 0) {
+      return {
+        mode: "enforce_capacity",
+        capacity,
+        retained_count: actives.length,
+        dry_run: dryRun,
+        evicted_memories: [],
+      };
+    }
+
+    const victims = [...candidates]
+      .sort((left, right) => compareRetentionForEviction(left, right, now))
+      .slice(0, excess)
+      .map((memory, index) => ({
+        memory,
+        score: retentionScore(memory, now),
+        reason: `${input.reason} [capacity ${capacity}: retention ${retentionScore(memory, now).toFixed(4)}, rank ${index + 1}/${candidates.length}]`,
+      }));
+
+    if (dryRun) {
+      return {
+        mode: "enforce_capacity",
+        capacity,
+        retained_count: actives.length - victims.length,
+        dry_run: true,
+        evicted_memories: victims.map((victim) => ({
+          memory_id: victim.memory.id,
+          status: "archived" as MemoryStatus,
+          retention_score: victim.score,
+          reason: victim.reason,
+        })),
+      };
+    }
+
+    const evicted: Array<{ memory_id: string; status: MemoryStatus; retention_score: number; event_id: string; reason: string }> = [];
+    const skipped: string[] = [];
+    await this.withMemoryMutationLocks(victims.map((victim) => victim.memory.id), async () => {
+      for (const victim of victims) {
+        // Re-fetch under the lock: a concurrent mutation may already have
+        // resolved this memory; exactly one mutation wins, no double event.
+        const current = await this.store.getMemory(victim.memory.id);
+        if (!current || current.status !== "active") {
+          skipped.push(victim.memory.id);
+          continue;
+        }
+        let result: MemoryUpdateResult;
+        try {
+          // expectedStatus makes the skip cross-process-correct too: on a
+          // shared Postgres store another server instance may mutate between
+          // our re-fetch and the update, and the row-locked precondition
+          // must lose gracefully rather than overwrite that mutation.
+          result = await this.store.updateMemory(
+            victim.memory.id,
+            { status: "archived" },
+            {
+              actor: callerActor(context.caller, { type: "system", id: "memory_forget_capacity" }),
+              reason: victim.reason,
+              expectedStatus: "active",
+            },
+          );
+        } catch (error) {
+          if (error instanceof MemoryMutationPreconditionError) {
+            skipped.push(victim.memory.id);
+            continue;
+          }
+          throw error;
+        }
+        evicted.push({
+          memory_id: result.memory.id,
+          status: result.memory.status,
+          retention_score: victim.score,
+          event_id: result.event.id,
+          reason: victim.reason,
+        });
+      }
+    });
+
+    const evictedIds = new Set(evicted.map((entry) => entry.memory_id));
+    const skippedIds = new Set(skipped);
+    // Skipped victims were concurrently resolved by another mutation: they are
+    // neither retained by this sweep nor evicted by it, so they must not
+    // inflate retained_count or be traced as "Retained within capacity".
+    const retainedIds = actives
+      .filter((memory) => !evictedIds.has(memory.id) && !skippedIds.has(memory.id))
+      .map((memory) => memory.id);
+    const selectionReasons: Record<string, string> = {};
+    for (const memoryId of retainedIds) {
+      selectionReasons[memoryId] = `Retained within capacity ${capacity}.`;
+    }
+    for (const entry of evicted) {
+      selectionReasons[entry.memory_id] = entry.reason;
+    }
+    for (const memoryId of skipped) {
+      selectionReasons[memoryId] = "Skipped by the capacity sweep: a concurrent mutation already changed this memory.";
+    }
+
+    const trace = await this.store.addTrace({
+      tenantId: scope.tenantId,
+      query: input.reason,
+      selectedMemoryIds: retainedIds,
+      ignoredMemoryIds: [...evicted.map((entry) => entry.memory_id), ...skipped],
+      contextPack: "",
+      selectionReasons,
+      metadata: {
+        stage: "capacity_sweep",
+        capacity,
+        active_count_before: actives.length,
+        evicted_count: evicted.length,
+        skipped_count: skipped.length,
+        ineligible_count: ineligibleCount,
+      },
+    });
+
+    return {
+      mode: "enforce_capacity",
+      capacity,
+      retained_count: retainedIds.length,
+      dry_run: false,
+      trace_id: trace.id,
+      evicted_memories: evicted,
+    };
   }
 
   async trace(input: MemoryTraceInput, context: MemoryServiceContext = {}): Promise<MemoryTraceOutput> {
@@ -1209,7 +1425,10 @@ export class ContinuityMemoryService implements MemoryService {
   }
 
   private async buildContextPack(input: ContextPackInput): Promise<BuiltContextPack> {
-    const pack = await this.provider.buildContextPack(input);
+    // Enforce the caller-effective budget server-side, regardless of what the
+    // provider selected or echoed back (a model may echo a bogus tokenBudget;
+    // input.tokenBudget is always the defaulted caller value).
+    const pack = enforceTokenBudget(await this.provider.buildContextPack(input), input.tokenBudget);
     return {
       contextBlock: pack.contextBlock,
       selectedMemoryIds: new Map(pack.selectedMemories.map((memory) => [memory.memoryId, memory.reason])),
@@ -1873,6 +2092,70 @@ function scopeFromBootstrap(input: ContinuityBootstrapInput, caller: CallerConte
   }, caller);
   assertScopedRequestNarrowed(scope, caller, "continuity_bootstrap");
   return scope;
+}
+
+/**
+ * A memory is evictable by a capacity sweep only when its scope is at least
+ * as narrow as the sweep scope: every optional dimension the sweep names must
+ * be present and equal on the memory. Broader memories (undefined dimensions)
+ * match the sweep's recall view — they count toward capacity — but archiving
+ * them would change global state shared with other projects/agents/sessions.
+ */
+function memoryScopeWithinSweepScope(memoryScope: MemoryScope, sweepScope: MemoryScope): boolean {
+  const dimensions = ["agentProfileId", "projectId", "hostId", "sessionId", "toolId"] as const;
+  return dimensions.every(
+    (dimension) => sweepScope[dimension] === undefined || memoryScope[dimension] === sweepScope[dimension],
+  );
+}
+
+/**
+ * Strictly fit a provider-built context pack to the caller's token budget.
+ * Greedy skip-and-continue over the rendered `- [type] text` lines: a memory
+ * is retained only if the joined block including it still fits, so
+ * `estimateTokens(contextBlock) <= budget` holds by construction (measured on
+ * the actual rendered artifact, not per-memory text). Trimming only removes —
+ * an empty provider selection stays empty. Trimmed memories move to
+ * ignoredMemories with a reason distinct from the provider's own budget skip,
+ * so traces distinguish provider-skip from server-trim.
+ */
+export function enforceTokenBudget(pack: ContextPack, budget: number): ContextPack {
+  const retainedLines: string[] = [];
+  const retained: ContextPack["selectedMemories"] = [];
+  const trimmed: ContextPack["ignoredMemories"] = [];
+  let contextBlock = "";
+
+  for (const memory of pack.selectedMemories) {
+    const line = `- [${memory.type}] ${memory.text}`;
+    const candidateBlock = [...retainedLines, line].join("\n");
+    if (estimateTokens(candidateBlock) <= budget) {
+      retainedLines.push(line);
+      retained.push(memory);
+      contextBlock = candidateBlock;
+    } else {
+      trimmed.push({
+        memoryId: memory.memoryId,
+        reason: `Trimmed to fit the token budget of ${budget} tokens.`,
+      });
+    }
+  }
+
+  // A provider (an LLM in the Qwen path) may echo the same memory id in both
+  // its selected and ignored lists; keep each id exactly once so traces never
+  // carry contradictory reasons — the server-side outcome wins.
+  const retainedIds = new Set(retained.map((memory) => memory.memoryId));
+  const trimmedIds = new Set(trimmed.map((memory) => memory.memoryId));
+  const providerIgnored = pack.ignoredMemories.filter(
+    (memory) => !retainedIds.has(memory.memoryId) && !trimmedIds.has(memory.memoryId),
+  );
+
+  return {
+    ...pack,
+    contextBlock,
+    selectedMemories: retained,
+    ignoredMemories: [...providerIgnored, ...trimmed],
+    tokenBudget: budget,
+    estimatedTokens: estimateTokens(contextBlock),
+  };
 }
 
 function scopeFromTool(scope: MemoryRecallInput["scopes"], caller: CallerContext | undefined): MemoryScope {

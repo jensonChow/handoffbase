@@ -113,13 +113,20 @@
       "operation": "memory_recall",
       "input": {
         "query": "What should matter most when ranking AI agent hackathons for this user?",
-        "types": ["user_preference"],
+        "types": [
+          "user_preference"
+        ],
         "limit": 5,
         "tokenBudget": 700
       },
       "expected": {
-        "memoryIds": ["eval-pref-credential-network"],
-        "textIncludes": ["founder network", "credential lift"]
+        "memoryIds": [
+          "eval-pref-credential-network"
+        ],
+        "textIncludes": [
+          "founder network",
+          "credential lift"
+        ]
       }
     },
     {
@@ -129,13 +136,20 @@
       "operation": "memory_recall",
       "input": {
         "query": "Before recommending a hackathon, what verification procedure should the agent follow?",
-        "types": ["procedure"],
+        "types": [
+          "procedure"
+        ],
         "limit": 5,
         "tokenBudget": 700
       },
       "expected": {
-        "memoryIds": ["eval-procedure-verify-deadline-eligibility"],
-        "textIncludes": ["official deadline", "region eligibility"]
+        "memoryIds": [
+          "eval-procedure-verify-deadline-eligibility"
+        ],
+        "textIncludes": [
+          "official deadline",
+          "region eligibility"
+        ]
       }
     },
     {
@@ -145,13 +159,20 @@
       "operation": "memory_recall",
       "input": {
         "query": "What mistake should be avoided around eligibility?",
-        "types": ["failure_memory"],
+        "types": [
+          "failure_memory"
+        ],
         "limit": 5,
         "tokenBudget": 700
       },
       "expected": {
-        "memoryIds": ["eval-failure-region-eligibility"],
-        "textIncludes": ["China or Hong Kong eligibility", "hard disqualifier"]
+        "memoryIds": [
+          "eval-failure-region-eligibility"
+        ],
+        "textIncludes": [
+          "China or Hong Kong eligibility",
+          "hard disqualifier"
+        ]
       }
     },
     {
@@ -235,6 +256,126 @@
       "expected": {
         "status": "invalidated",
         "notRecalledMemoryId": "eval-fact-watchlist-cockroachdb"
+      }
+    },
+    {
+      "id": "capacity-eviction",
+      "name": "Capacity sweep archives lowest-retention memories",
+      "capability": "strategic forgetting",
+      "operation": "memory_forget",
+      "input": {
+        "capacity": 3,
+        "reason": "Eval capacity sweep keeps the three highest-retention memories.",
+        "seedMemories": [
+          {
+            "id": "eval-cap-keep-1",
+            "type": "user_preference",
+            "canonicalText": "Capacity eval: prioritize infrastructure-grade opportunities.",
+            "sourceKind": "user_statement",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.95
+          },
+          {
+            "id": "eval-cap-keep-2",
+            "type": "procedure",
+            "canonicalText": "Capacity eval: verify deadlines from primary sources.",
+            "sourceKind": "user_instruction",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.8
+          },
+          {
+            "id": "eval-cap-keep-3",
+            "type": "project_fact",
+            "canonicalText": "Capacity eval: the scout project ships weekly digests.",
+            "sourceKind": "manual_import",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.65
+          },
+          {
+            "id": "eval-cap-evict-1",
+            "type": "tool_memory",
+            "canonicalText": "Capacity eval: the exporter occasionally needs a retry.",
+            "sourceKind": "agent_observation",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.5
+          },
+          {
+            "id": "eval-cap-evict-2",
+            "type": "outcome_memory",
+            "canonicalText": "Capacity eval: one digest run finished late last month.",
+            "sourceKind": "run_summary",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.35
+          }
+        ],
+        "query": "capacity eval opportunities digests"
+      },
+      "expected": {
+        "evictedMemoryIds": [
+          "eval-cap-evict-2",
+          "eval-cap-evict-1"
+        ],
+        "retainedMemoryIds": [
+          "eval-cap-keep-1",
+          "eval-cap-keep-2",
+          "eval-cap-keep-3"
+        ],
+        "evictedStatus": "archived",
+        "traceStage": "capacity_sweep"
+      }
+    },
+    {
+      "id": "budget-trim-partial",
+      "name": "Strict token budget trims the context pack to fit",
+      "capability": "limited context windows",
+      "operation": "memory_recall",
+      "input": {
+        "tokenBudget": 25,
+        "query": "opportunity ranking preferences",
+        "limit": 5,
+        "seedMemories": [
+          {
+            "id": "eval-budget-top",
+            "type": "user_preference",
+            "canonicalText": "Prefer infrastructure-grade opportunities.",
+            "sourceKind": "user_statement",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.99
+          },
+          {
+            "id": "eval-budget-trimmed",
+            "type": "user_preference",
+            "canonicalText": "Weight founder-network value over prizes.",
+            "sourceKind": "user_statement",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.8
+          },
+          {
+            "id": "eval-budget-skipped",
+            "type": "user_preference",
+            "canonicalText": "Verify deadlines from primary sources first.",
+            "sourceKind": "user_statement",
+            "status": "active",
+            "confidence": 0.9,
+            "importance": 0.6
+          }
+        ]
+      },
+      "expected": {
+        "retainedText": "Prefer infrastructure-grade opportunities.",
+        "excludedTexts": [
+          "Weight founder-network value over prizes.",
+          "Verify deadlines from primary sources first."
+        ],
+        "trimmedMemoryId": "eval-budget-trimmed",
+        "trimReasonIncludes": "Trimmed to fit the token budget"
       }
     }
   ]
