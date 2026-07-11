@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&amp;display=swap" rel="stylesheet">
+  <style>
+    html, body { min-height: 100%; }
+    body { margin: 0; background: #16130e; }
+    :root {
+      --font-ui: "Space Grotesk", ui-sans-serif, sans-serif;
+      --font-display: "Space Grotesk", ui-sans-serif, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+      --bg: #16130e; --side: #131007; --panel: #1e1a13; --inset: #16120b;
+      --line: #3a3327; --line2: #2c2619;
+      --text: #f4efe4; --body: #e6dfcd; --muted: #b0a78f; --subtle: #7d775f;
+      --accent: #e8a33d; --accent-ink: #16130e; --chip: #f0c073;
+      --good: #57c785; --warn: #e8a33d; --bad: #e5684f; --info: #b18cf0;
+      --shadow: 0 24px 70px rgba(0,0,0,0.4);
+      --hero-grad: linear-gradient(180deg, #1e1a13, #191510);
+    }
+    [data-theme="light"] {
+      --bg: #f3efe6; --side: #ece7d9; --panel: #fbf9f3; --inset: #f3efe6;
+      --line: #d8d2c2; --line2: #e3ddcd;
+      --text: #1f1d18; --body: #2a2822; --muted: #54503f; --subtle: #6e6857;
+      --accent: #a63d2f; --accent-ink: #fbf9f3; --chip: #2c4a73;
+      --good: #2e7d4f; --warn: #a66b1f; --bad: #a63d2f; --info: #5b4a8a;
+      --shadow: 0 16px 44px rgba(31,29,24,0.1);
+      --hero-grad: linear-gradient(180deg, #fbf9f3, #f7f3e9);
+    }
+    a { color: var(--accent, #e8a33d); }
+    a:hover { text-decoration: underline; }
+    button { cursor: pointer; font: inherit; color: inherit; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    input, select, textarea { font: inherit; }
+    select option { background: var(--panel, #1e1a13); color: var(--text, #f4efe4); }
+    input::placeholder, textarea::placeholder { color: var(--subtle, #7d775f); }
+    input[type="range"] { accent-color: var(--accent, #e8a33d); }
+    sc-for, sc-if { display: contents; }
+  </style>
+</helmet>
+
+<div data-theme="{{ theme }}" data-screen-label="HandoffBase dashboard" style="min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--font-ui);display:grid;grid-template-columns:252px minmax(0,1fr)">
+
+  <!-- ======= SIDEBAR ======= -->
+  <aside aria-label="Navigation" style="border-right:1px solid var(--line2);background:var(--side);padding:20px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);flex:0 0 auto">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#database"></use></svg>
+      </span>
+      <span style="display:grid;gap:1px">
+        <strong style="font-family:var(--font-display);font-size:16px;letter-spacing:-0.01em">HandoffBase</strong>
+        <small style="font-family:var(--font-mono);font-size:10px;color:var(--subtle);letter-spacing:0.08em;text-transform:uppercase">memory vault</small>
+      </span>
+    </div>
+
+    <nav style="display:grid;gap:4px" aria-label="Views">
+      <sc-for list="{{ navItems }}" as="nav" hint-placeholder-count="5">
+        <button type="button" onClick="{{ nav.onClick }}" style="{{ nav.style }}" style-hover="color:var(--text);background:color-mix(in srgb, var(--text) 5%, transparent)">
+          <span style="display:flex;align-items:center;gap:10px;font-size:14px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#{{ nav.icon }}"></use></svg>
+            {{ nav.label }}
+          </span>
+          <span style="{{ nav.countStyle }}">{{ nav.count }}</span>
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="margin-top:auto;display:grid;gap:10px">
+      <button type="button" onClick="{{ openConnect }}" style="display:flex;align-items:center;justify-content:center;gap:8px;min-height:36px;border:1px dashed color-mix(in srgb, var(--accent) 55%, transparent);border-radius:9px;background:color-mix(in srgb, var(--accent) 6%, transparent);color:var(--chip);font-size:13px;font-weight:600" style-hover="border-style:solid">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#plug"></use></svg>
+        Connect an agent
+      </button>
+      <div role="status" style="border:1px solid var(--line2);border-radius:10px;background:var(--panel);padding:11px;display:grid;gap:5px">
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+          <span style="width:8px;height:8px;border-radius:99px;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb, var(--good) 18%, transparent)"></span>
+          Shared persistent store
+        </span>
+        <small style="color:var(--subtle);font-family:var(--font-mono);font-size:10.5px">postgres · pgvector · us-west</small>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-family:var(--font-mono)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--good)"><use href="#shield-check"></use></svg>
+        demo-tenant / {{ userId }}
+      </div>
+    </div>
+  </aside>
+
+  <!-- ======= MAIN ======= -->
+  <section style="min-width:0;padding:24px 28px 40px;display:flex;flex-direction:column;gap:18px">
+
+    <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:grid;gap:3px">
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase">{{ viewEyebrow }}</span>
+        <h1 style="margin:0;font-family:var(--font-display);font-size:25px;font-weight:600;letter-spacing:-0.015em">{{ viewTitle }}</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--subtle)">last sync 2 min ago</span>
+        <div role="group" aria-label="Theme" style="display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden">
+          <button type="button" onClick="{{ setDark }}" title="Dark — Amber Archive" style="{{ darkBtnStyle }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#moon"></use></svg>
+          </button>
+          <button type="button" onClick="{{ setLight }}" title="Light — Paper Ledger" style="{{ lightBtnStyle }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#sun"></use></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= OVERVIEW ================= -->
+    <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Overview" style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- continuity hero -->
+        <div style="border:1px solid var(--line);border-radius:13px;background:var(--hero-grad);box-shadow:var(--shadow);padding:20px 22px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <strong style="font-family:var(--font-display);font-size:15px">Cross-agent handoff — Jul 6 → 7</strong>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">1 preference · 1 procedure · 1 failure memory carried across hosts</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 44px 1fr 44px 1fr;align-items:stretch">
+            <button type="button" onClick="{{ goTraces }}" style="border:1px solid var(--line);border-radius:10px;background:var(--inset);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">codex</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 10:15</span></span>
+              <span style="font-size:13px;color:var(--muted);line-height:1.45">Session 1 — user corrects ranking logic</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--chip);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px;justify-self:start">+ wrote user_preference</span>
+            </button>
+            <div style="display:grid;place-items:center;color:var(--accent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg></div>
+            <button type="button" onClick="{{ goTraces }}" style="border:1px solid var(--line);border-radius:10px;background:var(--inset);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">claude-code</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 6 · 15:24</span></span>
+              <span style="font-size:13px;color:var(--muted);line-height:1.45">Recalled 2 memories, reflected on a failure</span>
+              <span style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--good) 40%, transparent);background:color-mix(in srgb, var(--good) 8%, transparent);color:var(--good);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px">✓ recalled ×2</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--chip);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px">+ failure_memory</span>
+              </span>
+            </button>
+            <div style="display:grid;place-items:center;color:var(--accent)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg></div>
+            <button type="button" onClick="{{ goTraces }}" style="border:1px dashed color-mix(in srgb, var(--accent) 55%, transparent);border-radius:10px;background:color-mix(in srgb, var(--accent) 5%, transparent);padding:14px;display:grid;gap:8px;text-align:left;align-content:start" style-hover="border-color:var(--accent)">
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong style="font-family:var(--font-mono);font-size:13px;min-width:0">cursor</strong><span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle);white-space:nowrap;text-align:right;flex:0 0 auto">Jul 7 · 09:02</span></span>
+              <span style="font-size:13px;color:var(--muted);line-height:1.45">New session bootstrapped with full context</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 9%, transparent);color:var(--chip);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px;justify-self:start">↓ bootstrap · 4 memories</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- metrics -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" aria-label="Memory health">
+          <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="4">
+            <button type="button" onClick="{{ m.onClick }}" style="{{ m.style }}" style-hover="border-color:var(--accent)">
+              <span style="font-size:12px;color:var(--muted)">{{ m.label }}</span>
+              <strong style="{{ m.valueStyle }}">{{ m.value }}</strong>
+              <small style="{{ m.noteStyle }}">{{ m.note }}</small>
+            </button>
+          </sc-for>
+        </div>
+
+        <!-- two column -->
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:12px">
+          <div style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px;display:grid;gap:12px;align-content:start">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <strong style="font-family:var(--font-display);font-size:15px">Review queue</strong>
+              <button type="button" onClick="{{ goReview }}" style="border:0;background:transparent;padding:0;font-family:var(--font-mono);font-size:11px;color:var(--accent)">{{ reviewWaitingLabel }} →</button>
+            </div>
+            <sc-for list="{{ overviewPending }}" as="p" hint-placeholder-count="2">
+              <div style="border:1px solid var(--line2);border-radius:10px;background:var(--inset);padding:12px;display:grid;gap:8px">
+                <span style="display:flex;align-items:center;gap:8px">
+                  <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:5px;padding:1px 6px">{{ p.type }}</span>
+                  <small style="font-family:var(--font-mono);color:var(--subtle);font-size:11px">{{ p.meta }}</small>
+                </span>
+                <p style="margin:0;font-size:13.5px;line-height:1.5;color:var(--body)">{{ p.text }}</p>
+                <span style="display:flex;gap:8px">
+                  <button type="button" onClick="{{ p.onApprove }}" style="display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.07)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#check"></use></svg>
+                    Approve
+                  </button>
+                  <button type="button" onClick="{{ p.onReject }}" style="display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px" style-hover="border-color:var(--bad);color:var(--bad)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#x"></use></svg>
+                    Reject
+                  </button>
+                </span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noPendingOverview }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0;color:var(--subtle);font-size:13px">Queue is clear. New extractions will wait here for approval.</p>
+            </sc-if>
+          </div>
+
+          <div style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px;display:grid;gap:12px;align-content:start">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <strong style="font-family:var(--font-display);font-size:15px">Latest trace</strong>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ latestTraceId }}</span>
+            </div>
+            <p style="margin:0;font-size:14px;line-height:1.5;color:var(--body)">"{{ latestTraceQuery }}"</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--good) 40%, transparent);background:color-mix(in srgb, var(--good) 8%, transparent);color:var(--good);border-radius:999px;padding:4px 10px;font-family:var(--font-mono);font-size:11.5px">● {{ latestUsed }} used</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--warn) 40%, transparent);background:color-mix(in srgb, var(--warn) 8%, transparent);color:var(--warn);border-radius:999px;padding:4px 10px;font-family:var(--font-mono);font-size:11.5px">● {{ latestIgnored }} ignored</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--bad) 40%, transparent);background:color-mix(in srgb, var(--bad) 8%, transparent);color:var(--bad);border-radius:999px;padding:4px 10px;font-family:var(--font-mono);font-size:11.5px">● {{ latestExcluded }} excluded</span>
+            </div>
+            <div style="border-left:2px solid var(--accent);padding:2px 0 2px 12px;display:grid;gap:4px">
+              <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase">why it was used</small>
+              <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)">{{ latestWhy }}</p>
+            </div>
+            <button type="button" onClick="{{ goTraces }}" style="justify-self:start;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);min-height:30px;padding:0 12px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px" style-hover="border-color:var(--accent);color:var(--text)">
+              Open trace viewer
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ================= VAULT ================= -->
+    <sc-if value="{{ isVault }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Memory Vault" style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(370px,0.9fr);gap:14px;align-items:start">
+        <section aria-label="Memory list" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px;min-width:0;display:grid;gap:12px">
+          <div style="display:flex;align-items:stretch;gap:10px;flex-wrap:wrap">
+            <label style="flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;background:var(--inset);padding:0 10px;color:var(--subtle)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#search"></use></svg>
+              <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search memories, sources, scopes…" style="min-height:38px;border:0;background:transparent;padding:0;color:var(--text);outline:none;width:100%;font-size:13.5px">
+            </label>
+            <select value="{{ typeFilter }}" onChange="{{ onTypeFilter }}" aria-label="Filter by type" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+              <sc-for list="{{ typeOptions }}" as="opt" hint-placeholder-count="3">
+                <option value="{{ opt.value }}">{{ opt.label }}</option>
+              </sc-for>
+            </select>
+            <select value="{{ statusFilter }}" onChange="{{ onStatusFilter }}" aria-label="Filter by status" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+              <sc-for list="{{ statusOptions }}" as="opt" hint-placeholder-count="3">
+                <option value="{{ opt.value }}">{{ opt.label }}</option>
+              </sc-for>
+            </select>
+            <select value="{{ hostFilter }}" onChange="{{ onHostFilter }}" aria-label="Filter by host" style="min-height:38px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--muted);outline:none;font-size:13px" style-focus="border-color:var(--accent)">
+              <sc-for list="{{ hostOptions }}" as="opt" hint-placeholder-count="3">
+                <option value="{{ opt.value }}">{{ opt.label }}</option>
+              </sc-for>
+            </select>
+          </div>
+
+          <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <div style="overflow:auto;margin:0 -16px -16px;padding:0 16px 16px">
+              <table style="width:100%;border-collapse:collapse;min-width:760px">
+                <thead>
+                  <tr>
+                    <th style="border-bottom:1px solid var(--line);padding:9px 10px 9px 0;text-align:left;font-size:11px;color:var(--subtle);font-weight:600;font-family:var(--font-mono);letter-spacing:0.07em;text-transform:uppercase">Memory</th>
+                    <th style="border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;font-size:11px;color:var(--subtle);font-weight:600;font-family:var(--font-mono);letter-spacing:0.07em;text-transform:uppercase">Type</th>
+                    <th style="border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;font-size:11px;color:var(--subtle);font-weight:600;font-family:var(--font-mono);letter-spacing:0.07em;text-transform:uppercase">Status</th>
+                    <th style="border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;font-size:11px;color:var(--subtle);font-weight:600;font-family:var(--font-mono);letter-spacing:0.07em;text-transform:uppercase">Scope</th>
+                    <th style="border-bottom:1px solid var(--line);padding:9px 0 9px 10px;text-align:right;font-size:11px;color:var(--subtle);font-weight:600;font-family:var(--font-mono);letter-spacing:0.07em;text-transform:uppercase">Conf · Imp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ memoryRows }}" as="mem" hint-placeholder-count="8">
+                    <tr style="{{ mem.rowStyle }}" style-hover="background:color-mix(in srgb, var(--text) 4%, transparent)">
+                      <td style="border-bottom:1px solid var(--line2);padding:11px 10px 11px 0;vertical-align:top">
+                        <button type="button" onClick="{{ mem.onSelect }}" style="width:100%;border:0;background:transparent;padding:0;text-align:left;display:grid;gap:4px">
+                          <span style="font-size:13.5px;line-height:1.45;color:var(--body);max-width:520px;display:-webkit-box;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical">{{ mem.text }}</span>
+                          <small style="color:var(--subtle);font-family:var(--font-mono);font-size:10.5px">{{ mem.id }} · {{ mem.updatedText }}</small>
+                        </button>
+                      </td>
+                      <td style="border-bottom:1px solid var(--line2);padding:11px 10px;vertical-align:top;white-space:nowrap">
+                        <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:5px;padding:1px 6px">{{ mem.typeLabel }}</span>
+                      </td>
+                      <td style="border-bottom:1px solid var(--line2);padding:11px 10px;vertical-align:top;white-space:nowrap">
+                        <span style="{{ mem.badgeStyle }}">{{ mem.statusLabel }}</span>
+                      </td>
+                      <td style="border-bottom:1px solid var(--line2);padding:11px 10px;vertical-align:top;font-size:12px;color:var(--muted);font-family:var(--font-mono)">{{ mem.scopeText }}</td>
+                      <td style="border-bottom:1px solid var(--line2);padding:11px 0 11px 10px;vertical-align:top;text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap">{{ mem.confImp }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+            <div style="min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;padding:24px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--subtle)"><use href="#inbox"></use></svg>
+              <strong>No memories match these filters</strong>
+              <p style="margin:0;font-size:13px;color:var(--subtle)">Clear search or broaden the type, status, or host filter.</p>
+            </div>
+          </sc-if>
+        </section>
+
+        <!-- detail panel -->
+        <section aria-label="Memory detail" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:18px;min-width:0;display:flex;flex-direction:column;gap:14px;position:sticky;top:16px">
+          <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);overflow-wrap:anywhere">{{ selId }}</span>
+              <span style="{{ selBadgeStyle }}">{{ selStatusLabel }}</span>
+            </div>
+
+            <sc-if value="{{ selSuperseded }}" hint-placeholder-val="{{ false }}">
+              <button type="button" onClick="{{ onOpenSuperseder }}" style="display:flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb, var(--info) 45%, transparent);background:color-mix(in srgb, var(--info) 7%, transparent);border-radius:9px;padding:8px 10px;color:var(--info);font-size:12px;text-align:left" style-hover="filter:brightness(1.12)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#arrow-right"></use></svg>
+                <span>Superseded by <span style="font-family:var(--font-mono)">{{ selSupersededBy }}</span> — open the replacement</span>
+              </button>
+            </sc-if>
+
+            <label style="display:grid;gap:6px;color:var(--muted);font-size:12px">
+              <span style="font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;font-size:10.5px">Canonical memory</span>
+              <textarea rows="{{ four }}" value="{{ editText }}" onChange="{{ onEditText }}" style="width:100%;border:1px solid var(--line);border-radius:9px;background:var(--inset);color:var(--body);outline:none;resize:vertical;padding:10px;font-size:13.5px;line-height:1.5;box-sizing:border-box" style-focus="border-color:var(--accent)"></textarea>
+            </label>
+
+            <sc-if value="{{ selHasRaw }}" hint-placeholder-val="{{ false }}">
+              <div style="border-left:2px solid var(--line);padding:2px 0 2px 12px;display:grid;gap:4px">
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase">raw source</small>
+                <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)">{{ selRaw }}</p>
+              </div>
+            </sc-if>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <label style="display:grid;gap:6px;color:var(--muted);font-size:12px">
+                <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase">Confidence · {{ editConfidencePct }}</span>
+                <input type="range" min="0" max="1" step="0.01" value="{{ editConfidence }}" onChange="{{ onEditConfidence }}" style="width:100%;margin:0">
+              </label>
+              <label style="display:grid;gap:6px;color:var(--muted);font-size:12px">
+                <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase">Importance · {{ editImportancePct }}</span>
+                <input type="range" min="0" max="1" step="0.01" value="{{ editImportance }}" onChange="{{ onEditImportance }}" style="width:100%;margin:0">
+              </label>
+            </div>
+
+            <dl style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0">
+              <div style="border:1px solid var(--line2);border-radius:9px;padding:9px;min-width:0;background:var(--inset)">
+                <dt style="color:var(--subtle);font-size:10.5px;font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px">Source</dt>
+                <dd style="margin:0;font-size:12.5px;overflow-wrap:anywhere;color:var(--body)">{{ selSource }}</dd>
+              </div>
+              <div style="border:1px solid var(--line2);border-radius:9px;padding:9px;min-width:0;background:var(--inset)">
+                <dt style="color:var(--subtle);font-size:10.5px;font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px">Scope</dt>
+                <dd style="margin:0;font-size:12.5px;overflow-wrap:anywhere;color:var(--body);font-family:var(--font-mono)">{{ selScope }}</dd>
+              </div>
+              <div style="border:1px solid var(--line2);border-radius:9px;padding:9px;min-width:0;background:var(--inset)">
+                <dt style="color:var(--subtle);font-size:10.5px;font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px">Valid</dt>
+                <dd style="margin:0;font-size:12.5px;overflow-wrap:anywhere;color:var(--body)">{{ selValidity }}</dd>
+              </div>
+              <div style="border:1px solid var(--line2);border-radius:9px;padding:9px;min-width:0;background:var(--inset)">
+                <dt style="color:var(--subtle);font-size:10.5px;font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px">Last used</dt>
+                <dd style="margin:0;font-size:12.5px;overflow-wrap:anywhere;color:var(--body)">{{ selLastUsed }}</dd>
+              </div>
+            </dl>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line2);border-radius:9px;background:var(--inset);padding:8px 10px">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);overflow-wrap:anywhere">{{ selResourceUri }}</span>
+              <span style="display:flex;align-items:center;gap:10px;white-space:nowrap">
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)">{{ selUseCount }}</small>
+                <button type="button" onClick="{{ onCopyUri }}" style="border:0;background:transparent;padding:0;font-family:var(--font-mono);font-size:10.5px;color:var(--accent)">{{ uriCopyLabel }}</button>
+              </span>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" onClick="{{ onSave }}" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 13px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.07)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#save"></use></svg>
+                Save
+              </button>
+              <sc-if value="{{ selIsPending }}" hint-placeholder-val="{{ false }}">
+                <button type="button" onClick="{{ onApproveSel }}" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 13px;border-radius:8px;border:1px solid color-mix(in srgb, var(--good) 50%, transparent);background:color-mix(in srgb, var(--good) 9%, transparent);color:var(--good);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.1)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#check"></use></svg>
+                  Approve
+                </button>
+              </sc-if>
+              <button type="button" onClick="{{ onInvalidateSel }}" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 13px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px" style-hover="border-color:var(--warn);color:var(--warn)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#ban"></use></svg>
+                Invalidate
+              </button>
+              <button type="button" onClick="{{ onDeleteAsk }}" style="display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 13px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px" style-hover="border-color:var(--bad);color:var(--bad)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#trash-2"></use></svg>
+                Delete
+              </button>
+            </div>
+
+            <sc-if value="{{ deleteConfirm }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid color-mix(in srgb, var(--bad) 50%, transparent);border-radius:9px;background:color-mix(in srgb, var(--bad) 7%, transparent);padding:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--bad)"><use href="#triangle-alert"></use></svg>
+                <span style="color:var(--body)">Hard delete leaves only a tombstone in the audit log.</span>
+                <button type="button" onClick="{{ onDeleteConfirm }}" style="min-height:28px;padding:0 11px;border-radius:7px;border:0;background:var(--bad);color:#fff;font-weight:600;font-size:12px">Delete</button>
+                <button type="button" onClick="{{ onDeleteCancel }}" style="min-height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12px">Cancel</button>
+              </div>
+            </sc-if>
+
+            <div style="display:grid;gap:2px;border-top:1px solid var(--line2);padding-top:12px">
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">Lifecycle</span>
+              <sc-for list="{{ selEvents }}" as="evt" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:14px minmax(0,1fr);gap:10px;padding:5px 0">
+                  <span style="display:grid;justify-items:center;gap:0">
+                    <span style="{{ evt.dotStyle }}"></span>
+                    <span style="{{ evt.lineStyle }}"></span>
+                  </span>
+                  <span style="display:grid;gap:2px">
+                    <span style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:12.5px">{{ evt.typeLabel }}</strong><small style="font-family:var(--font-mono);color:var(--subtle);font-size:10.5px;white-space:nowrap">{{ evt.time }}</small></span>
+                    <small style="color:var(--muted);font-size:12px;line-height:1.45">{{ evt.reason }}</small>
+                    <small style="color:var(--subtle);font-family:var(--font-mono);font-size:10.5px">{{ evt.actor }}</small>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ false }}">
+            <div style="min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;padding:24px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--subtle)"><use href="#eye"></use></svg>
+              <strong>Select a memory</strong>
+              <p style="margin:0;font-size:13px;color:var(--subtle)">Inspect provenance, edit, and manage its lifecycle.</p>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================= REVIEW ================= -->
+    <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Review Queue" style="display:flex;flex-direction:column;gap:16px">
+        <section aria-label="Pending candidates" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px;display:grid;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <strong style="font-family:var(--font-display);font-size:15px">Pending candidates</strong>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ pendingCountLabel }} · extracted by Qwen, waiting for your approval</span>
+          </div>
+          <sc-for list="{{ pendingRows }}" as="pen" hint-placeholder-count="3">
+            <article style="border:1px solid var(--line2);border-radius:11px;background:var(--inset);padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px">
+              <div style="display:grid;gap:9px;min-width:0;align-content:start">
+                <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:5px;padding:1px 6px">{{ pen.typeLabel }}</span>
+                  <small style="font-family:var(--font-mono);color:var(--subtle);font-size:11px">{{ pen.meta }}</small>
+                </span>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:var(--body)">{{ pen.text }}</p>
+                <sc-if value="{{ pen.hasRaw }}" hint-placeholder-val="{{ false }}">
+                  <div style="border-left:2px solid var(--line);padding:2px 0 2px 12px;display:grid;gap:3px">
+                    <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase">extraction source</small>
+                    <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)">{{ pen.raw }}</p>
+                  </div>
+                </sc-if>
+                <small style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">confidence {{ pen.confidencePct }} · importance {{ pen.importancePct }} · {{ pen.validityReason }}</small>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;justify-content:center">
+                <button type="button" onClick="{{ pen.onApprove }}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.07)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#check"></use></svg>
+                  Approve
+                </button>
+                <button type="button" onClick="{{ pen.onEdit }}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px" style-hover="border-color:var(--accent);color:var(--text)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#eye"></use></svg>
+                  Inspect
+                </button>
+                <button type="button" onClick="{{ pen.onReject }}" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px" style-hover="border-color:var(--bad);color:var(--bad)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#x"></use></svg>
+                  Reject
+                </button>
+              </div>
+            </article>
+          </sc-for>
+          <sc-if value="{{ noPending }}" hint-placeholder-val="{{ false }}">
+            <div style="min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;padding:20px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--subtle)"><use href="#inbox"></use></svg>
+              <strong>Queue is clear</strong>
+              <p style="margin:0;font-size:13px;color:var(--subtle)">New extractions and correction candidates will wait here.</p>
+            </div>
+          </sc-if>
+        </section>
+
+        <section aria-label="Conflicts" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px;display:grid;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <strong style="font-family:var(--font-display);font-size:15px">Conflicts</strong>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ conflictCountLabel }} · governed resolution with auditable reasons</span>
+          </div>
+          <sc-for list="{{ conflictRows }}" as="c" hint-placeholder-count="1">
+            <article style="border:1px solid var(--line2);border-radius:11px;background:var(--inset);padding:14px;display:grid;gap:14px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb, var(--bad) 45%, transparent);background:color-mix(in srgb, var(--bad) 8%, transparent);color:var(--bad);border-radius:999px;padding:3px 9px;font-family:var(--font-mono);font-size:11px">{{ c.severityLabel }}</span>
+                <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:5px;padding:1px 6px">{{ c.typeLabel }}</span>
+                <small style="font-family:var(--font-mono);color:var(--subtle);font-size:11px">{{ c.scopeLabel }}</small>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="border:1px solid color-mix(in srgb, var(--good) 35%, transparent);border-radius:9px;padding:11px;display:grid;gap:5px;align-content:start">
+                  <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--good);letter-spacing:0.06em;text-transform:uppercase">incoming candidate</small>
+                  <p style="margin:0;font-size:13px;line-height:1.5;color:var(--body)">{{ c.incoming }}</p>
+                </div>
+                <div style="border:1px solid var(--line);border-radius:9px;padding:11px;display:grid;gap:5px;align-content:start">
+                  <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase">existing memory</small>
+                  <p style="margin:0;font-size:13px;line-height:1.5;color:var(--muted)">{{ c.existing }}</p>
+                </div>
+              </div>
+              <div style="border-left:2px solid var(--warn);padding:2px 0 2px 12px;display:grid;gap:3px">
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase">{{ c.recommendedLine }}</small>
+                <p style="margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)">{{ c.recommendation }}</p>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(170px,0.5fr) minmax(220px,1fr) auto;gap:10px;align-items:end">
+                <label style="display:grid;gap:5px;color:var(--muted);font-size:11px">
+                  <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase">Action</span>
+                  <select value="{{ c.action }}" onChange="{{ c.onAction }}" style="min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);outline:none;font-size:12.5px" style-focus="border-color:var(--accent)">
+                    <option value="accept_candidate">Accept candidate</option>
+                    <option value="reject_candidate">Reject candidate</option>
+                    <option value="supersede_existing">Supersede existing</option>
+                    <option value="merge">Merge memories</option>
+                    <option value="keep_both">Keep both</option>
+                    <option value="dismiss_conflict">Dismiss conflict</option>
+                  </select>
+                </label>
+                <label style="display:grid;gap:5px;color:var(--muted);font-size:11px">
+                  <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase">Auditable reason (required)</span>
+                  <input value="{{ c.reason }}" onChange="{{ c.onReason }}" placeholder="Why is this the correct resolution?" style="width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);outline:none;padding:8px 10px;font-size:12.5px;box-sizing:border-box" style-focus="border-color:var(--accent)">
+                </label>
+                <button type="button" onClick="{{ c.onResolve }}" disabled="{{ c.resolveDisabled }}" style="display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.07)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#check"></use></svg>
+                  Resolve
+                </button>
+                <sc-if value="{{ c.isMerge }}" hint-placeholder-val="{{ false }}">
+                  <label style="grid-column:1 / -1;display:grid;gap:5px;color:var(--muted);font-size:11px">
+                    <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase">Merged canonical text (required)</span>
+                    <textarea rows="{{ three }}" value="{{ c.mergedText }}" onChange="{{ c.onMergedText }}" style="width:100%;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);outline:none;resize:vertical;padding:9px 10px;font-size:12.5px;line-height:1.5;box-sizing:border-box" style-focus="border-color:var(--accent)"></textarea>
+                  </label>
+                </sc-if>
+              </div>
+            </article>
+          </sc-for>
+          <sc-if value="{{ noConflicts }}" hint-placeholder-val="{{ false }}">
+            <div style="min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;padding:20px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--subtle)"><use href="#check"></use></svg>
+              <strong>No open conflicts</strong>
+              <p style="margin:0;font-size:13px;color:var(--subtle)">Supersede, merge, and reject candidates will surface here.</p>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================= TRACES ================= -->
+    <sc-if value="{{ isTraces }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Traces" style="display:grid;grid-template-columns:minmax(300px,0.75fr) minmax(0,1.45fr);gap:14px;align-items:start">
+        <section aria-label="Trace runs" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:14px;display:grid;gap:8px;position:sticky;top:16px">
+          <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase;padding:2px 4px">Recall runs · newest first</span>
+          <sc-for list="{{ traceRows }}" as="t" hint-placeholder-count="4">
+            <button type="button" onClick="{{ t.onSelect }}" style="{{ t.style }}" style-hover="border-color:var(--accent)">
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span style="display:flex;align-items:center;gap:6px;min-width:0"><strong style="font-family:var(--font-mono);font-size:12px;color:var(--chip)">{{ t.host }}</strong><span style="font-family:var(--font-mono);font-size:10px;color:var(--subtle);border:1px solid var(--line);border-radius:4px;padding:0 5px">{{ t.mode }}</span></span>
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);white-space:nowrap">{{ t.time }}</small>
+              </span>
+              <span style="font-size:13px;line-height:1.45;color:var(--body)">{{ t.query }}</span>
+              <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)">{{ t.counts }}</small>
+            </button>
+          </sc-for>
+        </section>
+
+        <section aria-label="Trace detail" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0">
+          <sc-if value="{{ hasTrace }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)">{{ traceId }} · {{ traceRun }}</span><span style="font-family:var(--font-mono);font-size:10px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:4px;padding:1px 6px">{{ traceMode }}</span></span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ traceHostLine }}</span>
+            </div>
+            <p style="margin:0;font-family:var(--font-display);font-size:17px;line-height:1.45;color:var(--text)">"{{ traceQuery }}"</p>
+            <div style="border:1px solid var(--line2);border-radius:10px;background:var(--inset);padding:12px;display:grid;gap:4px">
+              <span style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0.06em;text-transform:uppercase;flex:1 1 auto;white-space:nowrap">context pack sent to the agent</small>
+                <span style="display:flex;align-items:center;gap:7px;flex:0 0 auto">
+                  <span style="width:70px;height:4px;border-radius:99px;background:var(--line2);overflow:hidden;display:inline-block"><span style="{{ traceBudgetBarStyle }}"></span></span>
+                  <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);white-space:nowrap">{{ traceTokens }}</small>
+                </span>
+              </span>
+              <p style="margin:0;font-size:13px;line-height:1.55;color:var(--body)">{{ tracePack }}</p>
+            </div>
+            <sc-for list="{{ traceGroups }}" as="g" hint-placeholder-count="3">
+              <div style="display:grid;gap:8px">
+                <span style="{{ g.titleStyle }}">{{ g.title }}</span>
+                <sc-for list="{{ g.items }}" as="tm" hint-placeholder-count="1">
+                  <article style="{{ tm.style }}">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <button type="button" onClick="{{ tm.onSelect }}" style="border:0;background:transparent;padding:0;font-family:var(--font-mono);font-size:11.5px;color:var(--accent);text-decoration:underline;text-underline-offset:2px">{{ tm.memoryId }}</button>
+                      <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--chip);border:1px solid color-mix(in srgb, var(--chip) 45%, transparent);border-radius:5px;padding:1px 6px">{{ tm.typeLabel }}</span>
+                      <span style="{{ tm.scoreStyle }}">{{ tm.scoreLabel }}</span>
+                    </div>
+                    <p style="margin:0;font-size:13px;line-height:1.5;color:var(--body)">{{ tm.text }}</p>
+                    <small style="color:var(--muted);font-size:12px;line-height:1.45">{{ tm.reason }}</small>
+                  </article>
+                </sc-for>
+                <sc-if value="{{ g.empty }}" hint-placeholder-val="{{ false }}">
+                  <small style="color:var(--subtle);font-size:12px">None recorded for this trace.</small>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <div style="border-top:1px solid var(--line2);padding-top:14px;display:grid;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <strong style="font-size:13.5px">Was this trace useful?</strong>
+                <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ feedbackCountLabel }}</span>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onClick="{{ onRateHelpful }}" style="{{ helpfulStyle }}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#thumbs-up"></use></svg>
+                  Helpful
+                </button>
+                <button type="button" onClick="{{ onRateUnhelpful }}" style="{{ unhelpfulStyle }}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#thumbs-down"></use></svg>
+                  Unhelpful
+                </button>
+                <input value="{{ fbNote }}" onChange="{{ onFbNote }}" placeholder="{{ fbPlaceholder }}" style="flex:1 1 220px;border:1px solid var(--line);border-radius:8px;background:var(--inset);color:var(--text);outline:none;padding:0 10px;min-height:34px;font-size:12.5px;box-sizing:border-box" style-focus="border-color:var(--accent)">
+                <button type="button" onClick="{{ onSubmitFeedback }}" disabled="{{ submitFeedbackDisabled }}" style="display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 13px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:12.5px" style-hover="filter:brightness(1.07)">Submit</button>
+              </div>
+              <sc-for list="{{ feedbackRows }}" as="f" hint-placeholder-count="1">
+                <div style="border:1px solid var(--line2);border-radius:9px;background:var(--inset);padding:10px;display:grid;gap:4px">
+                  <span style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <span style="{{ f.badgeStyle }}">{{ f.rating }}</span>
+                    <small style="font-family:var(--font-mono);color:var(--subtle);font-size:10.5px">{{ f.time }}</small>
+                  </span>
+                  <sc-if value="{{ f.hasNote }}" hint-placeholder-val="{{ false }}">
+                    <p style="margin:0;font-size:12.5px;color:var(--muted);line-height:1.5">{{ f.note }}</p>
+                  </sc-if>
+                  <sc-if value="{{ f.hasCorrection }}" hint-placeholder-val="{{ false }}">
+                    <small style="font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)">→ queued pending correction {{ f.correctionId }}</small>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================= AUDIT ================= -->
+    <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Audit" style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div role="group" aria-label="Audit filter" style="display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden">
+            <button type="button" onClick="{{ setAuditAll }}" style="{{ auditAllStyle }}">All events</button>
+            <button type="button" onClick="{{ setAuditDeletes }}" style="{{ auditDelStyle }}">Deletions</button>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--subtle)">{{ auditSummary }}</span>
+        </div>
+        <section aria-label="Audit log" style="border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:6px 16px;display:grid">
+          <sc-for list="{{ auditRows }}" as="a" hint-placeholder-count="8">
+            <div style="{{ a.style }}">
+              <span style="{{ a.dotStyle }}"></span>
+              <div style="display:grid;gap:2px;min-width:0">
+                <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <strong style="font-size:13px">{{ a.typeLabel }}</strong>
+                  <button type="button" onClick="{{ a.onOpen }}" style="border:0;background:transparent;padding:0;font-family:var(--font-mono);font-size:11px;color:var(--accent)">{{ a.memoryId }}</button>
+                </span>
+                <small style="color:var(--muted);font-size:12.5px;line-height:1.45">{{ a.reason }}</small>
+              </div>
+              <small style="font-family:var(--font-mono);color:var(--subtle);font-size:11px;white-space:nowrap;text-align:right">{{ a.actor }}<br>{{ a.time }}</small>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noAudit }}" hint-placeholder-val="{{ false }}">
+            <div style="min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;padding:20px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--subtle)"><use href="#history"></use></svg>
+              <strong>Nothing here yet</strong>
+              <p style="margin:0;font-size:13px;color:var(--subtle)">Lifecycle and deletion events will appear here.</p>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+  </section>
+
+  <sc-if value="{{ showConnect }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-label="Connect an agent" onClick="{{ closeConnect }}" style="position:fixed;inset:0;z-index:50;background:rgba(12,9,5,0.55);display:grid;place-items:center;padding:24px">
+      <div onClick="{{ stopClick }}" style="width:min(660px,100%);max-height:88vh;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:var(--shadow);padding:20px 22px;display:grid;gap:14px;box-sizing:border-box">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+          <div style="display:grid;gap:2px">
+            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase">Remote streamable HTTP MCP</span>
+            <h2 style="margin:0;font-family:var(--font-display);font-size:19px;font-weight:600">Connect an agent</h2>
+          </div>
+          <button type="button" onClick="{{ closeConnect }}" aria-label="Close" style="border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);width:30px;height:30px;display:grid;place-items:center;flex:0 0 auto" style-hover="color:var(--text);border-color:var(--accent)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#x"></use></svg>
+          </button>
+        </div>
+        <p style="margin:0;font-size:13px;line-height:1.55;color:var(--muted)">Any MCP host — Codex, Claude Code, Cursor, or a custom agent — connects to the same vault. Sessions start with <span style="font-family:var(--font-mono);font-size:12px;color:var(--chip)">continuity_bootstrap</span>, and every answer can explain itself with <span style="font-family:var(--font-mono);font-size:12px;color:var(--chip)">memory_trace</span>.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line2);border-radius:9px;background:var(--inset);padding:10px 12px">
+          <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--body);overflow-wrap:anywhere">{{ mcpEndpoint }}</span>
+          <button type="button" onClick="{{ onCopyEndpoint }}" style="border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:11px;min-height:26px;padding:0 10px;white-space:nowrap" style-hover="border-color:var(--accent)">{{ endpointCopyLabel }}</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <sc-for list="{{ mcpTools }}" as="tool" hint-placeholder-count="9">
+            <div style="border:1px solid var(--line2);border-radius:8px;background:var(--inset);padding:9px;display:grid;gap:3px;align-content:start">
+              <strong style="font-family:var(--font-mono);font-size:11px;color:var(--chip);overflow-wrap:anywhere">{{ tool.name }}</strong>
+              <small style="color:var(--subtle);font-size:10.5px;line-height:1.4">{{ tool.desc }}</small>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;gap:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div role="group" aria-label="Host" style="display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden">
+              <sc-for list="{{ connectHosts }}" as="h" hint-placeholder-count="3">
+                <button type="button" onClick="{{ h.onClick }}" style="{{ h.style }}">{{ h.label }}</button>
+              </sc-for>
+            </div>
+            <button type="button" onClick="{{ onCopySnippet }}" style="border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:11px;min-height:26px;padding:0 10px;white-space:nowrap" style-hover="border-color:var(--accent)">{{ snippetCopyLabel }}</button>
+          </div>
+          <pre style="margin:0;border:1px solid var(--line2);border-radius:9px;background:var(--inset);color:var(--body);padding:12px;overflow:auto;font-family:var(--font-mono);font-size:11.5px;line-height:1.6;white-space:pre">{{ connectSnippet }}</pre>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;dark&quot;, &quot;light&quot;], &quot;default&quot;: &quot;dark&quot;, &quot;tsType&quot;: &quot;\&quot;dark\&quot; | \&quot;light\&quot;&quot;, &quot;section&quot;: &quot;Appearance&quot;}, &quot;userId&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;demo-user&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Data&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const data = Component.seed();
+    const useCounts = { mem_pref_001: 7, mem_proc_002: 5, mem_tool_003: 3, mem_fail_004: 0, mem_proc_005: 0, mem_dec_006: 1, mem_pref_007: 9, mem_proc_008: 6, mem_tool_009: 4, mem_fail_010: 5, mem_id_011: 12, mem_neg_012: 0 };
+    data.memories = data.memories.map((m) => Object.assign({}, m, { useCount: useCounts[m.id] || 0 }, m.id === "mem_dec_006" ? { supersededBy: "mem_pref_001" } : {}));
+    const traceMeta = { trace_0707_01: ["continuity_bootstrap", 640, 468], trace_0706_04: ["memory_recall", 512, 289], trace_0706_03: ["memory_reflect", 420, 212], trace_0706_02: ["memory_recall", 640, 412] };
+    data.traces = data.traces.map((t) => { const mm = traceMeta[t.id]; return mm ? Object.assign({}, t, { mode: mm[0], budgetTokens: mm[1], estTokens: mm[2] }) : t; });
+    this.state = {
+      themeOverride: null,
+      view: "overview",
+      memories: data.memories,
+      events: data.events,
+      traces: data.traces,
+      conflicts: data.conflicts,
+      feedback: data.feedback,
+      selectedMemoryId: "mem_pref_001",
+      selectedTraceId: "trace_0707_01",
+      query: "",
+      typeFilter: "all",
+      statusFilter: "all",
+      hostFilter: "all",
+      edit: null,
+      deleteConfirm: false,
+      fbRating: "helpful",
+      fbNote: "",
+      conflictForms: {},
+      showConnect: false,
+      connectHost: "claude-code",
+      copiedKey: null,
+      auditFilter: "all"
+    };
+    const first = data.memories.find((m) => m.id === "mem_pref_001");
+    if (first) this.state.edit = Component.editFrom(first);
+  }
+
+  componentDidMount() {
+    if (document.getElementById("lucide-sprite")) return;
+    const svgNS = "http://www.w3.org/2000/svg";
+    const holder = document.createElementNS(svgNS, "svg");
+    holder.id = "lucide-sprite";
+    holder.setAttribute("aria-hidden", "true");
+    holder.setAttribute("style", "position:absolute;width:0;height:0;overflow:hidden");
+    document.body.appendChild(holder);
+    const wanted = {
+      "database": ["database"], "inbox": ["inbox"], "git-branch": ["git-branch"],
+      "history": ["history"], "shield-check": ["shield-check"], "layout-dashboard": ["layout-dashboard"],
+      "arrow-right": ["arrow-right"], "check": ["check"], "x": ["x"], "search": ["search"],
+      "eye": ["eye"], "ban": ["ban"], "trash-2": ["trash-2"], "save": ["save"],
+      "triangle-alert": ["triangle-alert", "alert-triangle"], "thumbs-up": ["thumbs-up"],
+      "thumbs-down": ["thumbs-down"], "sun": ["sun"], "moon": ["moon"], "plug": ["plug"], "copy": ["copy"]
+    };
+    Object.keys(wanted).forEach(async (id) => {
+      for (const candidate of wanted[id]) {
+        try {
+          const res = await fetch("https://unpkg.com/lucide-static@0.462.0/icons/" + candidate + ".svg");
+          if (!res.ok) continue;
+          const text = await res.text();
+          const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+          const src = doc.documentElement;
+          if (!src || src.nodeName === "parsererror") continue;
+          const sym = document.createElementNS(svgNS, "symbol");
+          sym.setAttribute("id", id);
+          sym.setAttribute("viewBox", src.getAttribute("viewBox") || "0 0 24 24");
+          Array.prototype.slice.call(src.childNodes).forEach((n) => sym.appendChild(document.importNode(n, true)));
+          holder.appendChild(sym);
+          return;
+        } catch (e) { /* try next */ }
+      }
+    });
+  }
+
+  static editFrom(m) {
+    return { canonicalText: m.canonicalText, confidence: m.confidence, importance: m.importance };
+  }
+
+  static fmt(value) {
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  }
+
+  static pct(v) { return Math.round(v * 100) + "%"; }
+  static token(v) { return String(v).split("_").join(" "); }
+
+  static scopeShort(m) {
+    const s = m.scope;
+    const parts = [];
+    if (s.projectId) parts.push(s.projectId);
+    if (s.hostId) parts.push(s.hostId);
+    if (s.toolId) parts.push(s.toolId);
+    if (!parts.length) parts.push("user");
+    return parts.join(" · ");
+  }
+
+  static statusColor(status) {
+    return { active: "var(--good)", pending: "var(--warn)", invalidated: "var(--bad)", expired: "var(--bad)", superseded: "var(--info)" }[status] || "var(--muted)";
+  }
+
+  static chip(colorVar) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: 6,
+      border: "1px solid color-mix(in srgb, " + colorVar + " 40%, transparent)",
+      background: "color-mix(in srgb, " + colorVar + " 8%, transparent)",
+      color: colorVar, borderRadius: 999, padding: "2px 9px",
+      fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap"
+    };
+  }
+
+  select(memoryId, goVault) {
+    const m = this.state.memories.find((x) => x.id === memoryId);
+    this.setState({
+      selectedMemoryId: memoryId,
+      edit: m ? Component.editFrom(m) : null,
+      deleteConfirm: false,
+      view: goVault ? "vault" : this.state.view
+    });
+  }
+
+  flashCopied(key) {
+    this.setState({ copiedKey: key });
+    if (this._copyTimer) clearTimeout(this._copyTimer);
+    this._copyTimer = setTimeout(() => this.setState({ copiedKey: null }), 1400);
+  }
+
+  addEvent(partial) {
+    const evt = Object.assign({ id: "evt_" + Date.now(), createdAt: new Date().toISOString() }, partial);
+    return [evt].concat(this.state.events);
+  }
+
+  setStatus(memoryId, status, eventType, reason, actor) {
+    const memories = this.state.memories.map((m) => m.id === memoryId ? Object.assign({}, m, { status, updatedAt: new Date().toISOString() }) : m);
+    const events = this.addEvent({ memoryId, eventType, actorType: "user", actorId: actor || "dashboard", reason });
+    this.setState({ memories, events });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const theme = s.themeOverride || this.props.theme || "dark";
+    const userId = this.props.userId || "demo-user";
+    const view = s.view;
+
+    const pending = s.memories.filter((m) => m.status === "pending");
+    const activeCount = s.memories.filter((m) => m.status === "active").length;
+    const reviewCount = pending.length + s.conflicts.length;
+
+    // ---- nav
+    const navBase = { minHeight: 40, border: "1px solid transparent", borderRadius: 9, background: "transparent", color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", width: "100%", textAlign: "left" };
+    const navActive = Object.assign({}, navBase, { background: "color-mix(in srgb, var(--accent) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)", color: "var(--text)", fontWeight: 600 });
+    const countPlain = { fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--subtle)" };
+    const countHot = { fontFamily: "var(--font-mono)", fontSize: 11, background: "var(--accent)", color: "var(--accent-ink)", borderRadius: 999, padding: "1px 7px", fontWeight: 600 };
+    const navItems = [
+      { key: "overview", label: "Overview", icon: "layout-dashboard", count: "", countStyle: countPlain },
+      { key: "vault", label: "Memory Vault", icon: "database", count: s.memories.length, countStyle: countPlain },
+      { key: "review", label: "Review Queue", icon: "inbox", count: reviewCount, countStyle: reviewCount > 0 ? countHot : countPlain },
+      { key: "traces", label: "Traces", icon: "git-branch", count: s.traces.length, countStyle: countPlain },
+      { key: "audit", label: "Audit Log", icon: "history", count: s.events.length, countStyle: countPlain }
+    ].map((n) => Object.assign(n, {
+      style: n.key === view ? navActive : navBase,
+      onClick: () => this.setState({ view: n.key })
+    }));
+
+    const headings = {
+      overview: ["Overview · Jul 7, 2026", "Your memory survived 3 agents today"],
+      vault: ["Memory Vault", "Every durable fact, in one governed store"],
+      review: ["Governance", "Approve what agents are allowed to remember"],
+      traces: ["Explainability", "Why the agent knew what it knew"],
+      audit: ["Caller-scoped governance", "Every lifecycle change, on the record"]
+    };
+
+    // ---- theme toggle
+    const segBase = { border: 0, background: "transparent", color: "var(--subtle)", minHeight: 30, padding: "0 11px", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 };
+    const segActive = Object.assign({}, segBase, { background: "var(--accent)", color: "var(--accent-ink)", fontWeight: 600 });
+
+    // ---- metrics
+    const metricBase = { border: "1px solid var(--line)", borderRadius: 13, background: "var(--panel)", padding: 14, display: "grid", gap: 5, textAlign: "left", alignContent: "start" };
+    const metricHot = Object.assign({}, metricBase, { border: "1px solid color-mix(in srgb, var(--accent) 45%, transparent)", background: "color-mix(in srgb, var(--accent) 6%, transparent)" });
+    const mv = (c) => Object.assign({ fontSize: 29, fontWeight: 600, fontFamily: "var(--font-mono)", lineHeight: 1.1 }, c ? { color: c } : {});
+    const mn = (c) => ({ fontFamily: "var(--font-mono)", fontSize: 11, color: c || "var(--subtle)" });
+    const metrics = [
+      { label: "Active memories", value: activeCount, style: metricBase, valueStyle: mv(null), note: "+3 today", noteStyle: mn("var(--good)"), onClick: () => this.setState({ view: "vault" }) },
+      { label: "Pending review", value: pending.length, style: pending.length ? metricHot : metricBase, valueStyle: mv(pending.length ? "var(--chip)" : null), note: "oldest 2 h", noteStyle: mn(), onClick: () => this.setState({ view: "review" }) },
+      { label: "Open conflicts", value: s.conflicts.length, style: metricBase, valueStyle: mv(s.conflicts.length ? "var(--bad)" : null), note: s.conflicts.length ? "high severity" : "all clear", noteStyle: mn(), onClick: () => this.setState({ view: "review" }) },
+      { label: "Trace runs", value: s.traces.length, style: metricBase, valueStyle: mv(null), note: "across 3 hosts", noteStyle: mn(), onClick: () => this.setState({ view: "traces" }) }
+    ];
+
+    // ---- vault rows
+    const filtered = s.memories.filter((m) => {
+      const hay = [m.id, m.type, m.status, m.canonicalText, m.source.label, Component.scopeShort(m)].join(" ").toLowerCase();
+      const q = hay.includes(s.query.toLowerCase().trim());
+      const t = s.typeFilter === "all" || m.type === s.typeFilter;
+      const st = s.statusFilter === "all" || m.status === s.statusFilter;
+      const h = s.hostFilter === "all" || m.scope.hostId === s.hostFilter || m.scope.toolId === s.hostFilter;
+      return q && t && st && h;
+    });
+
+    const badge = (status) => Object.assign(Component.chip(Component.statusColor(status)), { textTransform: "none" });
+    const memoryRows = filtered.map((m) => ({
+      id: m.id,
+      text: m.canonicalText,
+      typeLabel: m.type,
+      statusLabel: Component.token(m.status),
+      badgeStyle: badge(m.status),
+      scopeText: Component.scopeShort(m),
+      confImp: Component.pct(m.confidence) + " · " + Component.pct(m.importance),
+      updatedText: Component.fmt(m.updatedAt),
+      rowStyle: m.id === s.selectedMemoryId ? { background: "color-mix(in srgb, var(--accent) 7%, transparent)" } : {},
+      onSelect: () => this.select(m.id, false)
+    }));
+
+    const types = ["identity", "user_preference", "procedure", "project_fact", "tool_memory", "decision_memory", "failure_memory", "outcome_memory", "negative_preference", "skill"];
+    const typeOptions = [{ value: "all", label: "Type: all" }].concat(types.map((t) => ({ value: t, label: Component.token(t) })));
+    const statusOptions = [{ value: "all", label: "Status: all" }].concat(["active", "pending", "invalidated", "expired", "superseded"].map((t) => ({ value: t, label: Component.token(t) })));
+    const hostOptions = [{ value: "all", label: "Host: all" }, { value: "codex", label: "codex" }, { value: "claude-code", label: "claude-code" }, { value: "cursor", label: "cursor" }, { value: "devpost", label: "devpost" }, { value: "docker", label: "docker" }];
+
+    // ---- selection
+    const sel = s.memories.find((m) => m.id === s.selectedMemoryId);
+    const edit = s.edit;
+    const selEvents = sel ? s.events.filter((e) => e.memoryId === sel.id).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) : [];
+    const evTone = (t) => ({ created: "var(--chip)", approved: "var(--good)", recalled: "var(--good)", updated: "var(--muted)", invalidated: "var(--warn)", superseded: "var(--info)", deleted: "var(--bad)" }[t] || "var(--muted)");
+
+    // ---- pending / review
+    const mkPendingVM = (m) => ({
+      type: m.type, typeLabel: m.type,
+      meta: (m.scope.hostId || "server") + " · " + Component.fmt(m.createdAt),
+      text: m.canonicalText,
+      hasRaw: Boolean(m.rawSource), raw: m.rawSource || "",
+      confidencePct: Component.pct(m.confidence), importancePct: Component.pct(m.importance),
+      validityReason: m.validity.reason || "pending reviewer decision",
+      onApprove: () => this.setStatus(m.id, "active", "approved", "Approved from review queue.", userId),
+      onReject: () => this.setStatus(m.id, "invalidated", "invalidated", "Rejected from review queue.", userId),
+      onEdit: () => this.select(m.id, true)
+    });
+    const pendingRows = pending.map(mkPendingVM);
+    const overviewPending = pending.slice(0, 2).map(mkPendingVM);
+
+    const conflictRows = s.conflicts.map((c) => {
+      const form = s.conflictForms[c.id] || { action: c.recommendedAction, reason: "", mergedText: c.incoming };
+      const setForm = (patch) => this.setState({ conflictForms: Object.assign({}, s.conflictForms, { [c.id]: Object.assign({}, form, patch) }) });
+      return {
+        severityLabel: c.severity + " · " + Component.token(c.conflictType),
+        typeLabel: c.memoryType,
+        scopeLabel: c.scopeLabel,
+        incoming: c.incoming, existing: c.existing,
+        recommendation: c.recommendation,
+        recommendedLine: "recommended: " + Component.token(c.recommendedAction),
+        action: form.action, reason: form.reason,
+        onAction: (e) => setForm({ action: e.target.value }),
+        onReason: (e) => setForm({ reason: e.target.value }),
+        mergedText: form.mergedText,
+        isMerge: form.action === "merge",
+        onMergedText: (e) => setForm({ mergedText: e.target.value }),
+        resolveDisabled: !form.reason.trim() || (form.action === "merge" && !form.mergedText.trim()),
+        onResolve: () => {
+          const conflicts = this.state.conflicts.filter((x) => x.id !== c.id);
+          const events = this.addEvent({ memoryId: c.candidateId, eventType: Component.token(form.action), actorType: "user", actorId: userId, reason: form.reason.trim() });
+          let memories = this.state.memories;
+          if (form.action === "accept_candidate" || form.action === "supersede_existing" || form.action === "merge") {
+            memories = memories.map((m) => m.id === c.candidateId ? Object.assign({}, m, { status: "active", updatedAt: new Date().toISOString() }, form.action === "merge" ? { canonicalText: form.mergedText.trim() } : {}) : m);
+          }
+          this.setState({ conflicts, events, memories });
+        }
+      };
+    });
+
+    // ---- traces
+    const traceBase = { border: "1px solid var(--line2)", borderRadius: 10, background: "var(--inset)", padding: 12, display: "grid", gap: 6, textAlign: "left", width: "100%" };
+    const traceRows = s.traces.map((t) => ({
+      host: t.hostId,
+      mode: String(t.mode || "recall").replace("continuity_", "").replace("memory_", ""),
+      time: Component.fmt(t.createdAt),
+      query: t.query,
+      counts: t.usedMemories.length + " used · " + t.ignoredMemories.length + " ignored · " + t.excludedMemories.length + " excluded",
+      style: t.id === s.selectedTraceId ? Object.assign({}, traceBase, { border: "1px solid var(--accent)", background: "color-mix(in srgb, var(--accent) 6%, transparent)" }) : traceBase,
+      onSelect: () => this.setState({ selectedTraceId: t.id })
+    }));
+
+    const trace = s.traces.find((t) => t.id === s.selectedTraceId);
+    const groupTitle = (c) => ({ fontFamily: "var(--font-mono)", fontSize: 10.5, color: c, letterSpacing: "0.07em", textTransform: "uppercase" });
+    const itemStyle = (c) => ({ borderLeft: "2px solid " + c, border: "1px solid var(--line2)", borderLeftWidth: 2, borderLeftColor: c, borderRadius: 9, background: "var(--inset)", padding: 11, display: "grid", gap: 6 });
+    const mapItems = (items, c) => items.map((it) => ({
+      memoryId: it.memoryId,
+      typeLabel: it.type,
+      scoreLabel: it.score !== undefined ? "score " + Component.pct(it.score) : "no score",
+      scoreStyle: Component.chip(c),
+      text: it.text, reason: it.reason,
+      style: itemStyle(c),
+      onSelect: () => this.select(it.memoryId, true)
+    }));
+    const traceGroups = trace ? [
+      { title: "used (" + trace.usedMemories.length + ")", titleStyle: groupTitle("var(--good)"), items: mapItems(trace.usedMemories, "var(--good)"), empty: !trace.usedMemories.length },
+      { title: "ignored (" + trace.ignoredMemories.length + ")", titleStyle: groupTitle("var(--warn)"), items: mapItems(trace.ignoredMemories, "var(--warn)"), empty: !trace.ignoredMemories.length },
+      { title: "excluded (" + trace.excludedMemories.length + ")", titleStyle: groupTitle("var(--bad)"), items: mapItems(trace.excludedMemories, "var(--bad)"), empty: !trace.excludedMemories.length }
+    ] : [];
+
+    const traceFb = s.feedback.filter((f) => f.traceId === s.selectedTraceId);
+    const choiceBase = { minHeight: 34, border: "1px solid var(--line)", borderRadius: 8, background: "transparent", color: "var(--muted)", padding: "0 12px", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5 };
+    const choiceSel = (c) => Object.assign({}, choiceBase, { border: "1px solid color-mix(in srgb, " + c + " 50%, transparent)", background: "color-mix(in srgb, " + c + " 9%, transparent)", color: c, fontWeight: 600 });
+
+    // ---- audit
+    const latest = s.traces[0];
+    const sortedEvents = s.events.slice().sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const shown = s.auditFilter === "deletes" ? sortedEvents.filter((e) => e.eventType === "deleted") : sortedEvents;
+    const deletions = sortedEvents.filter((e) => e.eventType === "deleted").length;
+    const auditRows = shown.map((e) => ({
+      typeLabel: Component.token(e.eventType),
+      memoryId: e.memoryId,
+      reason: e.reason,
+      actor: e.actorType + ":" + e.actorId,
+      time: Component.fmt(e.createdAt),
+      dotStyle: { width: 8, height: 8, borderRadius: 99, background: evTone(e.eventType), marginTop: 6 },
+      style: e.eventType === "deleted"
+        ? { display: "grid", gridTemplateColumns: "14px minmax(0,1fr) auto", gap: 12, padding: "12px 10px", borderBottom: "1px solid var(--line2)", background: "color-mix(in srgb, var(--bad) 5%, transparent)", borderRadius: 8, margin: "4px -10px" }
+        : { display: "grid", gridTemplateColumns: "14px minmax(0,1fr) auto", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--line2)" },
+      onOpen: () => this.select(e.memoryId, true)
+    }));
+
+    const mcpEndpoint = "https://api.handoffbase.dev/mcp";
+    const resourceUri = sel ? (sel.status === "pending" ? "memory://vault/pending" : ({
+      identity: "memory://users/" + userId + "/profile",
+      user_preference: "memory://users/" + userId + "/profile",
+      negative_preference: "memory://users/" + userId + "/profile",
+      procedure: "memory://agents/opportunity-scout/procedures",
+      failure_memory: "memory://agents/opportunity-scout/failures",
+      tool_memory: "memory://projects/" + (sel.scope.projectId || "ai-event-2026") + "/tool-notes"
+    }[sel.type] || "memory://projects/" + (sel.scope.projectId || "ai-event-2026") + "/facts")) : "";
+    const snippets = {
+      "claude-code": "claude mcp add --transport http handoffbase \\\n  " + mcpEndpoint + " \\\n  --header \"Authorization: Bearer $HANDOFFBASE_API_KEY\"",
+      "codex": "# ~/.codex/config.toml\n[mcp_servers.handoffbase]\nurl = \"" + mcpEndpoint + "\"\nhttp_headers = { Authorization = \"Bearer $HANDOFFBASE_API_KEY\" }",
+      "cursor": "// .cursor/mcp.json\n{\n  \"mcpServers\": {\n    \"handoffbase\": {\n      \"url\": \"" + mcpEndpoint + "\",\n      \"headers\": { \"Authorization\": \"Bearer $HANDOFFBASE_API_KEY\" }\n    }\n  }\n}"
+    };
+
+    return {
+      theme, userId,
+      three: 3,
+
+      showConnect: s.showConnect,
+      openConnect: () => this.setState({ showConnect: true }),
+      closeConnect: () => this.setState({ showConnect: false }),
+      stopClick: (e) => e.stopPropagation(),
+      mcpEndpoint,
+      endpointCopyLabel: s.copiedKey === "endpoint" ? "copied ✓" : "copy",
+      onCopyEndpoint: () => { navigator.clipboard.writeText(mcpEndpoint); this.flashCopied("endpoint"); },
+      mcpTools: [
+        { name: "continuity_bootstrap", desc: "Context pack at session start" },
+        { name: "memory_recall", desc: "Task-scoped retrieval" },
+        { name: "memory_remember", desc: "Capture corrections & facts" },
+        { name: "memory_reflect", desc: "Distill lessons after a run" },
+        { name: "memory_update", desc: "Edit, merge, supersede" },
+        { name: "memory_forget", desc: "Expire or hard-delete" },
+        { name: "memory_trace", desc: "Explain used / ignored / excluded" },
+        { name: "memory_resolve_conflict", desc: "Governed six-action resolution" },
+        { name: "memory_feedback", desc: "Helpful / unhelpful + corrections" }
+      ],
+      connectHosts: ["claude-code", "codex", "cursor"].map((h) => ({
+        label: h,
+        style: h === s.connectHost ? segActive : segBase,
+        onClick: () => this.setState({ connectHost: h })
+      })),
+      connectSnippet: snippets[s.connectHost],
+      snippetCopyLabel: s.copiedKey === "snippet" ? "copied ✓" : "copy",
+      onCopySnippet: () => { navigator.clipboard.writeText(snippets[s.connectHost]); this.flashCopied("snippet"); },
+
+      selResourceUri: resourceUri,
+      uriCopyLabel: s.copiedKey === "uri" ? "copied ✓" : "copy",
+      onCopyUri: () => { navigator.clipboard.writeText(resourceUri); this.flashCopied("uri"); },
+      selUseCount: sel ? "recalled " + (sel.useCount || 0) + "×" : "",
+      selSuperseded: Boolean(sel && sel.supersededBy),
+      selSupersededBy: sel ? (sel.supersededBy || "") : "",
+      onOpenSuperseder: () => { if (sel && sel.supersededBy) this.select(sel.supersededBy, true); },
+      setDark: () => this.setState({ themeOverride: "dark" }),
+      setLight: () => this.setState({ themeOverride: "light" }),
+      darkBtnStyle: theme === "dark" ? segActive : segBase,
+      lightBtnStyle: theme === "light" ? segActive : segBase,
+
+      navItems,
+      viewEyebrow: headings[view][0],
+      viewTitle: headings[view][1],
+      isOverview: view === "overview", isVault: view === "vault", isReview: view === "review",
+      isTraces: view === "traces", isAudit: view === "audit",
+      goTraces: () => this.setState({ view: "traces" }),
+      goReview: () => this.setState({ view: "review" }),
+
+      metrics,
+      reviewWaitingLabel: reviewCount + " waiting",
+      overviewPending,
+      noPendingOverview: pending.length === 0,
+      latestTraceId: latest ? latest.id : "",
+      latestTraceQuery: latest ? latest.query : "",
+      latestUsed: latest ? latest.usedMemories.length : 0,
+      latestIgnored: latest ? latest.ignoredMemories.length : 0,
+      latestExcluded: latest ? latest.excludedMemories.length : 0,
+      latestWhy: "failure_memory (score 95%) prevents the migration crash seen on Jul 6; tool_memory (91%) carries the ECS key-handling rule.",
+
+      query: s.query, onQuery: (e) => this.setState({ query: e.target.value }),
+      typeFilter: s.typeFilter, onTypeFilter: (e) => this.setState({ typeFilter: e.target.value }),
+      statusFilter: s.statusFilter, onStatusFilter: (e) => this.setState({ statusFilter: e.target.value }),
+      hostFilter: s.hostFilter, onHostFilter: (e) => this.setState({ hostFilter: e.target.value }),
+      typeOptions, statusOptions, hostOptions,
+      memoryRows,
+      hasRows: filtered.length > 0,
+      noRows: filtered.length === 0,
+
+      hasSelection: Boolean(sel && edit),
+      noSelection: !(sel && edit),
+      selId: sel ? sel.id : "",
+      selStatusLabel: sel ? Component.token(sel.status) : "",
+      selBadgeStyle: sel ? badge(sel.status) : {},
+      selHasRaw: Boolean(sel && sel.rawSource),
+      selRaw: sel ? (sel.rawSource || "") : "",
+      selSource: sel ? Component.token(sel.source.kind) + " — " + sel.source.label : "",
+      selScope: sel ? ["demo-tenant", userId, sel.scope.projectId, sel.scope.hostId, sel.scope.toolId].filter(Boolean).join(" / ") : "",
+      selValidity: sel ? (sel.validity.validUntil ? Component.fmt(sel.validity.validFrom) + " → " + Component.fmt(sel.validity.validUntil) : "from " + Component.fmt(sel.validity.validFrom)) : "",
+      selLastUsed: sel ? (sel.lastUsedAt ? Component.fmt(sel.lastUsedAt) : "never used") : "",
+      selIsPending: Boolean(sel && sel.status === "pending"),
+      four: 4,
+
+      editText: edit ? edit.canonicalText : "",
+      onEditText: (e) => this.setState({ edit: Object.assign({}, edit, { canonicalText: e.target.value }) }),
+      editConfidence: edit ? edit.confidence : 0,
+      editConfidencePct: edit ? Component.pct(edit.confidence) : "",
+      onEditConfidence: (e) => this.setState({ edit: Object.assign({}, edit, { confidence: Number(e.target.value) }) }),
+      editImportance: edit ? edit.importance : 0,
+      editImportancePct: edit ? Component.pct(edit.importance) : "",
+      onEditImportance: (e) => this.setState({ edit: Object.assign({}, edit, { importance: Number(e.target.value) }) }),
+      onSave: () => {
+        if (!sel || !edit) return;
+        const memories = this.state.memories.map((m) => m.id === sel.id ? Object.assign({}, m, { canonicalText: edit.canonicalText, confidence: edit.confidence, importance: edit.importance, updatedAt: new Date().toISOString() }) : m);
+        this.setState({ memories, events: this.addEvent({ memoryId: sel.id, eventType: "updated", actorType: "user", actorId: userId, reason: "Edited from Memory Vault dashboard." }) });
+      },
+      onApproveSel: () => { if (sel) this.setStatus(sel.id, "active", "approved", "Approved from detail panel.", userId); },
+      onInvalidateSel: () => { if (sel) this.setStatus(sel.id, "invalidated", "invalidated", "Invalidated from detail panel.", userId); },
+      deleteConfirm: s.deleteConfirm,
+      onDeleteAsk: () => this.setState({ deleteConfirm: true }),
+      onDeleteCancel: () => this.setState({ deleteConfirm: false }),
+      onDeleteConfirm: () => {
+        if (!sel) return;
+        const memories = this.state.memories.filter((m) => m.id !== sel.id);
+        const events = this.addEvent({ memoryId: sel.id, eventType: "deleted", actorType: "user", actorId: userId, reason: "Hard delete requested from dashboard. Content removed; tombstone kept." });
+        const next = memories[0];
+        this.setState({ memories, events, deleteConfirm: false, selectedMemoryId: next ? next.id : "", edit: next ? Component.editFrom(next) : null });
+      },
+      selEvents: selEvents.map((e, i) => ({
+        typeLabel: Component.token(e.eventType),
+        reason: e.reason,
+        actor: e.actorType + ":" + e.actorId,
+        time: Component.fmt(e.createdAt),
+        dotStyle: { width: 8, height: 8, borderRadius: 99, background: evTone(e.eventType), marginTop: 4 },
+        lineStyle: i === selEvents.length - 1 ? {} : { width: 1, flex: 1, minHeight: 18, background: "var(--line)" }
+      })),
+
+      pendingRows,
+      pendingCountLabel: pending.length + " candidates",
+      noPending: pending.length === 0,
+      conflictRows,
+      conflictCountLabel: s.conflicts.length + " open",
+      noConflicts: s.conflicts.length === 0,
+
+      traceRows,
+      hasTrace: Boolean(trace),
+      traceId: trace ? trace.id : "",
+      traceRun: trace ? trace.runId : "",
+      traceHostLine: trace ? trace.hostId + " · " + trace.agentProfileId : "",
+      traceQuery: trace ? trace.query : "",
+      traceMode: trace ? (trace.mode || "memory_recall") : "",
+      traceTokens: trace ? trace.estTokens + " / " + trace.budgetTokens + " tokens" : "",
+      traceBudgetBarStyle: trace ? { display: "block", height: "100%", width: Math.min(100, Math.round((trace.estTokens / trace.budgetTokens) * 100)) + "%", background: "var(--accent)", borderRadius: 99 } : {},
+      tracePack: trace ? trace.contextPack : "",
+      traceGroups,
+      feedbackCountLabel: traceFb.length + " submitted",
+      helpfulStyle: s.fbRating === "helpful" ? choiceSel("var(--good)") : choiceBase,
+      unhelpfulStyle: s.fbRating === "unhelpful" ? choiceSel("var(--bad)") : choiceBase,
+      onRateHelpful: () => this.setState({ fbRating: "helpful" }),
+      onRateUnhelpful: () => this.setState({ fbRating: "unhelpful" }),
+      fbNote: s.fbNote,
+      onFbNote: (e) => this.setState({ fbNote: e.target.value }),
+      fbPlaceholder: s.fbRating === "unhelpful" ? "What went wrong? Becomes a pending correction…" : "Optional note",
+      submitFeedbackDisabled: s.fbRating === "unhelpful" && !s.fbNote.trim(),
+      onSubmitFeedback: () => {
+        if (!trace) return;
+        const unhelpful = s.fbRating === "unhelpful";
+        const corrId = unhelpful ? "mem_corr_" + String(this.state.feedback.length + 1).padStart(2, "0") : null;
+        const item = {
+          id: "fb_" + Date.now(), traceId: trace.id, rating: s.fbRating,
+          note: s.fbNote.trim() || null,
+          correctionId: corrId,
+          createdAt: new Date().toISOString()
+        };
+        const patch = { feedback: [item].concat(this.state.feedback), fbNote: "" };
+        if (unhelpful && s.fbNote.trim()) {
+          const nowIso = new Date().toISOString();
+          patch.memories = [{
+            id: corrId, type: "procedure", scope: { hostId: trace.hostId },
+            source: { kind: "user_correction", label: "Correction from trace feedback (" + trace.id + ")" },
+            status: "pending", confidence: 0.75, importance: 0.7,
+            validity: { validFrom: nowIso, reason: "Unhelpful-trace correction; needs review before it changes behavior." },
+            canonicalText: s.fbNote.trim(), rawSource: "Feedback on " + trace.id + ": " + s.fbNote.trim(),
+            createdAt: nowIso, updatedAt: nowIso, lastUsedAt: null, useCount: 0
+          }].concat(this.state.memories);
+          patch.events = this.addEvent({ memoryId: corrId, eventType: "created", actorType: "user", actorId: userId, reason: "Pending correction generated from unhelpful trace feedback." });
+        }
+        this.setState(patch);
+      },
+      feedbackRows: traceFb.map((f) => ({
+        rating: f.rating,
+        badgeStyle: Component.chip(f.rating === "helpful" ? "var(--good)" : "var(--bad)"),
+        time: Component.fmt(f.createdAt),
+        hasNote: Boolean(f.note), note: f.note || "",
+        hasCorrection: Boolean(f.correctionId), correctionId: f.correctionId || ""
+      })),
+
+      setAuditAll: () => this.setState({ auditFilter: "all" }),
+      setAuditDeletes: () => this.setState({ auditFilter: "deletes" }),
+      auditAllStyle: s.auditFilter === "deletes" ? segBase : segActive,
+      auditDelStyle: s.auditFilter === "deletes" ? segActive : segBase,
+      auditSummary: sortedEvents.length + " events · " + deletions + " hard deletes · content of deleted memories is never retained",
+      auditRows,
+      noAudit: shown.length === 0
+    };
+  }
+
+  static seed() {
+    return {
+      memories: [
+        { id: "mem_pref_001", type: "user_preference", scope: { hostId: "codex" }, source: { kind: "user_correction", label: "Session 1 preference correction" }, status: "active", confidence: 0.96, importance: 0.9, validity: { validFrom: "2026-07-06T10:12:00Z", reason: "Confirmed directly by the user." }, canonicalText: "Prioritizes AI hackathons that improve credentials, founder network, and startup resources over prize money alone.", rawSource: "I want AI hackathons that improve credentials and network, not only prize money.", createdAt: "2026-07-06T10:15:00Z", updatedAt: "2026-07-06T10:21:00Z", lastUsedAt: "2026-07-07T09:02:00Z" },
+        { id: "mem_proc_002", type: "procedure", scope: { projectId: "ai-event-2026" }, source: { kind: "run_reflection", label: "Post-run reflection" }, status: "active", confidence: 0.93, importance: 0.88, validity: { validFrom: "2026-07-06T11:00:00Z", reason: "Repeated failure prevention procedure." }, canonicalText: "Before recommending a hackathon, verify registration deadline, timezone, eligibility region, and official rules.", createdAt: "2026-07-06T11:05:00Z", updatedAt: "2026-07-06T11:05:00Z", lastUsedAt: "2026-07-06T15:24:00Z" },
+        { id: "mem_tool_003", type: "tool_memory", scope: { toolId: "devpost" }, source: { kind: "run_reflection", label: "Devpost inspection result" }, status: "active", confidence: 0.86, importance: 0.67, validity: { validFrom: "2026-07-06T11:42:00Z", reason: "Observed tool behavior." }, canonicalText: "Devpost deadlines are often shown in Pacific Time; convert them before comparing against Asia/Shanghai planning dates.", createdAt: "2026-07-06T11:45:00Z", updatedAt: "2026-07-06T11:45:00Z", lastUsedAt: "2026-07-06T14:00:00Z" },
+        { id: "mem_fail_004", type: "failure_memory", scope: { projectId: "ai-event-2026", hostId: "claude-code" }, source: { kind: "run_reflection", label: "Eligibility mistake reflection" }, status: "pending", confidence: 0.82, importance: 0.78, validity: { validFrom: "2026-07-06T15:20:00Z", reason: "Needs approval — changes future recommendations." }, canonicalText: "Do not recommend competitions when official eligibility excludes the user's region; verify rules before ranking.", rawSource: "The user corrected a recommendation because the event did not allow China or Hong Kong participation.", createdAt: "2026-07-06T15:24:00Z", updatedAt: "2026-07-06T15:24:00Z", lastUsedAt: null },
+        { id: "mem_proc_005", type: "procedure", scope: { projectId: "ai-event-2026", hostId: "codex" }, source: { kind: "run_reflection", label: "Ranking rule extraction" }, status: "pending", confidence: 0.84, importance: 0.72, validity: { validFrom: "2026-07-06T16:02:00Z", reason: "Needs approval before it changes ranking behavior." }, canonicalText: "When eligible opportunities compete, rank founder network, credentials, mentor access, and startup resources above cash-only prize size.", rawSource: "Qwen extracted this after the user corrected a prize-first ranking.", createdAt: "2026-07-06T16:02:00Z", updatedAt: "2026-07-06T16:02:00Z", lastUsedAt: null },
+        { id: "mem_dec_006", type: "decision_memory", scope: { hostId: "codex" }, source: { kind: "run_reflection", label: "Superseded prioritization note" }, status: "superseded", confidence: 0.69, importance: 0.3, validity: { validFrom: "2026-07-05T08:00:00Z", validUntil: "2026-07-06T10:15:00Z", reason: "Superseded by stronger user preference." }, canonicalText: "User appears to prioritize hackathon prize money when choosing opportunities.", createdAt: "2026-07-05T08:20:00Z", updatedAt: "2026-07-06T10:20:00Z", lastUsedAt: "2026-07-06T09:10:00Z" },
+        { id: "mem_pref_007", type: "user_preference", scope: { hostId: "cursor" }, source: { kind: "user_correction", label: "Workspace setup correction" }, status: "active", confidence: 0.97, importance: 0.85, validity: { validFrom: "2026-07-05T09:30:00Z", reason: "Stated twice across sessions." }, canonicalText: "Prefers pnpm for all Node workspaces; never suggest npm install or yarn in this project.", rawSource: "please stop telling me to npm install, we use pnpm here", createdAt: "2026-07-05T09:31:00Z", updatedAt: "2026-07-05T09:31:00Z", lastUsedAt: "2026-07-07T09:02:00Z" },
+        { id: "mem_proc_008", type: "procedure", scope: { projectId: "handoffbase", hostId: "claude-code" }, source: { kind: "run_reflection", label: "Pre-commit routine" }, status: "active", confidence: 0.91, importance: 0.82, validity: { validFrom: "2026-07-05T14:00:00Z", reason: "Prevented two broken commits." }, canonicalText: "Run npm run check (lint, typecheck, unit tests) before every commit to handoffbase; CI mirrors the same gate.", createdAt: "2026-07-05T14:05:00Z", updatedAt: "2026-07-05T14:05:00Z", lastUsedAt: "2026-07-06T20:40:00Z" },
+        { id: "mem_tool_009", type: "tool_memory", scope: { projectId: "handoffbase", toolId: "docker" }, source: { kind: "run_reflection", label: "ECS deploy learning" }, status: "active", confidence: 0.88, importance: 0.74, validity: { validFrom: "2026-07-05T18:22:00Z", reason: "Verified during cloud deployment proof." }, canonicalText: "Pass DASHSCOPE_API_KEY at container runtime on ECS; never bake provider keys into the Docker image.", createdAt: "2026-07-05T18:25:00Z", updatedAt: "2026-07-05T18:25:00Z", lastUsedAt: "2026-07-07T09:02:00Z" },
+        { id: "mem_fail_010", type: "failure_memory", scope: { projectId: "handoffbase", hostId: "codex" }, source: { kind: "run_reflection", label: "Startup crash reflection" }, status: "active", confidence: 0.9, importance: 0.86, validity: { validFrom: "2026-07-06T08:40:00Z", reason: "Reproduced once; migration order is mandatory." }, canonicalText: "Setting STORE_MODE=postgres without running the migration first crashes startup; always run db:migrate before switching store modes.", rawSource: "Server exited: relation \"memories\" does not exist. Fixed by running the migration before enabling postgres mode.", createdAt: "2026-07-06T08:45:00Z", updatedAt: "2026-07-06T08:45:00Z", lastUsedAt: "2026-07-06T20:40:00Z" },
+        { id: "mem_id_011", type: "identity", scope: {}, source: { kind: "onboarding", label: "Profile bootstrap" }, status: "active", confidence: 0.99, importance: 0.7, validity: { validFrom: "2026-07-04T12:00:00Z", reason: "Provided at onboarding." }, canonicalText: "Solo founder-engineer shipping HandoffBase for the 2026 agent-infra hackathon; plans in Asia/Shanghai timezone.", createdAt: "2026-07-04T12:00:00Z", updatedAt: "2026-07-04T12:00:00Z", lastUsedAt: "2026-07-07T09:02:00Z" },
+        { id: "mem_neg_012", type: "negative_preference", scope: { hostId: "cursor" }, source: { kind: "user_correction", label: "Budget guidance" }, status: "pending", confidence: 0.8, importance: 0.66, validity: { validFrom: "2026-07-07T08:50:00Z", reason: "Needs approval — constrains future suggestions." }, canonicalText: "Avoid suggesting paid SaaS for infrastructure the hackathon already provides free credits for.", rawSource: "we get free Alibaba Cloud credits, don't pitch me paid alternatives", createdAt: "2026-07-07T08:52:00Z", updatedAt: "2026-07-07T08:52:00Z", lastUsedAt: null }
+      ],
+      events: [
+        { id: "evt_01", memoryId: "mem_pref_001", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Extracted durable preference from correction.", createdAt: "2026-07-06T10:15:00Z" },
+        { id: "evt_02", memoryId: "mem_pref_001", eventType: "approved", actorType: "user", actorId: "demo-user", reason: "User confirmed this ranking criterion.", createdAt: "2026-07-06T10:21:00Z" },
+        { id: "evt_03", memoryId: "mem_pref_001", eventType: "recalled", actorType: "system", actorId: "memory_recall", reason: "Selected for context pack trace_0706_02.", createdAt: "2026-07-06T14:10:00Z" },
+        { id: "evt_04", memoryId: "mem_proc_002", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Generated after post-run reflection.", createdAt: "2026-07-06T11:05:00Z" },
+        { id: "evt_05", memoryId: "mem_dec_006", eventType: "superseded", actorType: "system", actorId: "conflict-check", reason: "Superseded by mem_pref_001.", createdAt: "2026-07-06T10:20:00Z" },
+        { id: "evt_06", memoryId: "mem_fail_004", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Candidate failure memory requires review.", createdAt: "2026-07-06T15:24:00Z" },
+        { id: "evt_07", memoryId: "mem_proc_005", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Candidate ranking procedure requires review.", createdAt: "2026-07-06T16:02:00Z" },
+        { id: "evt_08", memoryId: "mem_pref_007", eventType: "created", actorType: "agent", actorId: "cursor", reason: "Extracted from repeated workspace correction.", createdAt: "2026-07-05T09:31:00Z" },
+        { id: "evt_09", memoryId: "mem_pref_007", eventType: "approved", actorType: "user", actorId: "demo-user", reason: "Confirmed pnpm-only workflow.", createdAt: "2026-07-05T09:40:00Z" },
+        { id: "evt_10", memoryId: "mem_fail_010", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Startup crash reflection recorded.", createdAt: "2026-07-06T08:45:00Z" },
+        { id: "evt_11", memoryId: "mem_fail_010", eventType: "approved", actorType: "user", actorId: "demo-user", reason: "Migration-before-postgres rule confirmed.", createdAt: "2026-07-06T09:00:00Z" },
+        { id: "evt_12", memoryId: "mem_fail_010", eventType: "recalled", actorType: "system", actorId: "memory_recall", reason: "Selected for readiness check trace_0706_04.", createdAt: "2026-07-06T20:40:00Z" },
+        { id: "evt_13", memoryId: "mem_tool_009", eventType: "recalled", actorType: "system", actorId: "continuity_bootstrap", reason: "Included in cursor bootstrap trace_0707_01.", createdAt: "2026-07-07T09:02:00Z" },
+        { id: "evt_14", memoryId: "mem_neg_012", eventType: "created", actorType: "agent", actorId: "qwen-provider", reason: "Candidate negative preference requires review.", createdAt: "2026-07-07T08:52:00Z" }
+      ],
+      traces: [
+        {
+          id: "trace_0707_01", runId: "run_2026_0707_01", hostId: "cursor", agentProfileId: "opportunity-scout", createdAt: "2026-07-07T09:02:00Z",
+          query: "Bootstrap a new session to continue HandoffBase deploy work.",
+          contextPack: "Solo founder in Asia/Shanghai shipping HandoffBase. Use pnpm only. Run db:migrate before STORE_MODE=postgres. Pass DASHSCOPE_API_KEY at ECS runtime, never bake into images. Run npm run check before commits.",
+          usedMemories: [
+            { memoryId: "mem_fail_010", text: "Run db:migrate before switching STORE_MODE to postgres — skipping it crashes startup.", type: "failure_memory", score: 0.95, reason: "Directly blocks today's deploy task from repeating the Jul 6 crash." },
+            { memoryId: "mem_tool_009", text: "Pass DASHSCOPE_API_KEY at container runtime on ECS; never bake keys into images.", type: "tool_memory", score: 0.91, reason: "Deploy step touches the same container configuration." },
+            { memoryId: "mem_pref_007", text: "Prefers pnpm; never suggest npm install.", type: "user_preference", score: 0.87, reason: "Every shell suggestion in this session must respect it." },
+            { memoryId: "mem_id_011", text: "Solo founder-engineer; plans in Asia/Shanghai timezone.", type: "identity", score: 0.8, reason: "Frames deadlines and scheduling for the session." }
+          ],
+          ignoredMemories: [
+            { memoryId: "mem_tool_003", text: "Devpost deadlines are often shown in Pacific Time.", type: "tool_memory", score: 0.31, reason: "No Devpost page involved in deploy work." }
+          ],
+          excludedMemories: []
+        },
+        {
+          id: "trace_0706_04", runId: "run_2026_0706_04", hostId: "claude-code", agentProfileId: "opportunity-scout", createdAt: "2026-07-06T20:40:00Z",
+          query: "Verify Postgres runtime readiness before the demo.",
+          contextPack: "Check migration state before enabling postgres store mode. Mirror the npm run check gate locally before pushing demo fixes.",
+          usedMemories: [
+            { memoryId: "mem_fail_010", text: "Run db:migrate before switching STORE_MODE to postgres.", type: "failure_memory", score: 0.93, reason: "Readiness check exists because of this exact failure." },
+            { memoryId: "mem_proc_008", text: "Run npm run check before every commit to handoffbase.", type: "procedure", score: 0.84, reason: "Demo fixes must pass the same gate as CI." }
+          ],
+          ignoredMemories: [
+            { memoryId: "mem_pref_001", text: "Prioritizes credentials, network, and startup resources over prize money.", type: "user_preference", score: 0.22, reason: "Not relevant to runtime readiness." }
+          ],
+          excludedMemories: []
+        },
+        {
+          id: "trace_0706_03", runId: "run_2026_0706_03", hostId: "claude-code", agentProfileId: "opportunity-scout", createdAt: "2026-07-06T15:24:00Z",
+          query: "Reflect on a recommendation that failed eligibility checks.",
+          contextPack: "The user cares about region eligibility. Convert event deadlines to the planning timezone and record failure memories as pending until reviewed.",
+          usedMemories: [
+            { memoryId: "mem_proc_002", text: "Verify registration deadline, timezone, eligibility region, and official rules.", type: "procedure", score: 0.9, reason: "Matched the failed recommendation pattern." }
+          ],
+          ignoredMemories: [],
+          excludedMemories: []
+        },
+        {
+          id: "trace_0706_02", runId: "run_2026_0706_02", hostId: "codex", agentProfileId: "opportunity-scout", createdAt: "2026-07-06T14:10:00Z",
+          query: "Rank Qwen, TRAE, and CockroachDB opportunities for this user.",
+          contextPack: "Use confirmed preference for AI agent or memory-focused hackathons. Prioritize credentials, network, and startup resources. Verify deadlines, eligibility region, official rules, and timezone before ranking.",
+          usedMemories: [
+            { memoryId: "mem_pref_001", text: "Prioritizes credentials, founder network, and startup resources over prize money alone.", type: "user_preference", score: 0.92, reason: "Directly determines ranking criteria." },
+            { memoryId: "mem_proc_002", text: "Verify registration deadline, timezone, eligibility region, and official rules.", type: "procedure", score: 0.88, reason: "Required safety check before recommendations." }
+          ],
+          ignoredMemories: [
+            { memoryId: "mem_tool_003", text: "Devpost deadlines are often shown in Pacific Time.", type: "tool_memory", score: 0.44, reason: "No Devpost page was used in this run." }
+          ],
+          excludedMemories: [
+            { memoryId: "mem_dec_006", text: "User appears to prioritize hackathon prize money.", type: "decision_memory", score: 0.12, reason: "Superseded by a directly confirmed preference." }
+          ]
+        }
+      ],
+      conflicts: [
+        {
+          id: "conflict_001", status: "open", conflictType: "supersedes", severity: "high",
+          candidateId: "mem_proc_005",
+          incoming: "Rank founder network, credentials, mentor access, and startup resources above cash-only prize size.",
+          existing: "User appears to prioritize hackathon prize money when choosing opportunities.",
+          recommendation: "Accept the candidate procedure and keep the older prize-money note superseded — it contradicts the user's confirmed preference.",
+          recommendedAction: "accept_candidate", memoryType: "procedure", scopeLabel: "demo-user / opportunity-scout"
+        }
+      ],
+      feedback: [
+        { id: "fb_seed_1", traceId: "trace_0706_02", rating: "helpful", note: "Ranking matched what I actually value — no prize-money bias this time.", correctionId: null, createdAt: "2026-07-06T14:30:00Z" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

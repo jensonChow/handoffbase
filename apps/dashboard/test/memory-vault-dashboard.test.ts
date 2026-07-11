@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DashboardRuntimeStatus } from "../src/components/dashboard-runtime-status";
 import {
   AuditView,
-  ConflictResolutionCard,
+  ConflictCard,
   MemoryVaultDashboard,
   TraceFeedbackPanel
 } from "../src/components/memory-vault-dashboard";
@@ -43,52 +43,60 @@ test("global deletion history renders only safe tombstone fields", () => {
     })
   );
 
+  // The audit log is the one surface that renders deleted memories. It must
+  // only ever expose the safe tombstone fields — never the canonical content.
   assert.match(html, /Audit &amp; Deletion History/);
   assert.match(html, /deleted-memory-1/);
   assert.match(html, /User requested permanent removal/);
   assert.match(html, /dashboard-user/);
   assert.match(html, /scope: user \/ project/);
+  assert.match(html, /content of deleted memories is never/);
   assert.doesNotMatch(html, /canonicalText|rawSource|SECRET_DELETED_CONTENT/);
 });
 
-test("unhelpful trace feedback exposes a copyable runnable regression draft", () => {
+test("unhelpful trace feedback surfaces the queued pending correction", () => {
   const feedback: TraceFeedback = {
     id: "feedback-1",
     traceId: "trace-1",
     rating: "unhelpful",
+    reason: "Ranking ignored region eligibility.",
     correction: "Verify region eligibility before ranking.",
+    correctionMemoryId: "mem_corr_01",
     createdAt: "2026-07-10T05:00:00.000Z",
     regressionFixture: {
       schema_version: "1",
       target: "trace",
       signal: "unhelpful",
-      scope_dimensions: ["tenant", "user"],
-      correction: "Verify region eligibility before ranking."
+      scope_dimensions: ["tenant", "user"]
     }
   };
   const html = renderToStaticMarkup(
     createElement(TraceFeedbackPanel, {
+      traceId: "trace-1",
       feedback: [feedback],
       isMutating: false,
       onSubmit: () => {}
     })
   );
 
-  assert.match(html, /Runnable regression draft/);
-  assert.match(html, /Copy runnable draft/);
-  assert.match(html, /Verify region eligibility before ranking/);
-  assert.match(html, /scope_dimensions/);
-  assert.doesNotMatch(html, /demo-tenant|demo-user|trace-1|feedback-1/);
+  assert.match(html, /Was this trace useful\?/);
+  assert.match(html, /Ranking ignored region eligibility/);
+  assert.match(html, /queued pending correction mem_corr_01/);
+  assert.match(html, /Submit/);
+  // The panel never renders the internal regression-fixture payload.
+  assert.doesNotMatch(html, /scope_dimensions|schema_version/);
 });
 
-test("helpful feedback is persisted without offering a non-runnable fixture", () => {
+test("helpful feedback persists without offering a correction pointer", () => {
   const html = renderToStaticMarkup(
     createElement(TraceFeedbackPanel, {
+      traceId: "trace-helpful",
       feedback: [
         {
           id: "feedback-helpful",
           traceId: "trace-helpful",
           rating: "helpful",
+          reason: "Matched what I actually value.",
           createdAt: "2026-07-10T05:00:00.000Z",
           regressionFixture: {
             schema_version: "1",
@@ -103,8 +111,8 @@ test("helpful feedback is persisted without offering a non-runnable fixture", ()
     })
   );
 
-  assert.match(html, /Persisted feedback/);
-  assert.doesNotMatch(html, /Runnable regression draft|Copy runnable draft/);
+  assert.match(html, /Matched what I actually value/);
+  assert.doesNotMatch(html, /queued pending correction/);
 });
 
 test("conflict card presents every resolution action with required audit inputs", () => {
@@ -121,7 +129,7 @@ test("conflict card presents every resolution action with required audit inputs"
     scopeLabel: "user / project"
   };
   const html = renderToStaticMarkup(
-    createElement(ConflictResolutionCard, {
+    createElement(ConflictCard, {
       conflict,
       isMutating: false,
       onResolve: () => {}
@@ -139,6 +147,7 @@ test("conflict card presents every resolution action with required audit inputs"
     assert.match(html, new RegExp(label));
   }
   assert.match(html, /Auditable reason \(required\)/);
+  // The recommended action is "merge", so the merged-text field must be present.
   assert.match(html, /Merged canonical text \(required\)/);
 });
 
