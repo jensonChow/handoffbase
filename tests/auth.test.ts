@@ -128,6 +128,37 @@ test("explicit empty API-key grants remain deny-all instead of becoming unrestri
   assert.deepEqual(caller.allowedAgentProfileIds, []);
 });
 
+test("api_key auth mode rejects inherited Object.prototype names presented as API keys", () => {
+  const config = authConfigFromEnv({
+    HANDOFFBASE_AUTH_MODE: "api_key",
+    HANDOFFBASE_API_KEY: "real-secret-key",
+    HANDOFFBASE_TENANT_ID: "tenant-real",
+    HANDOFFBASE_USER_ID: "user-real",
+  });
+
+  // A bare apiKeys[apiKey] lookup would resolve these inherited members to
+  // truthy values and admit an unscoped caller that matches every tenant.
+  for (const prototypeName of [
+    "constructor",
+    "__proto__",
+    "toString",
+    "hasOwnProperty",
+    "valueOf",
+    "isPrototypeOf",
+  ]) {
+    assert.throws(
+      () => resolveCallerContext(requestWithHeaders({ authorization: `Bearer ${prototypeName}` }), config),
+      /Invalid Handoffbase API key/,
+      `presenting "${prototypeName}" as an API key must be rejected`,
+    );
+  }
+
+  const caller = resolveCallerContext(requestWithHeaders({ authorization: "Bearer real-secret-key" }), config);
+  assert.equal(caller.tenantId, "tenant-real");
+  assert.equal(caller.userId, "user-real");
+  assert.equal(caller.authMode, "api_key");
+});
+
 test("memory_resolve_conflict preserves API-key caller scope through the HTTP MCP wrapper", async () => {
   const store = new InMemoryMemoryStore();
   await store.addMemory({

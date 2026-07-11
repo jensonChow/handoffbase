@@ -23,12 +23,19 @@ export function authConfigFromEnv(env: Record<string, string | undefined> = proc
     };
   }
 
+  // Build the lookup map without a prototype so that presenting an inherited
+  // member name ("constructor", "__proto__", "toString", ...) as an API key can
+  // never resolve to a truthy non-entry. request.ts also guards the lookup with
+  // Object.hasOwn; this is defense in depth for any other apiKeys[key] access.
+  const apiKeys: Record<string, ApiKeyCallerConfig> = Object.assign(
+    Object.create(null) as Record<string, ApiKeyCallerConfig>,
+    parseApiKeysJson(env.HANDOFFBASE_API_KEYS_JSON),
+    parseSingleApiKey(env),
+  );
+
   return {
     mode,
-    apiKeys: {
-      ...parseApiKeysJson(env.HANDOFFBASE_API_KEYS_JSON),
-      ...parseSingleApiKey(env),
-    },
+    apiKeys,
     disabledCaller: DEFAULT_DISABLED_CALLER,
   };
 }

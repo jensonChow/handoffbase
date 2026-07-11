@@ -74,7 +74,7 @@ const SENSITIVE_PATTERNS: SensitivePattern[] = [
     type: "password",
     name: "credential_assignment",
     pattern:
-      /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|session[_-]?cookie)\s*[:=]\s*["']?(?!\[REDACTED_)[^\s"',;]{8,}/gi
+      /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|session[_-]?cookie)["']?\s*[:=]\s*["']?(?!\[REDACTED_)[^\s"',;]{8,}/gi
   }
 ];
 

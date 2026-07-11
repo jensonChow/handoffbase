@@ -55,8 +55,8 @@ const DEFAULT_VALIDITY: MemoryValidity = { status: "unknown" };
 
 const CREDENTIAL_PATTERNS: Array<[SafetyRedaction["kind"], RegExp]> = [
   ["private_key", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g],
-  ["credential", /\b(?:api[_-]?key|secret|password|passwd|pwd)\s*[:=]\s*["']?[^"'\s,;]+/gi],
-  ["token", /\b(?:token|access_token|refresh_token|authorization)\s*[:=]\s*["']?[^"'\s,;]+/gi],
+  ["credential", /\b(?:api[_-]?key|secret|password|passwd|pwd)["']?\s*[:=]\s*["']?[^"'\s,;]+/gi],
+  ["token", /\b(?:token|access_token|refresh_token|authorization)["']?\s*[:=]\s*["']?[^"'\s,;]+/gi],
   ["cookie", /\b(?:cookie|set-cookie)\s*[:=]\s*["']?[^"'\n]+/gi],
   ["token", /\bsk-[A-Za-z0-9_-]{16,}\b/g],
   ["token", /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g]
@@ -64,7 +64,12 @@ const CREDENTIAL_PATTERNS: Array<[SafetyRedaction["kind"], RegExp]> = [
 
 const PERSONAL_DATA_PATTERNS: Array<[SafetyRedaction["kind"], RegExp]> = [
   ["email", /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi],
-  ["phone", /\b(?:\+?\d[\d .-]{7,}\d)\b/g]
+  // Phone numbers only: an international "+" prefix, a parenthesised area code,
+  // or the classic NNN-NNN-NNNN grouping. The previous \b\+?\d[\d .-]{7,}\d\b
+  // also matched ISO dates ("2024-01-15") and dotted version/id strings
+  // ("1.2.3.4567890"), corrupting benign memory content and mislabelling it
+  // sensitive.
+  ["phone", /(?:\+\d[\d\s().-]{6,}\d|\(\d{2,4}\)[\s.-]*\d{3}[\s.-]*\d{3,4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b)/g]
 ];
 
 export function parseProviderJson(raw: string): unknown {

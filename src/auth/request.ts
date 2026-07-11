@@ -1,4 +1,4 @@
-import type { AuthConfig, CallerContext } from "./types.js";
+import type { ApiKeyCallerConfig, AuthConfig, CallerContext } from "./types.js";
 import { AuthError } from "./types.js";
 import { DEFAULT_DISABLED_CALLER } from "./config.js";
 
@@ -20,7 +20,7 @@ export function resolveCallerContext(request: HeaderReader, config: AuthConfig):
     });
   }
 
-  const caller = config.apiKeys?.[apiKey];
+  const caller = resolveConfiguredCaller(config.apiKeys, apiKey);
   if (!caller) {
     throw new AuthError("Invalid Handoffbase API key.", {
       statusCode: 401,
@@ -37,6 +37,33 @@ export function resolveCallerContext(request: HeaderReader, config: AuthConfig):
     allowedProjectIds: caller.allowedProjectIds,
     authMode: "api_key",
   };
+}
+
+function resolveConfiguredCaller(
+  apiKeys: AuthConfig["apiKeys"],
+  apiKey: string,
+): ApiKeyCallerConfig | undefined {
+  // Look up own properties only. `config.apiKeys` is a plain object, so a bare
+  // `apiKeys[apiKey]` resolves inherited Object.prototype members
+  // ("constructor", "__proto__", "toString", "hasOwnProperty", "valueOf", ...)
+  // to truthy values, which would let an attacker present one of those names as
+  // an API key and bypass the invalid-key check. Also require a concrete
+  // tenant/user so a malformed entry can never yield an unscoped caller whose
+  // undefined scope matches every tenant's memories.
+  if (!apiKeys || !Object.hasOwn(apiKeys, apiKey)) {
+    return undefined;
+  }
+  const caller = apiKeys[apiKey];
+  if (
+    !caller
+    || typeof caller.tenantId !== "string"
+    || caller.tenantId.length === 0
+    || typeof caller.userId !== "string"
+    || caller.userId.length === 0
+  ) {
+    return undefined;
+  }
+  return caller;
 }
 
 function extractApiKey(request: HeaderReader): string | undefined {

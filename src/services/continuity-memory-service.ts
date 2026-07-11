@@ -440,6 +440,16 @@ export class ContinuityMemoryService implements MemoryService {
       await this.ensureSeeded();
       const current = await this.requireMutableMemory(input.memory_id, context.caller, "memory_update");
       assertMemoryExpectedStatus(current, input.expected_status);
+      // "deleted" and "superseded" are reserved terminal states with dedicated
+      // flows. Setting "deleted" here would retain the memory content and skip
+      // the hard-delete redaction tombstone; setting "superseded" requires a
+      // replacement id (supersededBy) that memory_update does not accept and
+      // would otherwise surface as an opaque validation failure.
+      if (input.patch.status === "deleted" || input.patch.status === "superseded") {
+        throw new Error(
+          `memory_update cannot set status "${input.patch.status}": use memory_forget (mode "hard_delete") to delete, or the supersede / memory_resolve_conflict flow to supersede.`,
+        );
+      }
       const result = await this.store.updateMemory(
         input.memory_id,
         {
@@ -1397,7 +1407,11 @@ function assertFeedbackScopesCompatible(
   ] as const) {
     const leftValue = left[dimension];
     const rightValue = right[dimension];
-    if (leftValue !== rightValue) {
+    // Narrowing semantics: an optional dimension only conflicts when both sides
+    // set it and they differ. A run scope structurally never carries sessionId
+    // or toolId (see scopeFromRun), so strict equality would reject feedback on
+    // any session- or tool-scoped memory paired with a run.
+    if (leftValue !== undefined && rightValue !== undefined && leftValue !== rightValue) {
       throw new ScopeGuardError(
         `memory_feedback ${leftLabel} and ${rightLabel} have conflicting ${dimension} scope.`,
       );
@@ -2093,7 +2107,11 @@ function groupContextPack(selectedTexts: string[], memories: MemoryRecord[]): Co
     failure_memory: [],
   };
 
-  for (const text of selectedTexts.length > 0 ? selectedTexts : memories.map((memory) => memory.canonicalText)) {
+  // Group exactly what the provider selected under the token budget. Falling
+  // back to every recalled memory when the selection is empty would blow the
+  // budget (e.g. a token_budget smaller than the smallest memory returned all of
+  // them); an empty selection must stay empty.
+  for (const text of selectedTexts) {
     const memory = byText.get(text);
     if (!memory) {
       pack.user.push(text);

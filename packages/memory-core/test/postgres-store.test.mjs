@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildConflictListQuery,
+  buildFeedbackListQuery,
   buildIgnoredMemoryQuery,
+  buildMemoryListQuery,
   buildRecallQuery,
   mapRecallRows,
   mapPostgresConflictRow,
@@ -1718,3 +1721,34 @@ function traceReferencesMemoryRow(trace, memoryId) {
     || trace.metadata?.excluded_memory_ids?.includes(memoryId)
     || false;
 }
+
+test("buildMemoryListQuery excludes explicitly-expired memories on the default path", () => {
+  const { sql } = buildMemoryListQuery({
+    scope: { tenantId: "tenant_1", userId: "user_1" },
+    now: new Date("2026-07-07T00:00:00.000Z")
+  });
+  // Must use the effective-status expression (matches getEffectiveMemoryStatus),
+  // not just the active+validity predicate, so status='expired' rows are hidden.
+  assert.match(sql, /else status end\) <> 'expired'/);
+});
+
+test("buildMemoryListQuery treats an empty allowlist as match-nothing", () => {
+  const statuses = buildMemoryListQuery({ scope: { tenantId: "t", userId: "u" }, statuses: [] });
+  assert.match(statuses.sql, /\bfalse\b/);
+  const types = buildMemoryListQuery({ scope: { tenantId: "t", userId: "u" }, types: [] });
+  assert.match(types.sql, /\bfalse\b/);
+});
+
+test("feedback and conflict list builders treat empty arrays as match-nothing", () => {
+  assert.match(buildFeedbackListQuery({ signals: [] }).sql, /\bfalse\b/);
+  assert.match(buildConflictListQuery({ statuses: [] }).sql, /\bfalse\b/);
+  assert.match(buildConflictListQuery({ conflictTypes: [] }).sql, /\bfalse\b/);
+});
+
+test("buildRecallQuery guards the vector distance against a dimension mismatch", () => {
+  const { sql } = buildRecallQuery(
+    { scope: { tenantId: "tenant_1", userId: "user_1" }, now: new Date("2026-07-07T00:00:00.000Z") },
+    { queryEmbedding: [0.1, 0.2, 0.3] }
+  );
+  assert.match(sql, /vector_dims\(e\.embedding\) <> 3/);
+});

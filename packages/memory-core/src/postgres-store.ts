@@ -1446,28 +1446,45 @@ function optionalJsonParam(value: JsonObject | undefined): string | null {
   return value === undefined ? null : jsonParam(value);
 }
 
-function buildMemoryListQuery(filter: MemoryListFilter): SqlQueryParts {
+export function buildMemoryListQuery(filter: MemoryListFilter): SqlQueryParts {
   const values: unknown[] = [];
   const where: string[] = [];
 
   addScopeFilter(where, values, filter.scope);
 
-  if (filter.types !== undefined && filter.types.length > 0) {
-    values.push(filter.types);
-    where.push(`type = any($${values.length}::text[])`);
+  // A defined-but-empty allowlist matches nothing (mirrors the in-memory
+  // reference and the recall path's addMemoryTypeFilter), not "no filter".
+  if (filter.types !== undefined) {
+    if (filter.types.length === 0) {
+      where.push("false");
+    } else {
+      values.push(filter.types);
+      where.push(`type = any($${values.length}::text[])`);
+    }
   }
 
   const now = filter.now ?? new Date();
-  if (filter.statuses !== undefined && filter.statuses.length > 0) {
-    values.push(now);
-    const nowIndex = values.length;
-    values.push(filter.statuses);
-    where.push(
-      `case when status = 'active' and valid_until is not null and valid_until <= $${nowIndex} then 'expired' else status end = any($${values.length}::text[])`
-    );
+  if (filter.statuses !== undefined) {
+    if (filter.statuses.length === 0) {
+      where.push("false");
+    } else {
+      values.push(now);
+      const nowIndex = values.length;
+      values.push(filter.statuses);
+      where.push(
+        `case when status = 'active' and valid_until is not null and valid_until <= $${nowIndex} then 'expired' else status end = any($${values.length}::text[])`
+      );
+    }
   } else if (!filter.includeExpiredByValidity) {
+    // Exclude any memory whose EFFECTIVE status is expired, matching
+    // getEffectiveMemoryStatus: both validity-expired active rows AND rows whose
+    // stored status is literally 'expired'. The prior clause only negated
+    // validity-expired active rows, so explicitly-expired memories leaked into
+    // the default listing on Postgres but not in-memory.
     values.push(now);
-    where.push(`not (status = 'active' and valid_until is not null and valid_until <= $${values.length})`);
+    where.push(
+      `(case when status = 'active' and valid_until is not null and valid_until <= $${values.length} then 'expired' else status end) <> 'expired'`
+    );
   }
 
   return {
@@ -1522,7 +1539,7 @@ function addEventSnapshotScopeValue(
     : `(${expression} is null or ${expression} = $${values.length})`);
 }
 
-function buildFeedbackListQuery(filter: MemoryFeedbackListFilter): SqlQueryParts {
+export function buildFeedbackListQuery(filter: MemoryFeedbackListFilter): SqlQueryParts {
   const values: unknown[] = [];
   const where: string[] = [];
 
@@ -1530,9 +1547,13 @@ function buildFeedbackListQuery(filter: MemoryFeedbackListFilter): SqlQueryParts
   addExactFilter(where, values, "memory_id", filter.memoryId);
   addExactFilter(where, values, "trace_id", filter.traceId);
   addExactFilter(where, values, "run_id", filter.runId);
-  if (filter.signals !== undefined && filter.signals.length > 0) {
-    values.push(filter.signals);
-    where.push(`signal = any($${values.length}::text[])`);
+  if (filter.signals !== undefined) {
+    if (filter.signals.length === 0) {
+      where.push("false");
+    } else {
+      values.push(filter.signals);
+      where.push(`signal = any($${values.length}::text[])`);
+    }
   }
 
   return {
@@ -1556,7 +1577,7 @@ function addFeedbackScopeFilter(
   addScopedDimensionFilter(where, values, "tool_id", scope.toolId);
 }
 
-function buildConflictListQuery(filter: MemoryConflictListFilter): SqlQueryParts {
+export function buildConflictListQuery(filter: MemoryConflictListFilter): SqlQueryParts {
   const values: unknown[] = [];
   const where: string[] = [];
 
@@ -1564,14 +1585,22 @@ function buildConflictListQuery(filter: MemoryConflictListFilter): SqlQueryParts
   addExactFilter(where, values, "candidate_memory_id", filter.candidateMemoryId);
   addExactFilter(where, values, "existing_memory_id", filter.existingMemoryId);
 
-  if (filter.statuses !== undefined && filter.statuses.length > 0) {
-    values.push(filter.statuses);
-    where.push(`status = any($${values.length}::text[])`);
+  if (filter.statuses !== undefined) {
+    if (filter.statuses.length === 0) {
+      where.push("false");
+    } else {
+      values.push(filter.statuses);
+      where.push(`status = any($${values.length}::text[])`);
+    }
   }
 
-  if (filter.conflictTypes !== undefined && filter.conflictTypes.length > 0) {
-    values.push(filter.conflictTypes);
-    where.push(`conflict_type = any($${values.length}::text[])`);
+  if (filter.conflictTypes !== undefined) {
+    if (filter.conflictTypes.length === 0) {
+      where.push("false");
+    } else {
+      values.push(filter.conflictTypes);
+      where.push(`conflict_type = any($${values.length}::text[])`);
+    }
   }
 
   return {
@@ -1810,6 +1839,7 @@ function buildVectorRecallSql(
     };
   }
 
+  const queryDim = options.queryEmbedding.length;
   values.push(formatPgVector(options.queryEmbedding));
   const embeddingIndex = values.length;
   let modelClause = "";
@@ -1819,9 +1849,15 @@ function buildVectorRecallSql(
     modelClause = ` and e.embedding_model = $${values.length}`;
   }
 
+  // Guard the distance by dimensionality: a query embedding whose length differs
+  // from a stored vector makes pgvector's `<=>` raise "different vector
+  // dimensions" and abort the whole recall transaction. The CASE short-circuits
+  // so `<=>` is only evaluated for same-dimension rows, degrading a mismatch to
+  // no semantic bonus — matching the in-memory cosineSimilarity, which returns 0
+  // for mismatched-length vectors. queryDim is an integer, so it is safe inline.
   return {
     joinSql: ` left join memory_embeddings e on e.memory_id = m.id${modelClause}`,
-    scoreSql: `case when e.embedding is null then 0 else 1 - (e.embedding <=> $${embeddingIndex}::vector) end`
+    scoreSql: `case when e.embedding is null or vector_dims(e.embedding) <> ${queryDim} then 0 else 1 - (e.embedding <=> $${embeddingIndex}::vector) end`
   };
 }
 

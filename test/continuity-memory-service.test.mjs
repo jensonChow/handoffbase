@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryMemoryStore, MemoryMutationPreconditionError } from "@handoffbase/memory-core";
+import { InMemoryMemoryStore, MemoryMutationPreconditionError, MockMemoryProvider } from "@handoffbase/memory-core";
 import { ScopeGuardError } from "../dist/auth/scope.js";
 import { ContinuityMemoryService } from "../dist/services/continuity-memory-service.js";
 
@@ -1066,3 +1066,94 @@ function conflictProvider() {
     }
   };
 }
+
+test("memory_feedback accepts a session-scoped memory paired with a run that has no session scope", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "session-scoped-target",
+    scope: { ...resolutionScope, sessionId: "session-x" },
+    type: "failure_memory",
+    canonicalText: "A session-scoped failure worth giving feedback on.",
+    sourceKind: "agent_observation",
+    status: "active",
+  });
+  const run = await store.addRun({
+    id: "session-feedback-run",
+    tenantId: resolutionScope.tenantId,
+    userId: resolutionScope.userId,
+    projectId: resolutionScope.projectId,
+    agentProfileId: resolutionScope.agentProfileId,
+  });
+  const service = resolutionService(store);
+
+  const output = await service.feedback(
+    {
+      memory_id: "session-scoped-target",
+      run_id: run.id,
+      signal: "unhelpful",
+      correction: "Prefer verifying the session context first.",
+    },
+    { caller: authorizedCaller() },
+  );
+
+  assert.ok(output.feedback_id);
+  assert.ok(output.correction_memory?.id);
+});
+
+test("memory_update rejects reserved terminal statuses that have dedicated flows", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "update-guard-target",
+    scope: resolutionScope,
+    type: "user_preference",
+    canonicalText: "A memory that should not be deleted through memory_update.",
+    sourceKind: "user_statement",
+    status: "active",
+  });
+  const service = resolutionService(store);
+  const caller = authorizedCaller();
+
+  for (const status of ["deleted", "superseded"]) {
+    await assert.rejects(
+      () => service.update({ memory_id: "update-guard-target", patch: { status } }, { caller }),
+      /memory_update cannot set status/,
+      `memory_update must not set reserved status "${status}"`,
+    );
+  }
+
+  const current = await store.getMemory("update-guard-target");
+  assert.equal(current.status, "active");
+  assert.match(current.canonicalText, /should not be deleted/);
+});
+
+test("continuity_bootstrap respects a token budget too small for any memory", async () => {
+  const store = new InMemoryMemoryStore();
+  await store.addMemory({
+    id: "budget-memory",
+    scope: { tenantId: "demo-tenant", userId: "budget-user" },
+    type: "user_preference",
+    canonicalText: "This user preference is far longer than a one-token budget could ever hold.",
+    sourceKind: "user_statement",
+    status: "active",
+  });
+  const service = new ContinuityMemoryService({
+    store,
+    provider: new MockMemoryProvider(),
+    seedDemoMemories: false,
+  });
+
+  const output = await service.continuityBootstrap({
+    host: "codex",
+    user_id: "budget-user",
+    token_budget: 1,
+  });
+
+  const pack = output.context_pack;
+  const total =
+    pack.user.length +
+    pack.procedures.length +
+    pack.project.length +
+    pack.tool_memory.length +
+    pack.failure_memory.length;
+  assert.equal(total, 0, "a 1-token budget must not dump every recalled memory into the pack");
+});
