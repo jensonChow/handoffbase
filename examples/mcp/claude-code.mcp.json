@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "handoffbase": {
+      "type": "http",
+      "url": "https://handoffbase.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${HANDOFFBASE_MCP_TOKEN}"
+      }
+    }
+  }
+}

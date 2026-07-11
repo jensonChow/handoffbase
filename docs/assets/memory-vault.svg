@@ -1,0 +1,247 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="'Segoe UI', system-ui, -apple-system, Roboto, sans-serif" role="img" aria-label="HandoffBase Memory Vault dashboard showing six governed agent memories, stat tiles, and a detail editor">
+  <defs>
+    <clipPath id="frame"><rect x="0" y="0" width="1600" height="900" rx="16"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <!-- base -->
+    <rect x="0" y="0" width="1600" height="900" fill="#0a0b0e"/>
+
+    <!-- ============ SIDEBAR ============ -->
+    <rect x="0" y="0" width="336" height="900" fill="#0d0f13"/>
+    <line x1="336" y1="0" x2="336" y2="900" stroke="#20232a" stroke-width="1"/>
+
+    <!-- logo -->
+    <rect x="28" y="34" width="40" height="40" rx="10" fill="#0f2a20"/>
+    <g stroke="#34d399" stroke-width="2.4" fill="none">
+      <ellipse cx="48" cy="48" rx="11" ry="4.5"/>
+      <path d="M37 48 v9 a11 4.5 0 0 0 22 0 v-9"/>
+    </g>
+    <text x="84" y="45" fill="#34d399" font-size="11" letter-spacing="1.5" font-weight="600">HANDOFFBASE</text>
+    <text x="84" y="67" fill="#eceef1" font-size="19" font-weight="700">Memory Vault</text>
+
+    <!-- nav: selected item -->
+    <rect x="16" y="128" width="304" height="52" rx="10" fill="#191c22"/>
+    <rect x="16" y="128" width="3.5" height="52" rx="2" fill="#34d399"/>
+    <rect x="34" y="146" width="16" height="16" rx="4" fill="none" stroke="#34d399" stroke-width="1.8"/>
+    <text x="66" y="160" fill="#eceef1" font-size="15" font-weight="600">Memory Vault</text>
+    <rect x="270" y="142" width="34" height="24" rx="7" fill="#22262e"/>
+    <text x="287" y="159" fill="#c3c8d0" font-size="13" font-weight="600" text-anchor="middle">6</text>
+
+    <!-- nav items -->
+    <g fill="#9aa0aa" font-size="15">
+      <rect x="34" y="200" width="16" height="16" rx="4" fill="none" stroke="#6b7280" stroke-width="1.8"/>
+      <text x="66" y="214">Pending Review</text>
+      <rect x="270" y="196" width="34" height="24" rx="7" fill="#171a20"/>
+      <text x="287" y="213" fill="#9aa0aa" font-size="13" font-weight="600" text-anchor="middle">2</text>
+
+      <rect x="34" y="252" width="16" height="16" rx="4" fill="none" stroke="#6b7280" stroke-width="1.8"/>
+      <text x="66" y="266">Memory Trace</text>
+      <rect x="270" y="248" width="34" height="24" rx="7" fill="#171a20"/>
+      <text x="287" y="265" fill="#9aa0aa" font-size="13" font-weight="600" text-anchor="middle">2</text>
+
+      <rect x="34" y="304" width="16" height="16" rx="4" fill="none" stroke="#6b7280" stroke-width="1.8"/>
+      <text x="66" y="318">Conflicts</text>
+      <rect x="270" y="300" width="34" height="24" rx="7" fill="#171a20"/>
+      <text x="287" y="317" fill="#9aa0aa" font-size="13" font-weight="600" text-anchor="middle">1</text>
+
+      <rect x="34" y="356" width="16" height="16" rx="4" fill="none" stroke="#6b7280" stroke-width="1.8"/>
+      <text x="66" y="370">Audit / Deletes</text>
+      <rect x="270" y="352" width="34" height="24" rx="7" fill="#171a20"/>
+      <text x="287" y="369" fill="#9aa0aa" font-size="13" font-weight="600" text-anchor="middle">7</text>
+    </g>
+
+    <!-- sidebar footer -->
+    <line x1="16" y1="792" x2="320" y2="792" stroke="#20232a" stroke-width="1"/>
+    <circle cx="34" cy="822" r="4" fill="#34d399"/>
+    <text x="48" y="827" fill="#c3c8d0" font-size="13" font-weight="600">Server in-memory</text>
+    <text x="24" y="852" fill="#6b7280" font-size="12">Same-origin API. Changes survive refresh</text>
+    <text x="24" y="870" fill="#6b7280" font-size="12">while this server process stays alive.</text>
+
+    <!-- ============ MAIN HEADER ============ -->
+    <text x="360" y="46" fill="#6b7280" font-size="11" letter-spacing="1.5" font-weight="600">HANDOFFBASE MEMORY VAULT</text>
+    <text x="360" y="82" fill="#f2f4f7" font-size="30" font-weight="700">Inspect Memories</text>
+    <!-- tenant pill + refresh -->
+    <rect x="1236" y="46" width="230" height="38" rx="9" fill="#14161b" stroke="#23262d"/>
+    <path d="M1256 58 l7 -4 7 4 v8 l-7 4 -7 -4 z" fill="none" stroke="#34d399" stroke-width="1.6"/>
+    <text x="1282" y="70" fill="#c3c8d0" font-size="13.5">demo-tenant / demo-user</text>
+    <rect x="1478" y="46" width="98" height="38" rx="9" fill="#1c1f26" stroke="#2a2e36"/>
+    <text x="1527" y="70" fill="#e6e8eb" font-size="14" text-anchor="middle">Refresh</text>
+
+    <!-- ============ STAT TILES ============ -->
+    <!-- 5 tiles, x from 360, width 230, gap 16 -->
+    <g>
+      <rect x="360" y="112" width="230" height="92" rx="12" fill="#131519" stroke="#22252c"/>
+      <text x="382" y="146" fill="#9aa0aa" font-size="13">Total memories</text>
+      <text x="382" y="188" fill="#f2f4f7" font-size="30" font-weight="700">6</text>
+
+      <rect x="606" y="112" width="230" height="92" rx="12" fill="#131519" stroke="#22252c"/>
+      <text x="628" y="146" fill="#9aa0aa" font-size="13">Active</text>
+      <text x="628" y="188" fill="#34d399" font-size="30" font-weight="700">3</text>
+
+      <rect x="852" y="112" width="230" height="92" rx="12" fill="#131519" stroke="#22252c"/>
+      <text x="874" y="146" fill="#9aa0aa" font-size="13">Pending review</text>
+      <text x="874" y="188" fill="#f59e0b" font-size="30" font-weight="700">2</text>
+
+      <rect x="1098" y="112" width="230" height="92" rx="12" fill="#131519" stroke="#22252c"/>
+      <text x="1120" y="146" fill="#9aa0aa" font-size="13">Inactive memories</text>
+      <text x="1120" y="188" fill="#f87171" font-size="30" font-weight="700">1</text>
+
+      <rect x="1344" y="112" width="222" height="92" rx="12" fill="#131519" stroke="#22252c"/>
+      <text x="1366" y="146" fill="#9aa0aa" font-size="13">Trace runs</text>
+      <text x="1366" y="188" fill="#a78bfa" font-size="30" font-weight="700">2</text>
+    </g>
+
+    <!-- ============ LIST PANEL ============ -->
+    <rect x="360" y="228" width="732" height="632" rx="14" fill="#101216" stroke="#22252c"/>
+    <!-- search -->
+    <rect x="384" y="252" width="684" height="44" rx="9" fill="#0b0d10" stroke="#23262d"/>
+    <circle cx="410" cy="274" r="6" fill="none" stroke="#6b7280" stroke-width="1.8"/>
+    <line x1="414" y1="278" x2="419" y2="283" stroke="#6b7280" stroke-width="1.8"/>
+    <text x="432" y="279" fill="#6b7280" font-size="14">Search text, source, status, or scope</text>
+    <!-- filters -->
+    <g font-size="13">
+      <text x="384" y="330" fill="#9aa0aa">Type</text>
+      <rect x="430" y="314" width="180" height="34" rx="8" fill="#0b0d10" stroke="#23262d"/>
+      <text x="446" y="336" fill="#c3c8d0">All types</text>
+      <path d="M592 328 l6 6 6 -6" fill="none" stroke="#6b7280" stroke-width="1.6"/>
+      <text x="648" y="330" fill="#9aa0aa">Status</text>
+      <rect x="700" y="314" width="180" height="34" rx="8" fill="#0b0d10" stroke="#23262d"/>
+      <text x="716" y="336" fill="#c3c8d0">All statuses</text>
+      <path d="M862 328 l6 6 6 -6" fill="none" stroke="#6b7280" stroke-width="1.6"/>
+      <text x="900" y="330" fill="#9aa0aa">Scope</text>
+      <rect x="948" y="314" width="120" height="34" rx="8" fill="#0b0d10" stroke="#23262d"/>
+      <text x="964" y="336" fill="#c3c8d0">All scopes</text>
+      <path d="M1050 328 l6 6 6 -6" fill="none" stroke="#6b7280" stroke-width="1.6"/>
+    </g>
+    <!-- table header -->
+    <g fill="#7d838d" font-size="12" letter-spacing="0.4">
+      <text x="384" y="384">Memory</text>
+      <text x="720" y="384">Type</text>
+      <text x="840" y="384">Scope</text>
+      <text x="1010" y="384">Status</text>
+    </g>
+    <line x1="384" y1="396" x2="1068" y2="396" stroke="#1c1f25" stroke-width="1"/>
+
+    <!-- rows -->
+    <!-- row 1 -->
+    <g>
+      <text x="384" y="424" fill="#e6e8eb" font-size="13.5">User prioritizes AI hackathons that improve credentials,</text>
+      <text x="384" y="442" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_user_pref_001</text>
+      <rect x="712" y="414" width="92" height="24" rx="6" fill="#1a1d23"/>
+      <text x="758" y="431" fill="#c3c8d0" font-size="11.5" text-anchor="middle">user preference</text>
+      <text x="840" y="424" fill="#9aa0aa" font-size="12">demo-user /</text>
+      <text x="840" y="440" fill="#9aa0aa" font-size="12">opportunity-scout / codex</text>
+      <rect x="1010" y="414" width="58" height="24" rx="12" fill="#0f2a20"/>
+      <text x="1039" y="431" fill="#34d399" font-size="11.5" text-anchor="middle">active</text>
+    </g>
+    <line x1="384" y1="460" x2="1068" y2="460" stroke="#171a20" stroke-width="1"/>
+    <!-- row 2 -->
+    <g>
+      <text x="384" y="490" fill="#e6e8eb" font-size="13.5">Before recommending a hackathon, verify registration</text>
+      <text x="384" y="508" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_proc_002</text>
+      <rect x="712" y="480" width="72" height="24" rx="6" fill="#1a1d23"/>
+      <text x="748" y="497" fill="#c3c8d0" font-size="11.5" text-anchor="middle">procedure</text>
+      <text x="840" y="490" fill="#9aa0aa" font-size="12">demo-user / ai-event-2026</text>
+      <text x="840" y="506" fill="#9aa0aa" font-size="12">/ opportunity-scout</text>
+      <rect x="1010" y="480" width="58" height="24" rx="12" fill="#0f2a20"/>
+      <text x="1039" y="497" fill="#34d399" font-size="11.5" text-anchor="middle">active</text>
+    </g>
+    <line x1="384" y1="526" x2="1068" y2="526" stroke="#171a20" stroke-width="1"/>
+    <!-- row 3 -->
+    <g>
+      <text x="384" y="556" fill="#e6e8eb" font-size="13.5">Devpost deadlines are often shown in Pacific Time;</text>
+      <text x="384" y="574" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_tool_003</text>
+      <rect x="712" y="546" width="88" height="24" rx="6" fill="#1a1d23"/>
+      <text x="756" y="563" fill="#c3c8d0" font-size="11.5" text-anchor="middle">tool memory</text>
+      <text x="840" y="556" fill="#9aa0aa" font-size="12">demo-user /</text>
+      <text x="840" y="572" fill="#9aa0aa" font-size="12">opportunity-scout / devpost</text>
+      <rect x="1010" y="546" width="58" height="24" rx="12" fill="#0f2a20"/>
+      <text x="1039" y="563" fill="#34d399" font-size="11.5" text-anchor="middle">active</text>
+    </g>
+    <line x1="384" y1="592" x2="1068" y2="592" stroke="#171a20" stroke-width="1"/>
+    <!-- row 4 -->
+    <g>
+      <text x="384" y="622" fill="#e6e8eb" font-size="13.5">Do not recommend competitions when official eligibility</text>
+      <text x="384" y="640" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_pending_004</text>
+      <rect x="712" y="612" width="98" height="24" rx="6" fill="#1a1d23"/>
+      <text x="761" y="629" fill="#c3c8d0" font-size="11.5" text-anchor="middle">failure memory</text>
+      <text x="840" y="622" fill="#9aa0aa" font-size="12">demo-user / ai-event-2026</text>
+      <text x="840" y="638" fill="#9aa0aa" font-size="12">/ opportunity-scout</text>
+      <rect x="1010" y="612" width="66" height="24" rx="12" fill="#2b2109"/>
+      <text x="1043" y="629" fill="#fbbf24" font-size="11.5" text-anchor="middle">pending</text>
+    </g>
+    <line x1="384" y1="658" x2="1068" y2="658" stroke="#171a20" stroke-width="1"/>
+    <!-- row 5 -->
+    <g>
+      <text x="384" y="688" fill="#e6e8eb" font-size="13.5">When eligible opportunities compete, rank founder network</text>
+      <text x="384" y="706" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_pending_005</text>
+      <rect x="712" y="678" width="72" height="24" rx="6" fill="#1a1d23"/>
+      <text x="748" y="695" fill="#c3c8d0" font-size="11.5" text-anchor="middle">procedure</text>
+      <text x="840" y="688" fill="#9aa0aa" font-size="12">demo-user / ai-event-2026</text>
+      <text x="840" y="704" fill="#9aa0aa" font-size="12">/ opportunity-scout / codex</text>
+      <rect x="1010" y="678" width="66" height="24" rx="12" fill="#2b2109"/>
+      <text x="1043" y="695" fill="#fbbf24" font-size="11.5" text-anchor="middle">pending</text>
+    </g>
+    <line x1="384" y1="724" x2="1068" y2="724" stroke="#171a20" stroke-width="1"/>
+    <!-- row 6 (superseded, faded to imply scroll) -->
+    <g opacity="0.62">
+      <text x="384" y="754" fill="#cdd2d9" font-size="13.5">User appears to prioritize hackathon prize money when</text>
+      <text x="384" y="772" fill="#5f6672" font-size="11.5" font-family="ui-monospace, Menlo, monospace">mem_expired_006</text>
+      <rect x="712" y="744" width="112" height="24" rx="6" fill="#1a1d23"/>
+      <text x="768" y="761" fill="#c3c8d0" font-size="11.5" text-anchor="middle">decision memory</text>
+      <text x="840" y="754" fill="#9aa0aa" font-size="12">demo-user / opportunity-scout</text>
+      <rect x="1010" y="744" width="86" height="24" rx="12" fill="#1f2229"/>
+      <text x="1053" y="761" fill="#9aa0aa" font-size="11.5" text-anchor="middle">superseded</text>
+    </g>
+    <!-- fade overlay at bottom of list -->
+    <rect x="361" y="800" width="730" height="59" fill="#101216" opacity="0.85"/>
+
+    <!-- ============ DETAIL PANEL ============ -->
+    <rect x="1108" y="228" width="468" height="632" rx="14" fill="#101216" stroke="#22252c"/>
+    <text x="1132" y="266" fill="#7d838d" font-size="11" letter-spacing="1.2" font-weight="600">DETAIL / EDIT</text>
+    <rect x="1488" y="250" width="64" height="24" rx="12" fill="#0f2a20"/>
+    <text x="1520" y="267" fill="#34d399" font-size="11.5" text-anchor="middle">active</text>
+    <text x="1132" y="298" fill="#eceef1" font-size="19" font-weight="700" font-family="ui-monospace, Menlo, monospace">mem_user_pref_001</text>
+
+    <text x="1132" y="330" fill="#9aa0aa" font-size="12.5">Canonical memory text</text>
+    <rect x="1132" y="342" width="420" height="118" rx="9" fill="#0b0d10" stroke="#23262d"/>
+    <text x="1150" y="372" fill="#dfe3e8" font-size="13.5">User prioritizes AI hackathons that improve</text>
+    <text x="1150" y="394" fill="#dfe3e8" font-size="13.5">credentials, founder network, and useful startup</text>
+    <text x="1150" y="416" fill="#dfe3e8" font-size="13.5">resources over prize money alone.</text>
+
+    <!-- confidence / importance -->
+    <text x="1132" y="500" fill="#9aa0aa" font-size="12.5">Confidence 96%</text>
+    <rect x="1132" y="510" width="196" height="6" rx="3" fill="#1c2027"/>
+    <rect x="1132" y="510" width="188" height="6" rx="3" fill="#2f6df6"/>
+    <circle cx="1320" cy="513" r="8" fill="#e6e8eb"/>
+    <text x="1356" y="500" fill="#9aa0aa" font-size="12.5">Importance 90%</text>
+    <rect x="1356" y="510" width="196" height="6" rx="3" fill="#1c2027"/>
+    <rect x="1356" y="510" width="176" height="6" rx="3" fill="#2f6df6"/>
+    <circle cx="1532" cy="513" r="8" fill="#e6e8eb"/>
+
+    <!-- meta rows -->
+    <line x1="1132" y1="556" x2="1552" y2="556" stroke="#1c1f25"/>
+    <text x="1132" y="586" fill="#7d838d" font-size="12">Type / lifecycle</text>
+    <text x="1552" y="586" fill="#c8cdd4" font-size="12.5" text-anchor="end">user preference / active</text>
+    <text x="1132" y="620" fill="#7d838d" font-size="12">Scope</text>
+    <text x="1552" y="620" fill="#c8cdd4" font-size="12.5" text-anchor="end">demo-user / opportunity-scout / codex</text>
+    <text x="1132" y="654" fill="#7d838d" font-size="12">Source</text>
+    <text x="1552" y="654" fill="#c8cdd4" font-size="12.5" text-anchor="end">user correction / Session 1</text>
+    <line x1="1132" y1="678" x2="1552" y2="678" stroke="#1c1f25"/>
+
+    <!-- action buttons -->
+    <rect x="1132" y="700" width="132" height="42" rx="9" fill="#123a2a"/>
+    <text x="1198" y="726" fill="#34d399" font-size="14" font-weight="600" text-anchor="middle">Save</text>
+    <rect x="1276" y="700" width="132" height="42" rx="9" fill="#0b0d10" stroke="#2a2e36"/>
+    <text x="1342" y="726" fill="#c3c8d0" font-size="14" text-anchor="middle">Invalidate</text>
+    <rect x="1420" y="700" width="132" height="42" rx="9" fill="#0b0d10" stroke="#3a2326"/>
+    <text x="1486" y="726" fill="#f87171" font-size="14" text-anchor="middle">Delete</text>
+
+    <!-- audit note -->
+    <text x="1132" y="782" fill="#7d838d" font-size="12">Audit events · 1</text>
+    <circle cx="1138" cy="812" r="4" fill="#34d399"/>
+    <text x="1152" y="817" fill="#c3c8d0" font-size="12.5">created — extracted durable user preference</text>
+    <text x="1152" y="837" fill="#6b7280" font-size="11.5">agent:opportunity-scout · Jul 6, 03:15 AM</text>
+  </g>
+  <rect x="0.5" y="0.5" width="1599" height="899" rx="16" fill="none" stroke="#2a2e36" stroke-width="1"/>
+</svg>
