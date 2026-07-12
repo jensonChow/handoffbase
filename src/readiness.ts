@@ -107,7 +107,7 @@ export async function probeQwenProvider(
   const baseUrl =
     env.QWEN_BASE_URL?.trim() ||
     env.DASHSCOPE_BASE_URL?.trim() ||
-    "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
   const model = env.QWEN_MODEL?.trim() || env.DASHSCOPE_MODEL?.trim() || "qwen-plus";
   const timeoutMs = readPositiveInteger(env.HANDOFFBASE_READINESS_TIMEOUT_MS, DEFAULT_PROVIDER_TIMEOUT_MS);
   const controller = new AbortController();

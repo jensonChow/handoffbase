@@ -5,7 +5,7 @@ export const LONGMEMEVAL_READER_MODES = Object.freeze(["deterministic", "qwen", 
 export const LONGMEMEVAL_MEMORY_PROVIDER_MODES = Object.freeze(["mock", "qwen"]);
 export const LONGMEMEVAL_EMBEDDING_MODES = Object.freeze(["off", "mock", "qwen"]);
 
-const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const DEFAULT_QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_QWEN_MODEL = "qwen-plus";
 const DEFAULT_QWEN_TIMEOUT_MS = 30_000;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";

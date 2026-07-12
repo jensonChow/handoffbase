@@ -55,7 +55,7 @@ export class QwenMemoryProvider implements MemoryReasoningProvider {
     }
 
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    this.baseUrl = options.baseUrl ?? "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
     this.model = options.model ?? "qwen-plus";
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.fetchImpl = options.fetch ?? fetch;

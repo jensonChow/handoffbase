@@ -27,10 +27,15 @@ Optional Qwen variables:
 ```text
 QWEN_API_KEY=
 DASHSCOPE_API_KEY=
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-plus
 QWEN_TIMEOUT_MS=30000
 ```
+
+The base URL above is the INTERNATIONAL station (Qwen Cloud / Model Studio
+intl), matching the hackathon's platform; a China-station (Bailian) key needs
+`QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1` instead. Keys
+are not interchangeable between stations.
 
 Set only one Qwen credential in cloud secret configuration; leave both blank to
 use the mock provider for non-credentialed deployment checks.
