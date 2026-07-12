@@ -1,7 +1,41 @@
 # Current Handoff
 
-Updated: 2026-07-11 (engine strengthening: capacity-bounded strategic forgetting +
-strict token-budget enforcement, both Track-1 judged capabilities)
+Updated: 2026-07-12 (README hero + badges + real v2 Memory Vault screenshots;
+prior code state: the engine strategic-forgetting + token-budget session at 51c78cf)
+
+## This session — README hero + real dashboard screenshots (2026-07-12)
+
+Shipped the top-of-README polish (Star-OSS gap #1), committed on `main`
+(`125554c`), no engine/behavior change:
+
+- `docs/assets/hero.png` — an HTML-rendered "Amber Archive" ledger hero (real
+  Space Grotesk / IBM Plex Mono, a self-contained dark card that reads on GitHub
+  light AND dark; a struck-through brick-red row makes strategic forgetting
+  visible in the art). Authored as HTML and rendered through headless Chrome to
+  dodge GitHub's SVG webfont sandbox — so it is a PNG, deliberately, not an SVG.
+- Six honesty-audited badges: CI · MIT · Node >=22 · MCP 9/9/4 · "Qwen Track 1:
+  strategic forgetting + budgeted recall" (descriptive, no logo/affiliation) ·
+  self-labeled "our benchmark 17/17 vs 0/17" (links to docs/benchmarks.md). Only
+  the CI badge is visibility-dependent — it shows "no status" until the repo is
+  public and CI runs green on the default branch.
+- Three REAL captures of the shipped v2 Memory Vault (mock fixture, Next dev
+  indicator hidden, 2x then palette-optimized to ~130–200 KB):
+  `dashboard-memory-vault.png` (governed store, primary/top block),
+  `dashboard-overview.png` (cross-agent handoff + trace breakdown),
+  `dashboard-memory-vault-light.png` (light Paper Ledger theme). Reproducible via
+  `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock npm run dashboard:dev` → localhost:3001.
+- README top block (hero → tagline → badges → subtitle → honest status → nav →
+  primary screenshot) + a new "The Memory Vault Dashboard" section. All nav links
+  resolve to in-page anchors; `npm run check:markdown-links` passes (78 links).
+
+Design was produced by a 3-lens blueprint Workflow (judge-first / adopter /
+brand → judged synthesis, honesty-audited). Screenshots + hero were captured with
+a throwaway scratchpad puppeteer + `sharp` — NOT added to repo deps; the tree
+holds only `README.md` + the four PNGs. The 9/9/4 contract, pinned suites, and all
+behavior are untouched.
+
+The remainder of this document (## Outcome onward) records the prior engine
+session and remains the current code/behavior state — unchanged this session.
 
 ## Outcome
 
@@ -194,7 +228,10 @@ after the Qwen submission unless the owner asks to de-risk early.
 
 Star-OSS gaps (no keys needed):
 
-1. README hero + badges + a real raster screenshot or GIF of the v2 dashboard.
+1. ~~README hero + badges + a real raster screenshot of the v2 dashboard~~ —
+   DONE 2026-07-12 (`125554c` on main): `docs/assets/hero.png` + three real
+   Memory Vault captures + six honesty-audited badges. CI badge activates when
+   the repo goes public.
 2. No reproducible path uses real Qwen (semantic recall wired but never run live).
 3. No cold-vs-warm learning-curve artifact.
 4. (Optional stretch) Dashboard capacity-sweep panel — evictions already surface
@@ -229,9 +266,10 @@ TLS/monitoring/backup/rate-limiting.
 
 ## Next Priority
 
-The engine now covers the Track-1 asks. Highest-value remaining moves:
-README hero + badges + a real screenshot of the v2 dashboard, then the owner-run
-real-Qwen artifact (relaunch + validator proof, or a LongMemEval subset run).
+The engine covers the Track-1 asks and the README hero + real dashboard
+screenshots are now in (2026-07-12, `125554c`). Highest-value remaining moves:
+the owner-run real-Qwen artifact (relaunch + validator proof, or a LongMemEval
+subset run), then a cold-vs-warm learning-curve artifact.
 Downstream (after Qwen, Jul 20 → Aug 18): the CockroachDB × AWS entry — see
 "Parallel opportunity" above; a ~1-day `STORE_MODE=cockroach` adapter + AWS
 deploy, deferred until the Qwen submission is in.
@@ -271,7 +309,9 @@ rebuild from HEAD (never restart the 7-tool b565210 image), expect a new public
 IP, regenerate the validator proof, and decide storeMode (Postgres would make
 durable persistence real).
 
-Highest-value next work: README hero+badges + real dashboard screenshot, then
-the owner-run real-Qwen artifact. Do not make the repo public, run paid
-Qwen/OpenAI, or mutate cloud without authorization.
+README hero+badges + real dashboard screenshots are DONE (2026-07-12, 125554c:
+docs/assets/hero.png + three real Memory Vault captures + six badges). Highest-
+value next work: the owner-run real-Qwen artifact, then a cold-vs-warm artifact.
+Do not make the repo public, run paid Qwen/OpenAI, or mutate cloud without
+authorization.
 ```
