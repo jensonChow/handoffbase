@@ -146,6 +146,50 @@ over-report regression; capacity-pressure `--fixture` block.
 - **Production: NO** — unchanged; in-memory default, ECS stopped, no durable
   cloud Postgres/TLS/backup/rate-limit. (Not claimed.)
 
+## Parallel opportunity — CockroachDB × AWS hackathon (researched 2026-07-12)
+
+A second hackathon is a strong thematic fit and worth a parallel entry: the
+"CockroachDB × AWS Hackathon — Build with Agentic Memory" (Cockroach Labs + AWS,
+`cockroachdb-ai.devpost.com`). Submission window **June 30 → August 18, 2026** —
+about four weeks AFTER the Qwen deadline (Jul 20), so the two run sequentially,
+not simultaneously. Prize $8,750. Requires **≥2 CockroachDB tools** (Cloud
+Managed MCP Server · Distributed Vector Indexing · ccloud CLI · Agent Skills) and
+**≥1 AWS service** (Bedrock/Lambda/ECS/S3/…), meaningfully integrated. Judged on
+Agentic Memory Design · Technical Implementation · Real-World Impact · Production
+Readiness · Creativity & Originality — HandoffBase (an agentic-memory MCP server
+with vector recall) fits this even more directly than the Qwen track.
+
+Eligibility (verified against both events' `/rules`): dual participation is
+allowed — no exclusivity clause on either side, and Devpost has no platform-wide
+ban. The CockroachDB event requires projects "newly created … during the
+Submission Period"; this repo's first commit is **2026-07-07**, inside that
+window (and inside the Qwen window), so **HandoffBase itself qualifies — no
+separate/"sibling" repo is needed for originality**. Good-faith: disclose it as a
+dual-hackathon project and let the CockroachDB + AWS integration be the fresh,
+event-specific work.
+
+Technical delta (verified against primary CockroachDB docs +
+`packages/memory-core/migrations/0001_memory_core.sql`): CockroachDB is pg-wire
+compatible (node-pg connects; port 26257) and has a NATIVE `VECTOR` type using
+the same operators as pgvector (`<=>` cosine, `<->` L2, `<#>` inner product).
+Vector indexing = C-SPANN via `CREATE VECTOR INDEX`, needs **v25.2+**. The only
+real deltas are two migration lines: (1) drop `create extension if not exists
+vector;` (CRDB has `VECTOR` natively, not the pgvector extension); (2) swap
+`create index … using ivfflat (embedding vector_cosine_ops)` → CockroachDB
+`CREATE VECTOR INDEX`. Everything else ports as-is (`<=>` recall, `vector(1536)`,
+`for update`/`for no key update`, `on conflict do update`, `jsonb`/`text[]`/
+`unnest`/`returning`; no triggers or stored procs to trip PG-compat gaps). So a
+`STORE_MODE=cockroach` adapter is a ~1-day job, not a rewrite — and it satisfies
+one required tool (Distributed Vector Indexing); the Cloud Managed MCP Server or
+ccloud CLI covers the second. The clouds collide (can't run one instance on both
+Alibaba and AWS), but the swappable provider/store boundaries mean two
+deployments from one core.
+
+Recommended sequence: ship Qwen by Jul 20, then build the `STORE_MODE=cockroach`
+adapter + AWS deploy in the Jul 20 → Aug 18 gap (doing it in-window strengthens
+the "built during the submission period" story). Not started — deferred until
+after the Qwen submission unless the owner asks to de-risk early.
+
 ## Remaining Work
 
 Star-OSS gaps (no keys needed):
@@ -188,6 +232,9 @@ TLS/monitoring/backup/rate-limiting.
 The engine now covers the Track-1 asks. Highest-value remaining moves:
 README hero + badges + a real screenshot of the v2 dashboard, then the owner-run
 real-Qwen artifact (relaunch + validator proof, or a LongMemEval subset run).
+Downstream (after Qwen, Jul 20 → Aug 18): the CockroachDB × AWS entry — see
+"Parallel opportunity" above; a ~1-day `STORE_MODE=cockroach` adapter + AWS
+deploy, deferred until the Qwen submission is in.
 
 Do not claim an official benchmark score, durable cloud proof, live public
 endpoint, or production SaaS readiness. Keep every judge labeled
