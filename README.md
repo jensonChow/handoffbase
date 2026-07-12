@@ -1,21 +1,33 @@
+<!--
+Top block images are committed under ./docs/assets/ :
+  hero.png  ·  dashboard-memory-vault.png  ·  dashboard-overview.png  ·  dashboard-memory-vault-light.png
+The dashboard shots are REAL captures of the shipped v2 Memory Vault (mock fixture),
+not mockups. Regenerate them from HEAD before submission if the UI changes.
+-->
+<div align="center">
+
+<img src="./docs/assets/hero.png" alt="HandoffBase — MCP-native agent memory you can inspect, forget, and hand off" width="100%" />
+
 # HandoffBase
 
-Open memory handoff for AI agents.
+**MCP-native agent memory you can inspect, forget, and hand off.**
 
-HandoffBase is an MCP-native memory layer that lets AI agents preserve, inspect,
-and hand off user preferences, project context, procedures, failures, decisions,
-and traces across sessions, hosts, and projects.
+[![CI](https://github.com/jensonChow/handoffbase/actions/workflows/ci.yml/badge.svg)](https://github.com/jensonChow/handoffbase/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-e8a33d?style=flat-square&labelColor=16130e)](./LICENSE)
+![Node >=22](https://img.shields.io/badge/node-%3E%3D22-e8a33d?style=flat-square&labelColor=16130e)
+![MCP: 9 tools, 9 resources, 4 prompts](https://img.shields.io/badge/MCP-9%20tools%20%C2%B7%209%20resources%20%C2%B7%204%20prompts-e8a33d?style=flat-square&labelColor=16130e)
+![Built for Qwen Track 1: strategic forgetting + budgeted recall](https://img.shields.io/badge/Qwen%20Track%201-strategic%20forgetting%20%2B%20budgeted%20recall-a63d2f?style=flat-square&labelColor=16130e)
+[![Our comparative benchmark: 17/17 vs 0/17 baseline](https://img.shields.io/badge/our%20benchmark-17%2F17%20vs%200%2F17%20baseline-e8a33d?style=flat-square&labelColor=16130e)](./docs/benchmarks.md)
 
-It is built as a Remote Streamable HTTP MCP server, with Qwen-backed memory
-reasoning behind a provider interface, a traceable memory lifecycle, and a
-Memory Vault dashboard prototype for review and governance.
+A Remote Streamable HTTP MCP server that preserves, recalls, budgets, and strategically forgets agent memory across sessions, hosts, and projects — with a Memory Vault governance dashboard and a byte-stable comparative benchmark ([17/17 vs 0/17 baseline](./docs/benchmarks.md), our own evaluator) to prove it.
 
-Current status: runnable infrastructure MVP. Local and CI paths use
-`InMemoryMemoryStore` and `MockMemoryProvider` by default. A Postgres runtime is
-available behind explicit `STORE_MODE=postgres`, `DATABASE_URL`, and migration
-steps. The historical Alibaba Cloud proof is Qwen-backed and authenticated, but
-used `storeMode=in-memory`; it is a deployment proof, not a production SaaS
-service.
+<sub>Runnable infrastructure MVP · default in-memory store + mock provider · Postgres + Qwen are opt-in · built for the Alibaba Cloud / Qwen agentic-memory hackathon (Track 1)</sub>
+
+<sub><a href="#quickstart"><b>Quickstart</b></a> · <a href="#what-is-implemented">What's implemented</a> · <a href="#mcp-tools">MCP surface</a> · <a href="#the-memory-vault-dashboard">Dashboard</a> · <a href="#eval-awareness">Benchmarks</a> · <a href="#architecture">Architecture</a></sub>
+
+<img src="./docs/assets/dashboard-memory-vault.png" alt="HandoffBase Memory Vault dashboard — inspect, approve, edit, forget, and trace the memories that steer an agent, each with its type, status, confidence, importance, scope, lifecycle, and memory:// address" width="100%" />
+
+</div>
 
 ## Why HandoffBase
 
@@ -77,6 +89,41 @@ Every connected agent can:
 | Demo | Deterministic AI Opportunity Scout flow and JSON-RPC/HTTP example payloads |
 | Product proof | Comparative 17-case memory benchmark, cleaned-format LongMemEval adapter with tiny fixture, and real HTTP/MCP cross-host E2E |
 | Deployment proof | Alibaba Cloud ECS + Docker proof with API-key auth, Qwen provider mode, and in-memory store mode |
+
+## The Memory Vault Dashboard
+
+HandoffBase ships a Next.js **Memory Vault** — a governance UI that makes the
+memory lifecycle visible instead of hidden inside prompts. Inspect every durable
+memory with its type, status, confidence, importance, scope, lifecycle, and
+`memory://` address; approve or reject pending candidates; edit, supersede, or
+forget stale ones; and open the trace that explains which memories an agent
+used, ignored, or excluded.
+
+The Overview opens on the handoff itself — memories written in one host
+(`codex`) recalled in another (`claude-code`) — beside pending review, open
+conflicts, and the latest recall trace with its used / ignored / excluded
+breakdown:
+
+<div align="center">
+  <img src="./docs/assets/dashboard-overview.png" alt="HandoffBase Memory Vault overview — a cross-agent handoff from codex to claude-code, active/pending/conflict/trace tiles, the review queue with approve and reject actions, and the latest trace with its used, ignored, and excluded breakdown" width="100%" />
+</div>
+
+It ships in both the dark **Amber Archive** and light **Paper Ledger** themes;
+here the vault list and record editor in Paper Ledger:
+
+<div align="center">
+  <img src="./docs/assets/dashboard-memory-vault-light.png" alt="HandoffBase Memory Vault in the light Paper Ledger theme — the governed memory list and the record editor with confidence, importance, source, scope, validity, lifecycle, and memory:// address" width="100%" />
+</div>
+
+Run the exact demo above locally against a deterministic in-browser fixture — no
+MCP server, database, or credentials required:
+
+```bash
+HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock npm run dashboard:dev
+```
+
+Then open <http://localhost:3001>. Without the mock flag the dashboard talks to
+the same-origin server API and follows the MCP runtime's `STORE_MODE`.
 
 ## Quickstart
 
