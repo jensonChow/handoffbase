@@ -1,7 +1,53 @@
 # Current Handoff
 
-Updated: 2026-07-12 (README hero + badges + real v2 Memory Vault screenshots;
-prior code state: the engine strategic-forgetting + token-budget session at 51c78cf)
+Updated: 2026-07-12, second update (Alibaba Cloud INTERNATIONAL pivot +
+`dashscope-intl` defaults; earlier the same day: README hero + badges + real v2
+Memory Vault screenshots; prior code state: the engine session at 51c78cf)
+
+## Newest — Alibaba Cloud station pivot to INTERNATIONAL (2026-07-12)
+
+Owner decision, executed the same day: the hackathon runs on the
+**international** station, so the China-station deployment was retired and the
+plan is now international end-to-end.
+
+- **Event facts (verified against the Devpost resources page):** the
+  hackathon's platform is "Qwen Cloud" = Alibaba Cloud Model Studio
+  **international** — docs at `docs.qwencloud.com`, API base
+  `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`, $40 voucher issued
+  on that platform (voucher request deadline **passed Jul 9**; a request was
+  submitted Jul 8, status unconfirmed). Rules require Qwen as the core model;
+  deployment proof = backend running on Alibaba Cloud + a repo code-file link.
+  Keys are NOT interchangeable between stations.
+- **Owner released the China-station ECS instance** (`i-2ze79rc2xe68zx1xeahu`,
+  `cn-beijing`) on 2026-07-12. The old endpoint `http://123.56.244.157` no
+  longer exists; its disk (including the old env file) is gone.
+  `docs/deployment/alibaba-cloud-proof.md` and `relaunch-runbook.md` now carry
+  SUPERSEDED/RELEASED banners and are retained as honest history. The old
+  China-station (Bailian) Qwen key is unused now — owner should delete/rotate
+  it in the China console; the China free-tier quota (1M tokens) does not carry
+  over to the intl account.
+- **Code defaults swapped China → international** (this commit): the DashScope
+  base-URL fallback is now `dashscope-intl.aliyuncs.com/compatible-mode/v1` in
+  `QwenMemoryProvider`, `QwenEmbeddingProvider`, the `/ready` Qwen probe
+  (`src/readiness.ts`), and the LongMemEval local runtime, plus `.env.example`
+  and the deployment checklist. `QWEN_BASE_URL`/`DASHSCOPE_BASE_URL` still
+  override; a China-station key now requires setting the China URL explicitly.
+  No CI impact (credential-free paths never hit these URLs).
+- **Redeploy plan (not yet executed):** fresh ECS on the international station,
+  Singapore `ap-southeast-1`, 2 vCPU / 4 GiB Ubuntu 22.04 + Docker, port
+  80→3000, root-owned env file with a **fresh Qwen Cloud intl key** + fresh
+  `HANDOFFBASE_API_KEY`, `storeMode=in-memory`. The owner drives it with a
+  Chrome-automation agent using the prompt kit kept OUTSIDE the repo at
+  `../relaunch-kit/` (`ecs-intl-deploy-agent-prompt.md` +
+  `handoffbase-src-b0b9ed8.tar.gz`, sha256 `691eb1ab…`). The kit archive is
+  built from `b0b9ed8` (pre-pivot code); that is fine because the deployment
+  env file sets `QWEN_BASE_URL` explicitly — regenerate the archive from the
+  newer HEAD only if redeploying without an explicit base URL.
+- **After the deploy:** run `mcp:validate-remote`
+  (`MCP_VALIDATION_PROFILE=alibaba-demo`, expects api_key + qwen + in-memory;
+  the 9-tool assertion proves the new image), record a NEW dated proof file for
+  the international deployment, and keep every old-IP reference confined to the
+  superseded historical docs.
 
 ## This session — README hero + real dashboard screenshots (2026-07-12)
 
@@ -245,13 +291,13 @@ wording for whitespace-only queries.
 
 Owner-only / ops:
 
-- **Owner confirmed (2026-07-11): Alibaba Cloud + Qwen will be resumed before
-  final submission.** Rebuild ECS from current HEAD (do NOT restart the stale
-  `b565210` image — 7 tools, fails `mcp:validate-remote`'s 9-tool assertion);
-  public IP changes on relaunch (no elastic IP) so swap every doc reference to
-  `123.56.244.157` and regenerate a dated validator proof; decide `storeMode`
-  at relaunch (Postgres + migration would finally make durable persistence
-  real; in-memory re-proves only the model path).
+- **Owner action (2026-07-12): fresh INTERNATIONAL deployment before final
+  submission** — see "Newest" above. The China instance is RELEASED (nothing to
+  restart; the stale 7-tool `b565210` image is gone with it). Deploy via the
+  `../relaunch-kit/` browser-agent prompt (Singapore, in-memory store, fresh
+  intl Qwen Cloud key), then run `mcp:validate-remote` and record a new dated
+  proof. Postgres remains a possible later upgrade for durable persistence;
+  in-memory is rules-compliant.
 - Make the GitHub repo public; add the URL to Devpost under Track 1.
 - Record the two demo videos (scripts in `docs/submission/`) — the forgetting
   demo arc is now real: seed over capacity → dry-run plan → apply → audit
@@ -267,9 +313,11 @@ TLS/monitoring/backup/rate-limiting.
 ## Next Priority
 
 The engine covers the Track-1 asks and the README hero + real dashboard
-screenshots are now in (2026-07-12, `125554c`). Highest-value remaining moves:
-the owner-run real-Qwen artifact (relaunch + validator proof, or a LongMemEval
-subset run), then a cold-vs-warm learning-curve artifact.
+screenshots are now in (2026-07-12, `125554c`). Highest-value remaining moves,
+in order: (1) the fresh INTERNATIONAL deployment + `mcp:validate-remote` proof
+(owner-driven via `../relaunch-kit/`, see "Newest" above — mandatory for the
+submission), (2) the real-Qwen LongMemEval subset run against `dashscope-intl`,
+(3) a cold-vs-warm learning-curve artifact.
 Downstream (after Qwen, Jul 20 → Aug 18): the CockroachDB × AWS entry — see
 "Parallel opportunity" above; a ~1-day `STORE_MODE=cockroach` adapter + AWS
 deploy, deferred until the Qwen submission is in.
@@ -304,10 +352,13 @@ default-off; every benchmark score labeled official_qa_evaluator:false; honest
 historical Alibaba proof; archive-only capacity eviction (hard delete stays
 manual); the caller-effective token budget must always override provider echo.
 
-Owner has confirmed Alibaba Cloud + Qwen will be resumed before final submit:
-rebuild from HEAD (never restart the 7-tool b565210 image), expect a new public
-IP, regenerate the validator proof, and decide storeMode (Postgres would make
-durable persistence real).
+Cloud state: the China-station ECS was RELEASED 2026-07-12 (old endpoint and
+7-tool b565210 image are gone). The plan is a fresh Alibaba Cloud INTERNATIONAL
+deployment (Singapore, in-memory store, fresh Qwen Cloud intl key against
+dashscope-intl — now also the repo's default base URL), owner-driven via the
+../relaunch-kit/ browser-agent prompt. After it passes, run mcp:validate-remote
+and record a new dated proof file; old-IP references stay only in the
+superseded historical docs.
 
 README hero+badges + real dashboard screenshots are DONE (2026-07-12, 125554c:
 docs/assets/hero.png + three real Memory Vault captures + six badges). Highest-

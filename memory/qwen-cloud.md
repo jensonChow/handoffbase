@@ -67,14 +67,48 @@ If the request remains pending and urgent near the coupon deadline, contact
 directly in email or the browser. If an approved voucher or coupon code becomes
 available, ask before redeeming it and do not print, save, or commit the code.
 
+## Station Pivot — International (2026-07-12)
+
+The hackathon's platform is the Alibaba Cloud **international** station: "Qwen
+Cloud" = Model Studio intl, docs at `docs.qwencloud.com`, API base
+`https://dashscope-intl.aliyuncs.com/compatible-mode/v1` (verified against the
+event's resources page). Keys are NOT interchangeable between stations; the
+$40 event voucher lives on the intl account (request deadline passed Jul 9; a
+request was submitted Jul 8, status unconfirmed).
+
+Consequences executed 2026-07-12:
+
+- The repo's default DashScope base URL is now the **international** endpoint
+  in `QwenMemoryProvider`, `QwenEmbeddingProvider`, the `/ready` probe, the
+  LongMemEval local runtime, `.env.example`, and the deployment checklist.
+  `QWEN_BASE_URL`/`DASHSCOPE_BASE_URL` still override; a China-station
+  (Bailian) key now requires explicitly setting
+  `https://dashscope.aliyuncs.com/compatible-mode/v1`.
+- The dedicated China-station dev key (`handoffbase-hackathon-dev`, Beijing
+  workspace) and the China free-tier quota (1M tokens, exp 2026/10/06) do NOT
+  work against / carry over to the intl endpoint. The owner needs a fresh Qwen
+  Cloud intl key; the old Bailian key should be deleted/rotated.
+
 ## Alibaba Cloud Deployment
 
 Hackathon backend runs on Alibaba Cloud and includes visible proof of Alibaba Cloud service/API usage.
 
-The first demo deployment uses the approved minimal ECS + Docker path in `cn-beijing`: a single pay-as-you-go ECS instance running Docker image `handoffbase:b565210-20260707T160422Z` with public endpoint `http://123.56.244.157` and MCP endpoint `http://123.56.244.157/mcp`.
+**Historical (RELEASED):** the first demo deployment used the minimal ECS +
+Docker path in `cn-beijing` (image `handoffbase:b565210-20260707T160422Z`,
+endpoint `http://123.56.244.157/mcp`). Live remote validation passed
+2026-07-07 (`providerMode: "qwen"`, `authMode: "api_key"`,
+`storeMode: "in-memory"`, `tools/list`, authenticated `memory_recall`,
+Qwen-backed `memory_remember`). **The owner RELEASED that instance on
+2026-07-12** — endpoint, disk, and env file are gone.
+`docs/deployment/alibaba-cloud-proof.md` and `relaunch-runbook.md` carry
+SUPERSEDED banners and are retained as honest history.
 
-Runtime secrets are configured only through the ECS Docker env file and are not committed. `/health` reports `providerMode: "qwen"`, `authMode: "api_key"`, and `storeMode: "in-memory"`. Live remote validation passed for `tools/list`, authenticated `memory_recall`, and Qwen-backed `memory_remember`.
-
-As of 2026-07-08, the ECS instance is stopped in economical stop mode for cost control and the prior public IP may change on restart. Treat `docs/deployment/alibaba-cloud-proof.md` as historical validation evidence, not a current-online guarantee. Use `docs/deployment/relaunch-runbook.md` to restart and revalidate before recording, submission, or judging if a live endpoint is required.
+**Current plan (not yet executed):** fresh ECS on the INTERNATIONAL station,
+Singapore `ap-southeast-1`, 2 vCPU / 4 GiB Ubuntu 22.04 + Docker, port 80→3000,
+root-owned `--env-file` with a fresh Qwen Cloud intl key + fresh
+`HANDOFFBASE_API_KEY`, `storeMode=in-memory`. Owner drives it with a browser
+agent using the prompt kit kept OUTSIDE the repo (`../relaunch-kit/`). After
+deploy: `mcp:validate-remote` (alibaba-demo profile; the 9-tool assertion
+proves the new image) and a new dated proof file.
 
 Keep Postgres/RDS optional until pgvector support is verified for the selected service/version and additional paid provisioning is explicitly approved. Runtime store selection is now implemented in code, but no Alibaba Postgres/RDS instance has been provisioned or validated.

@@ -1,17 +1,20 @@
 # Alibaba Cloud Deployment Proof
 
-Status: live validation passed on 2026-07-07T16:26:43Z. The ECS instance may be
-stopped for cost control after this proof; revalidate before submission,
-recording, judging, or any claim that the endpoint is currently online.
+Status: live validation passed on 2026-07-07T16:26:43Z. **The ECS instance
+recorded below was RELEASED on 2026-07-12 — the endpoint no longer exists.**
 
 This file records non-secret proof for the minimal Alibaba Cloud ECS + Docker deployment. It intentionally omits API keys, authorization headers, workspace-specific secret values, database URLs, and cloud access credentials.
 
 ## Current Availability Note
 
-This proof records historical live validation at the timestamp below. The ECS
-instance can be stopped later for cost control, and the public IP may change on
-restart. Use `docs/deployment/relaunch-runbook.md` to restart and revalidate the
-deployment before final submission or judging.
+This proof records historical live validation at the timestamp below, for the
+China-station (`cn-beijing`) deployment that has since been released. The
+current plan is a fresh deployment on the Alibaba Cloud INTERNATIONAL station
+(Singapore) using the Qwen Cloud international endpoint
+(`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`), matching the
+hackathon's platform; a new dated proof file will be recorded after that
+deployment passes `mcp:validate-remote`. `docs/deployment/relaunch-runbook.md`
+is likewise superseded and retained as history.
 
 ## Deployment
 

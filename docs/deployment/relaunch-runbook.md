@@ -2,6 +2,14 @@
 
 Last updated: 2026-07-08T16:39:10Z
 
+> **SUPERSEDED (2026-07-12).** The `cn-beijing` instance this runbook restarts
+> (`i-2ze79rc2xe68zx1xeahu`) was RELEASED by the owner on 2026-07-12; it no
+> longer exists and cannot be restarted. The replacement plan is a fresh
+> deployment on the Alibaba Cloud INTERNATIONAL station (Singapore) with the
+> Qwen Cloud international endpoint (`dashscope-intl`), matching the
+> hackathon's platform. This document is retained as historical procedure for
+> the released China-station deployment only.
+
 This runbook describes how to bring the stopped Alibaba Cloud ECS demo back
 online, validate it, keep it available only as long as needed, and stop or
 release it safely later. It is intentionally non-secret: do not add API keys,
