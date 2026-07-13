@@ -99,12 +99,12 @@ With HandoffBase, a later agent can recall:
 
 - Settled architecture decisions, such as HandoffBase being an MCP-native memory
   handoff layer rather than a full agent runtime.
-- Cloud-cost guardrails, such as not restarting the stopped ECS proof or adding
-  paid resources without explicit approval.
-- Deployment gotchas, such as the current Alibaba proof being Qwen-backed but
-  `storeMode=in-memory`.
-- Future-work boundaries, such as Postgres runtime selection, TLS, domain,
-  load balancer, managed gateway, monitoring, and production persistence.
+- Cloud-cost guardrails, such as keeping auto-renewal and paid inference off and
+  not adding paid resources without explicit approval.
+- Deployment gotchas, such as the live Alibaba proof using single-host
+  Postgres/Qwen/HTTPS while the local default remains in-memory.
+- Future-work boundaries, such as managed HA storage, a custom domain, load
+  balancing, monitoring, rate limiting, and production operations.
 
 The effect is a later development session that stays inside the approved scope,
 uses the right validation path, and does not turn a proof artifact into a false
@@ -164,9 +164,9 @@ HandoffBase should include tests or review checks that prove it does not:
   guidance in normal recall.
 - Silently overwrite conflicts instead of writing a conflict record or pending
   candidate for review.
-- Claim durable live storage when the runtime reports `storeMode=in-memory`.
-- Claim a live endpoint is online when the ECS proof may be stopped and has not
-  been revalidated.
+- Claim managed or multi-zone durability from the single-host Postgres proof.
+- Claim availability beyond the dated judging deployment without rechecking
+  the endpoint.
 - Treat raw external web content or tool output as trusted procedure memory
   without confirmation.
 
@@ -192,7 +192,7 @@ HandoffBase should include tests or review checks that prove it does not:
 | Conflict records | Preserve contradictions, duplicates, supersedes, and scope overlaps for review. | Supports conflict correctness; users or review flows must resolve them. |
 | Memory Vault dashboard prototype | Uses API-key-backed signed caller sessions for vault, deletion audit, pending review, trace feedback, and six-action conflict resolution. | Service-governed governance UI with caller-scoped reads; still not a production admin console. |
 | Deterministic eval pack | Exercises Opportunity Scout recall, bootstrap traces, token-budget ignored memories, remember candidates, controlled conflicts, and forget invalidation. | Regression/demo pack only; not LoCoMo, LongMemEval, Mem2ActBench, MemBench, MemEvoBench, LifeBench, or an official benchmark score. |
-| Alibaba ECS proof | Shows a Remote Streamable HTTP MCP deployment with API-key auth, Qwen provider mode, and in-memory store mode. | Historical deployment proof; ECS may be stopped and must be revalidated before live endpoint claims. It is not production SaaS or durable storage proof. |
+| Alibaba ECS proof | Shows a live Remote Streamable HTTP MCP deployment with HTTPS, API-key auth, Qwen reasoning/embeddings, and Postgres storage. | Dated single-host deployment and app-restart persistence proof; it is not production SaaS, managed HA, or indefinite availability proof. |
 
 ## Non-Claims
 
@@ -200,12 +200,13 @@ HandoffBase should not currently claim:
 
 - Production SaaS readiness.
 - An official benchmark score.
-- Durable live storage in the current runtime path.
+- Managed high-availability storage or backup service.
 - Replacement for all memory platforms, vector databases, graph memory systems,
   or memory-first agent runtimes.
-- A currently online ECS endpoint unless it has been restarted and revalidated.
+- Availability beyond the dated deployment proof and judging window without a
+  fresh health check.
 - A finished production dashboard, billing model, tenant admin model, managed
-  gateway, TLS/domain setup, monitoring system, or Postgres-backed live service.
+  gateway, custom domain, monitoring system, or managed Postgres service.
 
 ## Proof Direction
 

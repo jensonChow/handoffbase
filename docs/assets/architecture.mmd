@@ -41,8 +41,10 @@ flowchart LR
   end
 
   subgraph CloudProof["Alibaba Cloud deployment proof"]
-    ECS["ECS + Docker backend proof"]
-    Limits["Public HTTP IP proof<br/>no TLS, LB, domain, or managed gateway"]
+    ECS["Singapore ECS + Docker"]
+    Edge["Caddy HTTPS"]
+    LiveDB["Postgres + pgvector<br/>single-host persistence"]
+    Limits["No custom domain, load balancer,<br/>or managed HA database"]
   end
 
   Codex --> Endpoint
@@ -73,5 +75,8 @@ flowchart LR
   Dashboard --> ConflictReview
   Dashboard --> TraceView
 
-  ECS -. "validated deployment proof; instance currently stopped" .-> Endpoint
+  ECS --> Edge
+  Edge --> Endpoint
+  ECS --> LiveDB
+  LiveDB --> Postgres
   ECS --> Limits

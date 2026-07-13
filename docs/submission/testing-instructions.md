@@ -119,25 +119,35 @@ credentialed run was completed, and no official score exists yet.
 
 ## Remote Deployment Testing
 
-The Alibaba Cloud ECS endpoint may be paused to control pay-as-you-go cost. Do
-not assume the public endpoint is online until it has been restarted and
-revalidated.
+The judging backend is live on Alibaba Cloud International ECS in Singapore:
 
-Once the deployment is reactivated, judges can validate the remote MCP service
-with temporary HandoffBase access credentials:
+```text
+Origin: https://47-236-247-69.sslip.io
+MCP:    https://47-236-247-69.sslip.io/mcp
+Health: https://47-236-247-69.sslip.io/health
+```
+
+The service is API-key protected. Put a temporary HandoffBase judge token in
+the private Devpost testing-instructions field before submission. Do not put
+the token in public copy, screenshots, tracked files, or the demo video.
+
+Judges can validate the remote MCP service from a checkout of the public
+repository:
 
 ```bash
-MCP_VALIDATION_PROFILE=alibaba-demo \
-MCP_ENDPOINT=<deployed-mcp-url> \
+EXPECTED_AUTH_MODE=api_key \
+EXPECTED_PROVIDER_MODE=qwen \
+EXPECTED_STORE_MODE=postgres \
+EXPECTED_EMBEDDING_MODE=qwen \
+MCP_ENDPOINT=https://47-236-247-69.sslip.io/mcp \
 MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key> \
 npm run mcp:validate-remote
 ```
 
-The `alibaba-demo` profile asserts `api_key` auth, Qwen provider mode, and the
-in-memory store. Omit the profile for mode discovery, or set
-`EXPECTED_AUTH_MODE`, `EXPECTED_PROVIDER_MODE`, and `EXPECTED_STORE_MODE`
-individually for another deployment. Every profile checks the exact current
-nine-tool manifest.
+Do not use the legacy `alibaba-demo` profile for this deployment; that profile
+expects the released China proof's in-memory store. The explicit assertions
+above cover the current Postgres and Qwen-embedding runtime. Omit them only for
+mode discovery. Every run checks the exact current nine-tool manifest.
 
 The remote validator also checks:
 
@@ -148,10 +158,11 @@ The remote validator also checks:
 - authenticated Qwen-backed `memory_remember`
 
 The store readiness check runs on every request. Qwen readiness uses a live
-one-token probe on the first request and caches it for five minutes so polling
-cannot repeatedly consume model quota. Use `MCP_SKIP_READINESS=1` only for a
-legacy deployment that does not yet expose `/ready`; it does not skip the
-current tool-manifest checks.
+one-token probe and the deployed runtime caches successful readiness for one
+hour so polling cannot repeatedly consume model quota. `/ready` requires the
+same HandoffBase token; unauthenticated requests return HTTP 401. Use
+`MCP_SKIP_READINESS=1` only for a legacy deployment that does not expose
+`/ready`; it does not skip the current tool-manifest checks.
 
 The Qwen API key is never shared with judges. The HandoffBase API key is
 separate from the Qwen key; it only protects the HandoffBase MCP endpoint and
@@ -166,18 +177,25 @@ including `/health`, MCP discovery, `memory_recall`, and Qwen-backed
 
 ## Current Runtime Truth
 
-The deployment proof uses:
+The current Singapore deployment uses:
 
 ```text
 authMode=api_key
 providerMode=qwen
-storeMode=in-memory
+storeMode=postgres
+embeddingMode=qwen
 ```
 
-That means the historical proof is Qwen-backed and API-key protected, but its
-runtime store is the in-memory demo store. The integrated code now has explicit
-Postgres runtime selection and migration, but that path has not been deployed
-to Alibaba Cloud or validated as production storage.
+Strict remote validation passed through the public HTTPS hostname. It returned
+the exact nine-tool manifest, a recall trace, and two persisted Qwen-created
+pending candidates. An exact memory remained after the application container
+was restarted, and Postgres contained memory, trace, and embedding rows. See
+[`docs/deployment/alibaba-cloud-proof.md`](../deployment/alibaba-cloud-proof.md)
+for the dated, non-secret evidence.
+
+The released 2026-07-07 Beijing proof used `storeMode=in-memory` over HTTP and
+is preserved only as historical evidence. It is not the endpoint or runtime
+judges should test.
 
 ## Secret Rules
 

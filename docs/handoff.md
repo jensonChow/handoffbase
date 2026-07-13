@@ -1,368 +1,112 @@
 # Current Handoff
 
-Updated: 2026-07-12, second update (Alibaba Cloud INTERNATIONAL pivot +
-`dashscope-intl` defaults; earlier the same day: README hero + badges + real v2
-Memory Vault screenshots; prior code state: the engine session at 51c78cf)
-
-## Newest — Alibaba Cloud station pivot to INTERNATIONAL (2026-07-12)
-
-Owner decision, executed the same day: the hackathon runs on the
-**international** station, so the China-station deployment was retired and the
-plan is now international end-to-end.
-
-- **Event facts (verified against the Devpost resources page):** the
-  hackathon's platform is "Qwen Cloud" = Alibaba Cloud Model Studio
-  **international** — docs at `docs.qwencloud.com`, API base
-  `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`, $40 voucher issued
-  on that platform (voucher request deadline **passed Jul 9**; a request was
-  submitted Jul 8, status unconfirmed). Rules require Qwen as the core model;
-  deployment proof = backend running on Alibaba Cloud + a repo code-file link.
-  Keys are NOT interchangeable between stations.
-- **Owner released the China-station ECS instance** (`i-2ze79rc2xe68zx1xeahu`,
-  `cn-beijing`) on 2026-07-12. The old endpoint `http://123.56.244.157` no
-  longer exists; its disk (including the old env file) is gone.
-  `docs/deployment/alibaba-cloud-proof.md` and `relaunch-runbook.md` now carry
-  SUPERSEDED/RELEASED banners and are retained as honest history. The old
-  China-station (Bailian) Qwen key is unused now — owner should delete/rotate
-  it in the China console; the China free-tier quota (1M tokens) does not carry
-  over to the intl account.
-- **Code defaults swapped China → international** (this commit): the DashScope
-  base-URL fallback is now `dashscope-intl.aliyuncs.com/compatible-mode/v1` in
-  `QwenMemoryProvider`, `QwenEmbeddingProvider`, the `/ready` Qwen probe
-  (`src/readiness.ts`), and the LongMemEval local runtime, plus `.env.example`
-  and the deployment checklist. `QWEN_BASE_URL`/`DASHSCOPE_BASE_URL` still
-  override; a China-station key now requires setting the China URL explicitly.
-  No CI impact (credential-free paths never hit these URLs).
-- **Redeploy plan (not yet executed):** fresh ECS on the international station,
-  Singapore `ap-southeast-1`, 2 vCPU / 4 GiB Ubuntu 22.04 + Docker, port
-  80→3000, root-owned env file with a **fresh Qwen Cloud intl key** + fresh
-  `HANDOFFBASE_API_KEY`, `storeMode=in-memory`. The owner drives it with a
-  Chrome-automation agent using the prompt kit kept OUTSIDE the repo at
-  `../relaunch-kit/` (`ecs-intl-deploy-agent-prompt.md` +
-  `handoffbase-src-b0b9ed8.tar.gz`, sha256 `691eb1ab…`). The kit archive is
-  built from `b0b9ed8` (pre-pivot code); that is fine because the deployment
-  env file sets `QWEN_BASE_URL` explicitly — regenerate the archive from the
-  newer HEAD only if redeploying without an explicit base URL.
-- **After the deploy:** run `mcp:validate-remote`
-  (`MCP_VALIDATION_PROFILE=alibaba-demo`, expects api_key + qwen + in-memory;
-  the 9-tool assertion proves the new image), record a NEW dated proof file for
-  the international deployment, and keep every old-IP reference confined to the
-  superseded historical docs.
-
-## This session — README hero + real dashboard screenshots (2026-07-12)
-
-Shipped the top-of-README polish (Star-OSS gap #1), committed on `main`
-(`125554c`), no engine/behavior change:
-
-- `docs/assets/hero.png` — an HTML-rendered "Amber Archive" ledger hero (real
-  Space Grotesk / IBM Plex Mono, a self-contained dark card that reads on GitHub
-  light AND dark; a struck-through brick-red row makes strategic forgetting
-  visible in the art). Authored as HTML and rendered through headless Chrome to
-  dodge GitHub's SVG webfont sandbox — so it is a PNG, deliberately, not an SVG.
-- Six honesty-audited badges: CI · MIT · Node >=22 · MCP 9/9/4 · "Qwen Track 1:
-  strategic forgetting + budgeted recall" (descriptive, no logo/affiliation) ·
-  self-labeled "our benchmark 17/17 vs 0/17" (links to docs/benchmarks.md). Only
-  the CI badge is visibility-dependent — it shows "no status" until the repo is
-  public and CI runs green on the default branch.
-- Three REAL captures of the shipped v2 Memory Vault (mock fixture, Next dev
-  indicator hidden, 2x then palette-optimized to ~130–200 KB):
-  `dashboard-memory-vault.png` (governed store, primary/top block),
-  `dashboard-overview.png` (cross-agent handoff + trace breakdown),
-  `dashboard-memory-vault-light.png` (light Paper Ledger theme). Reproducible via
-  `HANDOFFBASE_DASHBOARD_CLIENT_MODE=mock npm run dashboard:dev` → localhost:3001.
-- README top block (hero → tagline → badges → subtitle → honest status → nav →
-  primary screenshot) + a new "The Memory Vault Dashboard" section. All nav links
-  resolve to in-page anchors; `npm run check:markdown-links` passes (78 links).
-
-Design was produced by a 3-lens blueprint Workflow (judge-first / adopter /
-brand → judged synthesis, honesty-audited). Screenshots + hero were captured with
-a throwaway scratchpad puppeteer + `sharp` — NOT added to repo deps; the tree
-holds only `README.md` + the four PNGs. The 9/9/4 contract, pinned suites, and all
-behavior are untouched.
-
-The remainder of this document (## Outcome onward) records the prior engine
-session and remains the current code/behavior state — unchanged this session.
+Updated: 2026-07-13
 
 ## Outcome
 
-This session strengthened the memory engine itself — the two capabilities Track 1
-explicitly judges and the engine did not have: **strategic forgetting**
-(`memory_forget` mode `enforce_capacity`) and **recall within a limited context
-window** (server-side hard `token_budget` enforcement). Both deferred LOW
-correctness findings were closed on the way (`reflect` over-reporting invalidated
-ids; `recall` `limit<=0` store parity). The 9/9/4 tool contract and the pinned
-17-case benchmark suite are deliberately unchanged. No dataset download, no paid
-Qwen/OpenAI call, no cloud mutation or Docker restart, no repo-visibility change.
+HandoffBase is live on Alibaba Cloud International in Singapore at
+`https://47-236-247-69.sslip.io/mcp`. The deployment uses Caddy HTTPS,
+API-key authentication, Qwen reasoning and embeddings, and Postgres/pgvector.
+The Memory Vault dashboard is intentionally not hosted on the judging ECS.
 
-Design method: a multi-agent Workflow (5 code-mapping readers → 3 independent
-designs under minimal-diff / algorithmic-rigor / judge-appeal lenses → scored
-synthesis) produced the file-by-file plan before any code was written.
+Runtime truth:
 
-## What Shipped
+- `authMode=api_key`
+- `providerMode=qwen`
+- `storeMode=postgres`
+- `embeddingMode=qwen`
+- generation: `qwen-plus-2025-09-11`
+- embeddings: `text-embedding-v4`
+- source base commit: `90c517ac4e2fa5d855f70d61735c45c6a99c1efb`
 
-### Strategic forgetting — `memory_forget` mode `enforce_capacity`
+The first Beijing deployment was released on 2026-07-12. Its HTTP endpoint,
+in-memory runtime, and relaunch instructions are historical only.
 
-- **A fifth forget mode, not a tenth tool.** The 9/9/4 manifest is untouched
-  (~30 sites assert it, including the stopped ECS validator's 9-tool check).
-- **Retention policy = recall ranking.** New shared pure helpers in
-  `packages/memory-core/src/lifecycle.ts`: `retentionScore` (exactly the
-  non-query projection of the Postgres recall score:
-  `importance*2.0 + confidence*0.5 + min(useCount,20)*0.01 + hyperbolic recency`)
-  and `compareRetentionForEviction` (deterministic total order: score →
-  lastUsedAt → useCount → updatedAt → createdAt → id). One ordering governs
-  recall priority and forgetting priority: what recall ranks last is what
-  capacity pressure evicts first.
-- **Governed, reversible, explainable.** Capacity bounds the TOTAL active count
-  in scope; `protected_types` only controls eligibility (best-effort when
-  protected alone exceed capacity). `dry_run: true` returns the full eviction
-  plan (ids + retention scores) with zero mutation/events/traces. Apply archives
-  (never deletes) each victim under mutation locks with per-victim re-fetch/skip
-  (racing a per-memory forget yields exactly one mutation, no double event), one
-  governance event per eviction (actor = authenticated caller; sweep provenance
-  in the reason's `[capacity N: retention S, rank i/N]` marker), plus an
-  aggregate `capacity_sweep` trace (selected = retained, ignored = evicted,
-  per-victim reasons) — `memory_trace` can now explain forgetting.
-- **Auth inherited, not re-implemented.** The sweep composes `listMemories` +
-  `updateMemory` through the existing scope guards; wrong tenant/user/project
-  callers are rejected and other users' over-capacity memories are never counted
-  or touched (tested).
-- Schema: `memory_forget` input gains optional `scopes`/`capacity`/`dry_run`/
-  `protected_types` with `superRefine` cross-field rules enforced at the MCP
-  boundary (full-schema registration, `memory_resolve_conflict` precedent) AND
-  re-parsed defensively in the service; output gains optional `capacity`/
-  `retained_count`/`dry_run`/`trace_id`/`evicted_memories`.
+## Cloud And Cost State
 
-### Limited context window — strict server-side token budget
+- ECS: `i-t4neg1sj9bowdymjfkrx`, Singapore Zone A, Ubuntu 24.04 x86_64,
+  2 vCPU, 4 GiB RAM, 40 GiB system disk, prepaid fixed 1 Mbps bandwidth.
+- The subscription expires on 2026-08-13 at 08:59:59 Singapore time, after
+  judging ends on 2026-08-12 at 05:00 Singapore time.
+- Checkout used USD 21.74 of the USD 40 event coupon and charged USD 0.00 to
+  the payment method. Auto-renewal is disabled.
+- No managed database, snapshot service, load balancer, paid security product,
+  marketplace image, or traffic-billed public networking was added.
+- Model Studio Stop-on-Exhaust is enabled on both exact deployed model rows.
+  Final remaining quota was 984,060 / 1,000,000 generation tokens and
+  999,628 / 1,000,000 embedding tokens; both expire 2026-10-11.
+- The dedicated Qwen key is limited to the ECS public IP and the two deployed
+  model ids. Do not broaden the model scope or disable Stop-on-Exhaust.
+- Do not run the credentialed LongMemEval benchmark through judging; the local
+  `npm run check` benchmark paths are deterministic/mock and do not spend model
+  quota.
 
-- New exported `enforceTokenBudget(pack, budget)` in
-  `continuity-memory-service.ts`, applied at the single `buildContextPack` choke
-  point covering BOTH tools (`memory_recall`, `continuity_bootstrap`) and BOTH
-  providers: greedy skip-and-continue over the rendered `- [type] text` lines,
-  so `estimated_tokens <= token_budget` holds **by construction** (measured on
-  the actual joined artifact — fixes the mock's uncounted `- [type] ` prefix
-  gap). The caller-effective budget always overrides the provider echo, so a
-  Qwen response echoing a bogus `token_budget` cannot bypass it.
-- Trimmed memories land on the context-pack trace as ignored with reason
-  `Trimmed to fit the token budget of N tokens.` — deliberately distinct from
-  the provider's own `Skipped to fit the token budget.`, so traces distinguish
-  provider-skip from server-trim. Outputs gain optional `token_budget` /
-  `estimated_tokens`. Honesty label: chars/4 heuristic estimator over rendered
-  context lines, not an official tokenizer.
+## Live Proof
 
-### Both deferred LOW bugs closed
+- Outside-in `/health` passed and reported all four expected modes.
+- Unauthenticated `/ready` returned HTTP 401 `readiness_auth_required`.
+- The strict HTTPS MCP validator passed with exit code 0, the exact nine-tool
+  manifest, a recall trace, and two persisted non-rejected candidate memories
+  with ids and `pending` status.
+- Memory `dd2b6907-9d27-465e-8b36-d5056baa3ff2` remained after the app
+  container restarted; final counts were 9 memories, 16 traces, and 9
+  embeddings.
+- A compressed Postgres backup passed `pg_restore --list`, was copied off ECS,
+  and is stored locally at
+  `artifacts/deployment/handoffbase-2026-07-13.dump` with mode 0600. SHA-256:
+  `753688b3beb45550dd0c03febf2a437ddaa80114c4ed7431f258c792f7f64aae`.
 
-- `reflect` now reports only actually-invalidated ids (hallucinated/stale
-  provider ids no longer appear in `invalidated_memories`; regression-tested
-  with a stub provider suggesting one real + one hallucinated id).
-- `normalizeRecallLimit` moved verbatim from `postgres-store.ts` into shared
-  `lifecycle.ts`; the in-memory store now throws byte-identically to Postgres
-  for limit `0` / `-1` / `1.5` (previously `slice(0,-1)` silently returned n-1
-  results). One source of truth = permanent parity.
+The canonical non-secret record is
+`docs/deployment/alibaba-cloud-proof.md`. Deployment files are in
+`deploy/alibaba/`.
 
-### Proof layer (credential-free, deterministic)
+## Local Worktree State
 
-- New benchmark family `capacity-pressure` — deliberately stored as
-  `examples/benchmarks/capacity-pressure/capacity-pressure.fixture.json` (NOT
-  `cases.json`: the runner auto-discovers `*/cases.json`, which would have
-  silently grown the pinned suite). Runs only via `--fixture`; two cases
-  (capacity eviction incl. cross-user isolation; budget trim with hand-computed
-  25-token budget where the mock selects two memories but only one rendered
-  line fits). Double-run asserted byte-identical in `test/benchmark-runner.test.mjs`;
-  the pinned 17/34/43 assertions are untouched and still pass.
-- Two new eval cases (`capacity-eviction` incl. dry-run zero-mutation +
-  per-eviction event ids + `capacity_sweep` trace + archived-not-deleted;
-  `budget-trim-partial` incl. `estimated_tokens <= token_budget` + trim reason
-  on the trace) on isolated stores — eval now **10/10**.
-- `ContinuityMemoryService` gained an injectable `clock` option; benchmark and
-  eval runners inject the fixture's `fixedNow`, making determinism structural.
-- Runner wiring: `allowedFamilies` +`capacity-pressure`; forget steps carry
-  `capacity`/`dryRun`/`scopes`; `validateStep` enforces the mode-conditional
-  contract; `runForgetStep` builds mode-shaped input and honors
-  `traceIdPresent`; no new metric slugs or expectation keys.
+The deployment bundle, hardened remote validator, tests, and current submission
+docs are modified or untracked locally. They have not been committed or pushed.
+Do not commit, push, or change repository visibility without explicit owner
+approval.
 
-### Adversarial review round (post-implementation)
+Validation completed after the implementation:
 
-A 4-finder → 2-skeptic-per-finding review of the diff (several findings verified
-by executable repro against dist) confirmed 5 distinct defects the green suite
-missed; all fixed same-session with 5 regression tests (see memory/decisions.md
-2026-07-11 for full detail): (HIGH) restricted-caller sweep aborted mid-loop on
-broader-scope memories with committed partial evictions and no trace; (MED) a
-narrowed sweep could archive user-wide memories other projects still recall —
-both fixed by upfront eviction eligibility (scope-narrowness + caller authority,
-identical for dry-run and apply; broader memories count toward capacity but are
-never evictable); (MED) race-skipped victims were mis-reported as retained —
-now tracked, excluded from retained_count, traced as skipped; (MED) capacity
-archives now carry `expectedStatus:"active"` so cross-process Postgres races
-lose gracefully; (LOW×2) `scopes` schema description now matches its validation
-("rejected", not "ignored"); `enforceTokenBudget` dedupes ids a provider echoes
-in both lists (server outcome wins).
+- `npm run check` passed in full.
+- `npm run test:onboarding` passed 11/11.
+- `node --check scripts/validate-remote-mcp.mjs` passed.
+- `git diff --check`, Markdown-link checking, and tracked-secret scanning passed.
+- The latest validator overlay SHA-256 on ECS is
+  `e0c725cd69d2411b9e434fc8e661c9409f0b096de724a6142658738a6bb2ec6d`.
 
-## Validation
+Local Docker is not installed, so Compose syntax was validated on the ECS host,
+not with a local `docker compose config` run.
 
-Full `npm run check` (Qwen credentials cleared) green end to end: memory-core
-**57** (54+3), auth **10**, runtime **26**, server **99** (82+17), dashboard
-**33**, memory eval **10/10** (8+2), comparative benchmark HandoffBase 17/17 vs
-no-memory 0/17 (34/34, byte-stable), capacity-pressure fixture 4/4 conformant +
-byte-identical double run, LongMemEval tiny 9/9, cross-host E2E 1/1, markdown
-links, tracked-secret scan.
+## Event Readiness
 
-New tests: retention scoring/eviction-order pure tests + store limit parity
-(memory-core); enforce_capacity happy path / no-op / dry-run / protected_types /
-auth matrix + cross-user isolation / superRefine rejections / concurrency race /
-broader-scope eligibility (restricted + unrestricted callers) / race-skip
-accounting / expectedStatus precondition skip; strict budget (mock trim + trace
-reason, Qwen-echo-0 bypass attempt, bootstrap accounting, `enforceTokenBudget`
-unit incl. skip-and-continue + empty-stays-empty + both-lists dedupe); reflect
-over-report regression; capacity-pressure `--fixture` block.
+The live backend now fits the Qwen Cloud MemoryAgent requirement: Qwen is used
+for memory reasoning and embeddings, and Postgres proves persistent,
+cross-restart memory. The subscription and free model quotas extend beyond the
+judging window.
 
-## Product-Completeness Verdict (code-grounded, 2026-07-11)
+Submission is not complete until the owner:
 
-- **Credible hackathon submission: YES, stronger** — both explicit Track-1 asks
-  (strategic forgetting, limited context window) are now real, governed,
-  deterministic engine capabilities with credential-free proofs, not roadmap
-  items.
-- **Star / adoptable OSS repo: CLOSER** — unchanged gaps: README hero + badges +
-  raster screenshot, real Qwen run, cold-vs-warm artifact.
-- **Production: NO** — unchanged; in-memory default, ECS stopped, no durable
-  cloud Postgres/TLS/backup/rate-limit. (Not claimed.)
+1. Reviews and publishes the local deployment/proof changes to the public
+   repository.
+2. Adds links in Devpost to `deploy/alibaba/compose.yaml` and the Qwen provider
+   code.
+3. Places a temporary HandoffBase judge token only in Devpost's private testing
+   instructions.
+4. Renders/uploads the architecture diagram and a public demo video under three
+   minutes.
+5. Rechecks endpoint health and both model quotas immediately before submission
+   and recording.
 
-## Parallel opportunity — CockroachDB × AWS hackathon (researched 2026-07-12)
-
-A second hackathon is a strong thematic fit and worth a parallel entry: the
-"CockroachDB × AWS Hackathon — Build with Agentic Memory" (Cockroach Labs + AWS,
-`cockroachdb-ai.devpost.com`). Submission window **June 30 → August 18, 2026** —
-about four weeks AFTER the Qwen deadline (Jul 20), so the two run sequentially,
-not simultaneously. Prize $8,750. Requires **≥2 CockroachDB tools** (Cloud
-Managed MCP Server · Distributed Vector Indexing · ccloud CLI · Agent Skills) and
-**≥1 AWS service** (Bedrock/Lambda/ECS/S3/…), meaningfully integrated. Judged on
-Agentic Memory Design · Technical Implementation · Real-World Impact · Production
-Readiness · Creativity & Originality — HandoffBase (an agentic-memory MCP server
-with vector recall) fits this even more directly than the Qwen track.
-
-Eligibility (verified against both events' `/rules`): dual participation is
-allowed — no exclusivity clause on either side, and Devpost has no platform-wide
-ban. The CockroachDB event requires projects "newly created … during the
-Submission Period"; this repo's first commit is **2026-07-07**, inside that
-window (and inside the Qwen window), so **HandoffBase itself qualifies — no
-separate/"sibling" repo is needed for originality**. Good-faith: disclose it as a
-dual-hackathon project and let the CockroachDB + AWS integration be the fresh,
-event-specific work.
-
-Technical delta (verified against primary CockroachDB docs +
-`packages/memory-core/migrations/0001_memory_core.sql`): CockroachDB is pg-wire
-compatible (node-pg connects; port 26257) and has a NATIVE `VECTOR` type using
-the same operators as pgvector (`<=>` cosine, `<->` L2, `<#>` inner product).
-Vector indexing = C-SPANN via `CREATE VECTOR INDEX`, needs **v25.2+**. The only
-real deltas are two migration lines: (1) drop `create extension if not exists
-vector;` (CRDB has `VECTOR` natively, not the pgvector extension); (2) swap
-`create index … using ivfflat (embedding vector_cosine_ops)` → CockroachDB
-`CREATE VECTOR INDEX`. Everything else ports as-is (`<=>` recall, `vector(1536)`,
-`for update`/`for no key update`, `on conflict do update`, `jsonb`/`text[]`/
-`unnest`/`returning`; no triggers or stored procs to trip PG-compat gaps). So a
-`STORE_MODE=cockroach` adapter is a ~1-day job, not a rewrite — and it satisfies
-one required tool (Distributed Vector Indexing); the Cloud Managed MCP Server or
-ccloud CLI covers the second. The clouds collide (can't run one instance on both
-Alibaba and AWS), but the swappable provider/store boundaries mean two
-deployments from one core.
-
-Recommended sequence: ship Qwen by Jul 20, then build the `STORE_MODE=cockroach`
-adapter + AWS deploy in the Jul 20 → Aug 18 gap (doing it in-window strengthens
-the "built during the submission period" story). Not started — deferred until
-after the Qwen submission unless the owner asks to de-risk early.
-
-## Remaining Work
-
-Star-OSS gaps (no keys needed):
-
-1. ~~README hero + badges + a real raster screenshot of the v2 dashboard~~ —
-   DONE 2026-07-12 (`125554c` on main): `docs/assets/hero.png` + three real
-   Memory Vault captures + six honesty-audited badges. CI badge activates when
-   the repo goes public.
-2. No reproducible path uses real Qwen (semantic recall wired but never run live).
-3. No cold-vs-warm learning-curve artifact.
-4. (Optional stretch) Dashboard capacity-sweep panel — evictions already surface
-   in the activity feed via their governance events.
-
-Deferred store-parity follow-ups (documented in memory/decisions.md, deliberately
-untouched — behavior-changing on the recall-ordering surface): Postgres recall
-weights 2.0/0.5 vs in-memory 1.0/0.25; in-memory lacks recency/useCount recall
-terms; Postgres vector term unclamped vs in-memory clamp-at-0; selection-reason
-wording for whitespace-only queries.
-
-Owner-only / ops:
-
-- **Owner action (2026-07-12): fresh INTERNATIONAL deployment before final
-  submission** — see "Newest" above. The China instance is RELEASED (nothing to
-  restart; the stale 7-tool `b565210` image is gone with it). Deploy via the
-  `../relaunch-kit/` browser-agent prompt (Singapore, in-memory store, fresh
-  intl Qwen Cloud key), then run `mcp:validate-remote` and record a new dated
-  proof. Postgres remains a possible later upgrade for durable persistence;
-  in-memory is rules-compliant.
-- Make the GitHub repo public; add the URL to Devpost under Track 1.
-- Record the two demo videos (scripts in `docs/submission/`) — the forgetting
-  demo arc is now real: seed over capacity → dry-run plan → apply → audit
-  events + `capacity_sweep` trace in the dashboard.
-- Real LongMemEval run: download LongMemEval-S + export `DASHSCOPE_API_KEY`
-  (+ `OPENAI_API_KEY` for the gpt-4o judge), then `bench:longmemeval:compare`.
-
-Production follow-ups (unchanged): cross-record Postgres unit of work for
-multi-memory conflict resolution; process-crash-atomic feedback for third-party
-stores; bounded ignored-lock sample in Postgres recall; durable cloud Postgres +
-TLS/monitoring/backup/rate-limiting.
-
-## Next Priority
-
-The engine covers the Track-1 asks and the README hero + real dashboard
-screenshots are now in (2026-07-12, `125554c`). Highest-value remaining moves,
-in order: (1) the fresh INTERNATIONAL deployment + `mcp:validate-remote` proof
-(owner-driven via `../relaunch-kit/`, see "Newest" above — mandatory for the
-submission), (2) the real-Qwen LongMemEval subset run against `dashscope-intl`,
-(3) a cold-vs-warm learning-curve artifact.
-Downstream (after Qwen, Jul 20 → Aug 18): the CockroachDB × AWS entry — see
-"Parallel opportunity" above; a ~1-day `STORE_MODE=cockroach` adapter + AWS
-deploy, deferred until the Qwen submission is in.
-
-Do not claim an official benchmark score, durable cloud proof, live public
-endpoint, or production SaaS readiness. Keep every judge labeled
-`official_qa_evaluator: false`. Do not make the repo public, run paid
-Qwen/OpenAI, download the official dataset, mutate cloud, or restart Docker
-without the required inputs/authorization.
+`sslip.io` currently resolves and the issued TLS certificate covers the judging
+window. Moving to a dedicated DuckDNS hostname is an optional reliability
+improvement, not a current event-compliance blocker.
 
 ## Next Session Prompt
 
-```text
-Read agent.md, all memory/*.md, docs/handoff.md, README.md, package.json, and
-(for the engine) packages/memory-core/src/lifecycle.ts +
-src/services/continuity-memory-service.ts + src/schemas.ts before changing
-behavior.
-
-Current: HEAD on main is the strategic-forgetting + token-budget engine session
-(after the dashboard v2 redesign 48f4ad8/8fc64fc). memory_forget gained an
-enforce_capacity mode (retention score = non-query projection of recall
-ranking; archive-only, dry-run-first, per-eviction events + capacity_sweep
-trace); token_budget on recall/bootstrap is now a server-side hard constraint
-(enforceTokenBudget; estimated_tokens <= token_budget by construction); both
-LOW bugs closed (reflect over-report, recall limit<=0 parity via shared
-normalizeRecallLimit). Proofs: capacity-pressure --fixture family (pinned
-17/34/43 untouched), eval 10/10, server tests 94, memory-core 57.
-
-Preserve: the nine-tool 9/9/4 contract; the pinned 17-case suite byte-stable
-(capacity-pressure stays --fixture-only, never cases.json); embeddings
-default-off; every benchmark score labeled official_qa_evaluator:false; honest
-historical Alibaba proof; archive-only capacity eviction (hard delete stays
-manual); the caller-effective token budget must always override provider echo.
-
-Cloud state: the China-station ECS was RELEASED 2026-07-12 (old endpoint and
-7-tool b565210 image are gone). The plan is a fresh Alibaba Cloud INTERNATIONAL
-deployment (Singapore, in-memory store, fresh Qwen Cloud intl key against
-dashscope-intl — now also the repo's default base URL), owner-driven via the
-../relaunch-kit/ browser-agent prompt. After it passes, run mcp:validate-remote
-and record a new dated proof file; old-IP references stay only in the
-superseded historical docs.
-
-README hero+badges + real dashboard screenshots are DONE (2026-07-12, 125554c:
-docs/assets/hero.png + three real Memory Vault captures + six badges). Highest-
-value next work: the owner-run real-Qwen artifact, then a cold-vs-warm artifact.
-Do not make the repo public, run paid Qwen/OpenAI, or mutate cloud without
-authorization.
-```
+Review the uncommitted Alibaba deployment and submission-proof diff. Keep all
+credentials private. If approved, commit and push the exact reviewed files,
+confirm the GitHub repository is public, then finish the Devpost code links,
+private judge-token instructions, architecture asset, and video links. Do not
+enable paid inference, auto-renewal, or additional Alibaba services.

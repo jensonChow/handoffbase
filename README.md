@@ -88,7 +88,7 @@ Every connected agent can:
 | Dashboard | Next.js Memory Vault with same-origin server APIs by default; it follows the MCP runtime's `STORE_MODE`/`DATABASE_URL`, while mock mode is explicit |
 | Demo | Deterministic AI Opportunity Scout flow and JSON-RPC/HTTP example payloads |
 | Product proof | Comparative 17-case memory benchmark, cleaned-format LongMemEval adapter with tiny fixture, and real HTTP/MCP cross-host E2E |
-| Deployment proof | Alibaba Cloud ECS + Docker proof with API-key auth, Qwen provider mode, and in-memory store mode |
+| Deployment proof | Live Alibaba Cloud International ECS + Docker deployment with HTTPS, API-key auth, Qwen reasoning/embeddings, and Postgres/pgvector |
 
 ## The Memory Vault Dashboard
 
@@ -322,23 +322,15 @@ MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
 npm run mcp:validate-remote
 ```
 
-Use the Alibaba demo profile when the deployment is expected to be API-key
-protected, Qwen-backed, and in-memory:
-
-```bash
-MCP_VALIDATION_PROFILE=alibaba-demo \
-MCP_ENDPOINT=<deployed-mcp-url> \
-MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
-npm run mcp:validate-remote
-```
-
-For another runtime, set one or more explicit assertions:
+For the live Singapore deployment, use explicit assertions because the legacy
+`alibaba-demo` profile expects the released in-memory proof:
 
 ```bash
 EXPECTED_AUTH_MODE=api_key \
 EXPECTED_PROVIDER_MODE=qwen \
 EXPECTED_STORE_MODE=postgres \
-MCP_ENDPOINT=<deployed-mcp-url> \
+EXPECTED_EMBEDDING_MODE=qwen \
+MCP_ENDPOINT=https://47-236-247-69.sslip.io/mcp \
 MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
 npm run mcp:validate-remote
 ```
@@ -358,10 +350,10 @@ Only for a legacy deployment that does not expose `/ready`, set
 `MCP_SKIP_READINESS=1` explicitly. This skips only readiness; the current tool
 manifest and MCP behavior checks still run.
 
-The current deployment evidence is recorded in
+The current Singapore deployment evidence is recorded in
 [`docs/deployment/alibaba-cloud-proof.md`](docs/deployment/alibaba-cloud-proof.md).
-It is a temporary Alibaba Cloud ECS proof using public HTTP, not a production
-TLS endpoint or managed SaaS service.
+It is a live HTTPS Alibaba Cloud ECS proof with Postgres persistence, not a
+managed multi-zone SaaS service.
 
 ## MCP Tools
 
@@ -596,12 +588,13 @@ manual boundary.
 
 ## Current Limitations
 
-- The live Alibaba Cloud proof is Qwen-backed but uses `storeMode=in-memory`.
-- Postgres runtime wiring and migration exist, but no durable cloud deployment
-  has been provisioned or validated; the default remains in-memory.
-- The public ECS proof uses HTTP on a demo endpoint; production use should add
-  TLS, domain routing, hardened auth, durable storage, monitoring, and a managed
-  deployment path.
+- The live Alibaba Cloud proof uses `storeMode=postgres` and
+  `embeddingMode=qwen`; the credential-free local default remains in-memory.
+- Postgres and Caddy TLS state run on one ECS host rather than managed
+  multi-zone services. A verified logical backup was copied off ECS, but there
+  is no managed backup service.
+- The public ECS proof uses a free `sslip.io` HTTPS hostname; production use
+  should add a custom domain, stronger monitoring, and managed high availability.
 - The Memory Vault dashboard has a real server-backed path, but it is not a
   hardened production admin console.
 - The comparative benchmark and LongMemEval tiny fixture are deterministic and

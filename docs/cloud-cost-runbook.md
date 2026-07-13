@@ -2,6 +2,12 @@
 
 Last checked: 2026-07-08T10:05:41Z
 
+> **SUPERSEDED (2026-07-12).** This runbook covers the released Beijing
+> pay-as-you-go instance only. The current judging deployment is the prepaid
+> Singapore Alibaba Cloud International stack documented in
+> `docs/deployment/alibaba-cloud-proof.md` and `deploy/alibaba/`. Do not use the
+> commands or cost figures below for the live instance.
+
 This runbook records the safe cost-control path for the Alibaba Cloud ECS demo.
 Do not add API keys, auth tokens, cookies, UID, phone number, account IDs,
 payment details, invoice details, coupon/voucher codes, or `.env.*` contents.

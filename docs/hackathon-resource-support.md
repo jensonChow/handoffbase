@@ -1,40 +1,60 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-08T10:05:41Z
+Last verified: 2026-07-13
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
 coupon codes, voucher codes, account IDs, payment details, cloud access
 credentials, auth headers, database URLs, or invoice details here.
 
-## Summary
+## Current Event Requirements And Deployment Status
 
-- Submission deadline: July 20, 2026 at 2:00 PM PST, per the live Devpost
-  update. The Devpost schedule also shows July 21, 2026 at 5:00 AM GMT+8.
-- Coupon/voucher request deadline: July 9, 2026 at 10:00 AM PST. Devpost says
-  this deadline was not extended.
-- Qwen Free Tier: public Qwen Cloud docs and Devpost confirm 1,000,000 free
-  tokens with no approval, no payment method, and no waiting. The authenticated
-  Alibaba Model Studio console shows `qwen-plus-2025-07-28` with
-  1,000,000 / 1,000,000 free tokens remaining.
-- Coupon/voucher status: submitted; verification is in progress. A Qwen Cloud
-  voucher application endpoint was found and reached after Qwen Cloud SSO login:
-  `https://www.qwencloud.com/challenge/hackathon/voucher-application`.
-  Devpost account/profile settings are now reachable. Devpost-confirmed fields
-  have been filled into the Qwen form where available. The remaining required
-  private fields were entered directly in Chrome by the user. Gmail received a
-  Qwen Cloud / Alibaba Cloud confirmation email showing the coupon form was
-  submitted and registration verification is in progress.
-- Alibaba Cloud deployment cost posture: the existing pay-as-you-go ECS demo in
-  `cn-beijing` is stopped in economical stop mode. No additional paid service was
-  intentionally created during this check.
-- Relaunch runbook: `docs/deployment/relaunch-runbook.md` records the safe
-  restart, validation, recording, availability, and stop/release checklist for
-  the stopped ECS deployment.
-- Current recommendation: continue using Qwen free quota with the stop-when-free
-  guardrail enabled for the deployed `qwen-plus` path; do not add paid cloud
-  services. Keep ECS stopped until it is needed for final submission validation,
-  then restart around July 17-18 and revalidate the public endpoint.
+- Submission deadline: July 20, 2026 at 2:00 PM Pacific time.
+- Judging ends: August 11, 2026 at 2:00 PM Pacific time, which is August 12 at
+  05:00 in Singapore.
+- The project must use Qwen models on Qwen Cloud. The MemoryAgent track requires
+  persistent memory, preferences, and cross-session recall.
+- The project must remain available to the sponsor, administrator, and judges
+  free of charge and without testing restrictions through the end of judging.
+  A private HandoffBase access token may be supplied in Devpost testing
+  instructions; the Qwen provider key must remain backend-only.
+- Devpost requires a public/open-source repository and license, an architecture
+  diagram, a public demo video under three minutes, working demo access, and a
+  link to a code file that demonstrates Alibaba Cloud services or APIs.
+- Current deployment: live on Alibaba Cloud International ECS in Singapore at
+  `https://47-236-247-69.sslip.io/mcp`.
+- Current runtime proof: `authMode=api_key`, `providerMode=qwen`,
+  `storeMode=postgres`, and `embeddingMode=qwen`.
+- Durable-memory proof: the strict remote validator persisted two Qwen-created
+  candidate memories; an exact memory remained after application restart; the
+  database contains memory, trace, and embedding rows.
+- Availability coverage: the prepaid ECS subscription expires on 2026-08-13 at
+  08:59:59 Singapore time, more than one day after the judging window ends.
+- Coupon posture: the ECS checkout used less than USD 22 of the USD 40 event
+  coupon and charged no real money. Auto-renewal is disabled, and no paid cloud
+  add-on was created for this deployment.
+- Model cost controls: Alibaba Model Studio **Free Quota Only** is enabled for
+  the exact deployed rows `qwen-plus-2025-09-11` and `text-embedding-v4`.
+  Calls stop rather than becoming paid inference when either quota is exhausted.
+  After final validation, 984,060 generation tokens and 999,628 embedding
+  tokens remained; both quotas expire on 2026-10-11.
+- Current cost plan: keep the credentialed LongMemEval benchmark disabled
+  through judging, monitor coupon and quota status, and do not add managed
+  databases, snapshots, load balancers, paid security products, marketplace
+  images, or traffic-billed networking.
+- Canonical deployment proof: `docs/deployment/alibaba-cloud-proof.md`.
+- Reproducible deployment bundle: `deploy/alibaba/`.
+
+The official rules are the source of truth for the event requirements:
+`https://qwencloud-hackathon.devpost.com/rules`.
+
+## Historical 2026-07-08 China-Station Snapshot
+
+The sections below preserve the earlier resource investigation and released
+China-station deployment for audit history. They are not the current billing,
+quota, endpoint, or availability state. The Beijing ECS instance was released
+on 2026-07-12, so its stopped-instance relaunch advice must not be applied to
+the live Singapore deployment.
 
 ## Qwen Cloud Free Tier
 

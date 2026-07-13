@@ -70,48 +70,35 @@
 - `docs/deployment/alibaba-cloud-proof.md` is the redacted live deployment proof file for ECS `/health`, MCP discovery, authenticated recall, and Qwen-backed remember validation.
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
 - Recommended first Alibaba Cloud deployment path is ECS + Docker for the long-running Remote Streamable HTTP server. Defer ACK and Function Compute unless operational needs justify the extra shape changes.
-- The approved hackathon deployment is currently paused: the Alibaba Cloud ECS
-  instance in `cn-beijing` was stopped in economical stop mode on
-  2026-07-08T10:05:41Z after explicit user approval. The instance was not
-  released.
-- Last running public demo endpoint: `http://123.56.244.157`; last MCP endpoint:
-  `http://123.56.244.157/mcp`. The stopped instance currently shows no public IP,
-  so recheck the IP after restart.
-- Last live `/health` validation before stop passed with `authMode=api_key`,
-  `providerMode=qwen`, and `storeMode=in-memory`.
-- Last live remote MCP validation before stop passed against the historical build: `tools/list` returned
-  7 tools, `memory_recall` returned 5 memories with a trace id, and Qwen-backed
-  `memory_remember` returned 2 pending candidate memories.
-- Current repository registration is 9 tools; the stopped ECS proof has not been rebuilt or revalidated with `memory_resolve_conflict` or `memory_feedback`.
-- Runtime secrets are configured only in the root-owned ECS env file consumed by Docker `--env-file`; do not record values in docs, logs, shell history, Docker layers, or Git.
-- Do not create additional paid compute, public endpoints, registries with billable storage or egress, load balancers, databases, or paid model usage without explicit approval.
-- Restart the stopped ECS instance around July 17-18 for final submission
-  validation, then stop or release the pay-as-you-go ECS instance after the
-  approved hackathon demo window.
-- Alibaba Postgres provisioning remains prepare-only until the target service/version is verified for pgvector or compatible vector extension support and explicit paid-resource approval is given. Runtime wiring now exists locally, but no managed cloud database was provisioned or validated.
+- The approved hackathon deployment is live on Alibaba Cloud International ECS
+  in Singapore at `https://47-236-247-69.sslip.io/mcp`. It runs Caddy HTTPS,
+  API-key auth, Qwen reasoning/embeddings, and Postgres/pgvector on one host.
+- Runtime secrets are configured only in `/etc/handoffbase/runtime.env`, owned
+  by root with mode 0600 and outside the checkout/build context. Never record
+  values in docs, logs, shell history, Docker layers, or Git.
+- The prepaid subscription expires 2026-08-13 08:59:59 Singapore time and has
+  auto-renewal disabled. Checkout used USD 21.74 of the USD 40 event coupon and
+  charged USD 0.00 to the payment method.
+- Fixed bandwidth is prepaid. No managed database, snapshot service, load
+  balancer, marketplace image, paid security product, or traffic-billed public
+  networking was added.
+- Model Studio Stop-on-Exhaust is enabled for `qwen-plus-2025-09-11` and
+  `text-embedding-v4`. Final remaining quota was 984,060 generation tokens and
+  999,628 embedding tokens; do not enable paid fallback or broaden key scope.
+- Strict validation through the public hostname passed the nine-tool manifest,
+  authenticated readiness, recall trace, and two persisted pending candidates.
+  An exact memory survived app restart; the database contained memory, trace,
+  and embedding rows.
+- The verified logical backup was copied off ECS and its SHA-256 matched the
+  server archive. Postgres and Caddy state remain single-host and are not a
+  managed high-availability service.
+- The released Beijing ECS, old HTTP endpoint, Bailian key/quota, and stopped
+  instance runbooks are historical only and must not be used for current judge
+  instructions.
 - `docs/hackathon-resource-support.md` is the non-secret ledger for Devpost
-  deadlines, Qwen Free Tier status, coupon/voucher request state, and Alibaba
-  Cloud cost guardrails.
-- As of 2026-07-08, the Qwen coupon/voucher request is submitted and pending
-  registration verification; activation is expected by email after review. Keep
-  UID, phone, Gmail address, voucher/coupon code, and account identifiers out of
-  tracked files.
-- The best-effort cost sweep found the approved pay-as-you-go ECS demo and no
-  visible unexpected RDS/PolarDB, ACK, load balancer, NAT Gateway, OSS bucket,
-  Log Service project, or paid Container Registry Enterprise instance. Resource
-  Center was not enabled, so a full inventory and budget alerts still require
-  user approval for the free Resource Center role/notification setup.
-- As of 2026-07-08T10:05:41Z, the cost-runway check and approved stop action
-  found the ECS demo stopped in economical stop mode on `ecs.e-c1m1.large` in
-  `cn-beijing`, with a 40 GiB ESSD Entry system disk retained. Billing pages did
-  not render exact balance or ECS bill details. The pre-stop planning estimate
-  was 4-5 RMB/day while running; after stop, compute/memory billing is paused but
-  disk and any retained attached-resource billing continues. Restart around
-  July 17-18 using `docs/cloud-cost-runbook.md`.
-- The same check confirmed Bailian fee overview showed `¥0` model-platform
-  spend, `qwen-plus-2025-07-28` still had 1,000,000 / 1,000,000 free tokens
-  remaining with free-quota-only enabled, and the ECS snapshot page showed
-  snapshot service was not opened.
+  deadlines, current quotas, coupon posture, and Alibaba Cloud cost guardrails.
+- Do not create additional paid compute, databases, public endpoints, load
+  balancers, registries, or paid model usage without explicit approval.
 
 ## CI
 
@@ -175,7 +162,9 @@
 - Final public-readiness checklist in `docs/submission/final-public-readiness.md`.
 - Demo video around 3 minutes.
 - Separate proof of Alibaba Cloud backend deployment.
-- Relaunch runbook for the stopped ECS proof in `docs/deployment/relaunch-runbook.md`.
+- Historical relaunch runbook for the released Beijing proof in
+  `docs/deployment/relaunch-runbook.md`; do not use it for the live Singapore
+  instance.
 - README describing Qwen Cloud usage, MCP endpoint, memory lifecycle, and Track 1 fit.
 
 ## Public Readiness Validation
@@ -196,6 +185,6 @@ For star-readiness changes, run at minimum:
 Placeholder matches such as `<your-handoffbase-api-key>` or `<redacted>` are acceptable only when clearly documented as placeholders.
 
 Do not run `npm run mcp:validate-remote` unless `MCP_ENDPOINT` and
-`MCP_AUTH_TOKEN` are already present in the shell environment. The ECS instance
-is currently stopped for cost control, so remote validation requires restart,
-current public-IP confirmation, and safe token handling first.
+`MCP_AUTH_TOKEN` are already present safely in the shell environment. The live
+judge endpoint is `https://47-236-247-69.sslip.io/mcp`; never print or commit
+the temporary HandoffBase judge token.

@@ -5,11 +5,11 @@ Claude Code, Cursor, and custom MCP hosts connect to one `/mcp` endpoint, call
 memory tools, read `memory://` resources, and receive trace ids for the memory
 context that shaped a run.
 
-The current implementation is intentionally honest in scope. The backend proof
-ran on Alibaba Cloud ECS with Docker, API-key auth, Qwen-backed reasoning, and
-the in-memory demo store. The ECS instance has since been stopped to reduce
-cost, so the proof should be treated as validated deployment evidence, not as a
-currently online production endpoint.
+The current implementation is intentionally honest in scope. The live judging
+backend runs on Alibaba Cloud International ECS in Singapore with Docker,
+Caddy HTTPS, API-key auth, Qwen reasoning and embeddings, and
+Postgres/pgvector. The credential-free local default remains in-memory; the
+live deployment uses durable single-host Postgres storage.
 
 ## Diagram
 
@@ -59,8 +59,10 @@ flowchart LR
   end
 
   subgraph CloudProof["Alibaba Cloud deployment proof"]
-    ECS["ECS + Docker backend proof"]
-    Limits["Public HTTP IP proof<br/>no TLS, LB, domain, or managed gateway"]
+    ECS["Singapore ECS + Docker"]
+    Edge["Caddy HTTPS"]
+    LiveDB["Postgres + pgvector<br/>single-host persistence"]
+    Limits["No custom domain, load balancer,<br/>or managed HA database"]
   end
 
   Codex --> Endpoint
@@ -91,7 +93,10 @@ flowchart LR
   Dashboard --> ConflictReview
   Dashboard --> TraceView
 
-  ECS -. "validated deployment proof; instance currently stopped" .-> Endpoint
+  ECS --> Edge
+  Edge --> Endpoint
+  ECS --> LiveDB
+  LiveDB --> Postgres
   ECS --> Limits
 ```
 
@@ -116,26 +121,29 @@ provider-agnostic.
 
 ## Alibaba Cloud Role
 
-Alibaba Cloud is the deployment proof for the backend. The project has evidence
-of an ECS instance running the Dockerized HandoffBase server with `/health`, MCP
-`tools/list`, authenticated `memory_recall`, and Qwen-backed
-`memory_remember` validation.
+Alibaba Cloud hosts the live judging backend. The Singapore ECS instance runs
+the Dockerized HandoffBase server, Postgres/pgvector, an explicit migration, and
+Caddy HTTPS. Public-hostname validation covered `/health`, authenticated `/ready`,
+the exact MCP `tools/list` manifest, `memory_recall`, and Qwen-backed
+`memory_remember` with persisted candidates. An exact memory remained after an
+application restart.
 
-The proof demonstrates ECS + Docker backend deployment. It does not claim a
-managed SaaS stack, durable cloud database, TLS endpoint, load balancer, domain,
-or managed gateway.
+The proof demonstrates a working ECS + Docker backend with HTTPS and durable
+single-host Postgres storage. It does not claim a managed SaaS stack, multi-zone
+database availability, a custom product domain, a load balancer, or a managed
+gateway.
 
 ## Current Store
 
-The live proof used `storeMode=in-memory`. `InMemoryMemoryStore` is therefore
-the current live demo store, and data should not be described as durable across
-process restarts.
+The live Singapore deployment reports `storeMode=postgres` and
+`embeddingMode=qwen`. It runs `PostgresMemoryStore` against Postgres/pgvector
+after the explicit migration. Restart validation proved process-restart
+persistence, and the final database contained memory, trace, and embedding rows.
 
-`PostgresMemoryStore`, the pgvector migration, `STORE_MODE=postgres`, and the
-`DATABASE_URL` runtime adapter are implemented. Migration is explicit through
-`npm run db:migrate`; in-memory remains the credential-free default. HandoffBase
-should not claim Postgres-backed live persistence until a dedicated database is
-provisioned and validated in an approved deployment.
+`InMemoryMemoryStore` remains the credential-free default for local development
+and deterministic tests. The live Postgres volume is on one ECS host, while a
+verified logical backup was copied off ECS. This proves application-restart
+persistence, not managed multi-zone availability or managed backups.
 
 ## Dashboard
 
@@ -153,14 +161,13 @@ seeding. It is not yet a production admin console.
 
 ## Current Limitations
 
-- The ECS proof is currently stopped to reduce cost; do not assume the endpoint
-  is online.
-- The deployed proof used public HTTP on an IP address.
-- No TLS certificate, custom domain, load balancer, or managed gateway is part
-  of the current proof.
-- Runtime storage for the live proof is in-memory.
-- Postgres/pgvector is opt-in and has not been validated in the live Alibaba
-  proof; the default runtime remains in-memory.
+- The live endpoint is API-key protected; the temporary judge token belongs
+  only in private Devpost testing instructions.
+- TLS uses a free `sslip.io` hostname rather than a custom product domain.
+- Postgres and Caddy state are on one ECS host; the verified logical backup is
+  off-server, but neither the database nor backup is a managed HA service.
+- The local default remains in-memory even though the live Alibaba runtime uses
+  Postgres/pgvector.
 - The Memory Vault dashboard is server-backed but not production hardened.
 - HandoffBase should not be described as production SaaS ready.
 

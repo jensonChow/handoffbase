@@ -1,9 +1,10 @@
 # Final Public Readiness
 
-Last updated: 2026-07-10
+Last updated: 2026-07-13
 
 Scope: public-readiness checklist reconciled with the integrated Product Proof
-code. Cloud state and secret configuration were not changed.
+code and the live Singapore deployment completed in this session. Secret values
+are intentionally omitted.
 
 ## Go/No-Go Snapshot
 
@@ -12,7 +13,7 @@ code. Cloud state and secret configuration were not changed.
 | Tracked repository safety | Go | Final tracked-file scans found only safe placeholders, public URLs, and safety-instruction wording. |
 | Public repository visibility | User action needed | The repository still needs to be made public by the owner. Do not make it public from this task. |
 | Devpost assets | Nearly ready | Copy, testing instructions, architecture notes, checklist, video scripts, and benchmark docs are in the repo; final public repo URL and uploaded video links still need to be filled. |
-| Live backend proof | Not currently live | The ECS instance is documented as stopped in economical stop mode. Restart and revalidate before recording, submission, or judging if a live endpoint is needed. |
+| Live backend proof | Go | The Alibaba Cloud International Singapore endpoint passed HTTPS health, authenticated readiness, strict MCP validation, and Postgres restart persistence proof on 2026-07-13. |
 | Production readiness | No-go | This is a runnable MVP and deployment proof, not a durable production SaaS service. |
 
 ## Repository Visibility Checklist
@@ -32,7 +33,8 @@ code. Cloud state and secret configuration were not changed.
 
 - [ ] Public repo URL: add the final public GitHub URL after repository
   visibility is changed. Expected repository: `jensonChow/handoffbase`.
-- [x] License visible: `LICENSE`.
+- [ ] License visibility: `LICENSE` is present locally; confirm it is visibly
+  linked from the public GitHub repository page after publication.
 - [x] Track selection: Qwen Cloud Hackathon Track 1 / MemoryAgent.
 - [x] Devpost copy: `docs/submission/devpost-copy.md`.
 - [x] Testing instructions: `docs/submission/testing-instructions.md`.
@@ -45,28 +47,30 @@ code. Cloud state and secret configuration were not changed.
   `docs/submission/alibaba-proof-video-script.md`.
 - [x] Recording shot list: `docs/submission/recording-shot-list.md`.
 - [x] Alibaba proof doc link: `docs/deployment/alibaba-cloud-proof.md`.
+- [ ] Devpost Alibaba code-file links: after publication, add direct public
+  GitHub blob links to `deploy/alibaba/compose.yaml` and
+  `packages/memory-core/src/reasoning/providers/qwen.ts`.
 - [x] Relaunch runbook: `docs/deployment/relaunch-runbook.md`.
 - [x] Benchmark documentation: `docs/benchmarks.md` and
   `docs/benchmark-results.md`.
 - [ ] Main demo video link: `TODO`.
 - [ ] Alibaba proof video link: `TODO`.
 
-## Prior Validation Snapshot
+## Current Validation Evidence
 
-The rows below are preserved as the 2026-07-09 pre-integration snapshot; their
-tool/test counts are historical and do not validate the current nine-tool
-integration. Use `npm run check` for the current gate set.
+The local gate and live deployment proof were rerun for the 2026-07-13
+Singapore deployment session.
 
 | Check | Result |
 | --- | --- |
-| `npm run check` | Historical pass. Built/typechecked workspaces and server, built dashboard, smoke-registered the then-current 7 tools, 9 resources, and 4 prompts, and passed the then-current test counts. |
-| `npm run eval:memory` | Passed 8/8 deterministic memory eval cases without Qwen credentials or a remote endpoint. |
+| `npm run check` | Passed in full after the deployment implementation; includes build, tests, deterministic eval/benchmarks, cross-host E2E, Markdown links, and tracked-secret scan. |
+| `npm run eval:memory` | Passed 10/10 deterministic memory eval cases without Qwen credentials or a remote endpoint. |
 | `npm run bench:memory` | Passed 17/17 deterministic benchmark-inspired local cases. |
-| `npm run smoke` | Historical pass; registered the then-current 7 tools, 9 resources, and 4 prompts. Current code has 9 tools. |
+| `npm run smoke` | Passed with 9 tools, 9 resources, and 4 prompts. |
 | `npm run dashboard:build` | Passed. |
-| `npm run test:dashboard` | Passed 2/2 dashboard API tests. |
+| `npm run test:dashboard` | Passed 33/33 dashboard tests. |
 | `node --check scripts/validate-remote-mcp.mjs` | Passed. |
-| Remote validator after ECS restart | Not run. `MCP_ENDPOINT` and `MCP_AUTH_TOKEN` were absent from the shell environment, and ECS is documented as stopped. |
+| Remote validator | Passed through the public HTTPS endpoint with explicit `api_key` / `qwen` / `postgres` / `qwen` mode assertions and two persisted pending candidates. |
 
 Do not run `npm run mcp:validate-remote` unless `MCP_ENDPOINT` and
 `MCP_AUTH_TOKEN` are already supplied safely through the shell environment.
@@ -74,7 +78,7 @@ Never print token values.
 
 ## Secret Scan Checklist
 
-Final integration scans were run before commit.
+Final integration scans were run on the uncommitted review diff.
 
 Expected safe outcomes:
 
@@ -94,26 +98,26 @@ Expected safe outcomes:
 
 ## Cloud Checklist
 
-- [x] ECS is currently documented as stopped in economical stop mode.
-- [ ] If the stopped ECS instance is needed for recording, submission, or
-  judging, restart it first.
-- [ ] After restart, recheck the public IP and update validation commands if it
-  changed.
-- [ ] Re-run `GET /health`, require `GET /ready` HTTP 200, and run
-  `MCP_VALIDATION_PROFILE=alibaba-demo npm run mcp:validate-remote` only with
-  safe shell-provided `MCP_ENDPOINT` and `MCP_AUTH_TOKEN`.
-- [ ] Stop or release the pay-as-you-go ECS instance after the approved
-  demo/judging window.
-- [ ] Do not provision Postgres, domains, TLS, load balancers, registries, or
-  other cloud services unless explicitly approved in a separate task.
+- [x] Singapore subscription ECS is live and prepaid through judging.
+- [x] `GET /health`, authenticated `GET /ready`, and strict remote MCP
+  validation passed through the public HTTPS hostname.
+- [x] Postgres restart persistence passed; the server-side archive passed
+  `pg_restore --list`, and the off-server copy matched SHA-256
+  `753688b3beb45550dd0c03febf2a437ddaa80114c4ed7431f258c792f7f64aae`.
+- [x] Auto-renewal is disabled and both deployed Model Studio rows have Free
+  Quota Only enabled.
+- [ ] Recheck health and quota immediately before submission and recording.
+- [ ] Release or allow ECS to expire after judging and rotate temporary keys.
+- [ ] Do not provision additional paid cloud services without explicit approval.
 
 ## Known Limitations
 
-- The live Alibaba Cloud proof used `storeMode=in-memory`.
-- Postgres migration and `STORE_MODE=postgres` runtime wiring exist, but no
-  cloud database was provisioned and the Docker restart harness was not run.
-- The public endpoint proof used HTTP on an ECS IP, with no TLS, domain, load
-  balancer, or managed gateway.
+- The live Alibaba Cloud proof uses `storeMode=postgres` and
+  `embeddingMode=qwen`; the local default remains in-memory.
+- Postgres and Caddy state reside on one ECS host. A verified logical backup was
+  copied off ECS, but there is no managed multi-zone database or backup service.
+- The public endpoint uses Caddy HTTPS with a free `sslip.io` hostname, not a
+  custom domain, load balancer, or managed gateway.
 - The Memory Vault uses same-origin server APIs by default and can share the MCP
   Postgres database, but it is not a production admin console.
 - The local comparison and LongMemEval tiny fixture are deterministic and
@@ -125,8 +129,8 @@ Expected safe outcomes:
 - Public repository visibility: user action required.
 - Devpost submission readiness: go after public repo URL and video links are
   filled.
-- Live endpoint readiness: no-go until ECS is restarted and remote validation
-  passes.
+- Live endpoint readiness: go as of the dated 2026-07-13 validation; recheck
+  immediately before submission.
 - Production SaaS readiness: no-go.
 - Final approver:
 - Final decision date:

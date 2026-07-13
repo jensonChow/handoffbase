@@ -42,30 +42,24 @@ CI and local `npm run check` must pass without Qwen credentials. The GitHub Acti
 
 ## Credentialed Validation State
 
-As of 2026-07-07, a dedicated Model Studio key labeled `handoffbase-hackathon-dev` was created for local hackathon validation and stored only in ignored `.env.hackathon.local` with local HandoffBase API key material. Do not commit or print the key; rotate or delete it after the hackathon.
+As of 2026-07-13, the live Alibaba Cloud International deployment uses a
+dedicated backend-only Model Studio key restricted to the ECS public IP and the
+exact models `qwen-plus-2025-09-11` and `text-embedding-v4`. The key exists only
+in the root-owned mode-0600 ECS runtime env file; do not commit or print it.
 
-The local Qwen configuration uses `qwen-plus` and a Beijing OpenAI-compatible base URL stored locally only. Workspace-specific IDs and API hosts are intentionally not committed; public docs should use a placeholder pattern such as `https://{WORKSPACE_ID}.{REGION}.maas.aliyuncs.com/compatible-mode/v1`.
-
-Manual live validation passed on 2026-07-07: the compiled server started with `.env.hackathon.local`, `/health` reported `providerMode: "qwen"` and `authMode: "api_key"`, and an authenticated `memory_remember` MCP call returned two pending candidate memories from Qwen. Keep CI on the credential-free mock path.
+Strict public-HTTPS validation passed with `providerMode=qwen`,
+`embeddingMode=qwen`, two persisted pending candidates with ids, and matching
+Postgres embedding rows. Keep CI and local `npm run check` on credential-free
+mock/deterministic paths.
 
 ## Hackathon Resource Support
 
-As of 2026-07-08, Qwen Free Tier is active/available for the deployment's
-Alibaba Model Studio / Bailian path. The console showed
-`qwen-plus-2025-07-28` with 1,000,000 / 1,000,000 free tokens remaining,
-expiration 2026/10/06, and free-quota-only / stop-when-free-quota-runs-out
-enabled for that model row.
-
-The Qwen Cloud / Alibaba Cloud coupon request has been submitted and is pending
-registration verification. Gmail received the confirmation email with subject
-"Coupon Request Received - Verification in Progress"; it says activation
-typically takes 1-2 business days. Do not record UID, phone number, Gmail
-address, coupon/voucher code, or account identifiers in this repository.
-
-If the request remains pending and urgent near the coupon deadline, contact
-`global.hackathon@alibaba-inc.com`; the user should enter UID and phone number
-directly in email or the browser. If an approved voucher or coupon code becomes
-available, ask before redeeming it and do not print, save, or commit the code.
+The international event coupon was applied to the prepaid ECS order on
+2026-07-12: USD 21.74 coupon value, USD 0.00 charged to the payment method.
+Model Studio Stop-on-Exhaust is enabled for both exact deployed model rows.
+After final validation, generation quota was 984,060 / 1,000,000 and embedding
+quota was 999,628 / 1,000,000; both expire 2026-10-11. Do not record account
+identifiers, coupon codes, or credentials in the repository.
 
 ## Station Pivot — International (2026-07-12)
 
@@ -73,8 +67,8 @@ The hackathon's platform is the Alibaba Cloud **international** station: "Qwen
 Cloud" = Model Studio intl, docs at `docs.qwencloud.com`, API base
 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` (verified against the
 event's resources page). Keys are NOT interchangeable between stations; the
-$40 event voucher lives on the intl account (request deadline passed Jul 9; a
-request was submitted Jul 8, status unconfirmed).
+$40 event voucher lives on the intl account. The request was submitted Jul 8;
+the coupon was later activated and applied to the prepaid ECS order.
 
 Consequences executed 2026-07-12:
 
@@ -86,8 +80,9 @@ Consequences executed 2026-07-12:
   `https://dashscope.aliyuncs.com/compatible-mode/v1`.
 - The dedicated China-station dev key (`handoffbase-hackathon-dev`, Beijing
   workspace) and the China free-tier quota (1M tokens, exp 2026/10/06) do NOT
-  work against / carry over to the intl endpoint. The owner needs a fresh Qwen
-  Cloud intl key; the old Bailian key should be deleted/rotated.
+  work against / carry over to the intl endpoint. A fresh restricted
+  international key was created and deployed on 2026-07-13; the old Bailian key
+  should still be deleted/rotated if that cleanup has not already happened.
 
 ## Alibaba Cloud Deployment
 
@@ -103,12 +98,9 @@ Qwen-backed `memory_remember`). **The owner RELEASED that instance on
 `docs/deployment/alibaba-cloud-proof.md` and `relaunch-runbook.md` carry
 SUPERSEDED banners and are retained as honest history.
 
-**Current plan (not yet executed):** fresh ECS on the INTERNATIONAL station,
-Singapore `ap-southeast-1`, 2 vCPU / 4 GiB Ubuntu 22.04 + Docker, port 80→3000,
-root-owned `--env-file` with a fresh Qwen Cloud intl key + fresh
-`HANDOFFBASE_API_KEY`, `storeMode=in-memory`. Owner drives it with a browser
-agent using the prompt kit kept OUTSIDE the repo (`../relaunch-kit/`). After
-deploy: `mcp:validate-remote` (alibaba-demo profile; the 9-tool assertion
-proves the new image) and a new dated proof file.
-
-Keep Postgres/RDS optional until pgvector support is verified for the selected service/version and additional paid provisioning is explicitly approved. Runtime store selection is now implemented in code, but no Alibaba Postgres/RDS instance has been provisioned or validated.
+**Current (validated 2026-07-13):** the backend runs on one prepaid Singapore
+ECS instance with Caddy HTTPS, `storeMode=postgres`, Qwen reasoning,
+Qwen embeddings, and a root-owned runtime env file. Postgres/pgvector runs in a
+private Docker network on the same ECS host; no managed RDS/PolarDB service was
+provisioned. Strict HTTPS validation passed the nine-tool manifest and
+persistent-candidate checks, and an exact memory survived an app restart.

@@ -10,8 +10,8 @@ optional short clips or B-roll.
   boundary, trace and conflict governance.
 - `docs/demo-dashboard.md`: local Memory Vault recording path.
 - `docs/deployment/alibaba-cloud-proof.md`: non-secret Alibaba ECS proof.
-- `docs/hackathon-resource-support.md`: current cost posture and stopped ECS
-  status.
+- `docs/hackathon-resource-support.md`: current coupon, quota, and prepaid ECS
+  guardrails.
 - Local HandoffBase Memory Vault dashboard.
 - Alibaba Cloud ECS console only for the proof video, with private account,
   payment, UID, phone, coupon/voucher, and secret values hidden.
@@ -43,11 +43,10 @@ MCP_ENDPOINT=http://127.0.0.1:3000/mcp npm run mcp:call -- memory_trace /tmp/han
 Remote proof commands to show only with placeholders:
 
 ```bash
-MCP_ENDPOINT=<deployed-mcp-url>
+MCP_ENDPOINT=https://47-236-247-69.sslip.io/mcp
 MCP_AUTH_TOKEN=<redacted>
-curl -s <deployed-health-url>
-curl -s <deployed-ready-url>
-MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
+curl -s https://47-236-247-69.sslip.io/health
+EXPECTED_AUTH_MODE=api_key EXPECTED_PROVIDER_MODE=qwen EXPECTED_STORE_MODE=postgres EXPECTED_EMBEDDING_MODE=qwen MCP_ENDPOINT=https://47-236-247-69.sslip.io/mcp MCP_AUTH_TOKEN=<redacted> npm run mcp:validate-remote
 ```
 
 Syntax-only check for the remote validator:
@@ -79,17 +78,18 @@ node --check scripts/validate-remote-mcp.mjs
 
 1. Alibaba Cloud ECS console: show ECS context only, with private account and
    billing details hidden.
-2. If stopped, show instance stopped/economical stop posture and say it is paused
-   for cost control.
-3. `docs/deployment/alibaba-cloud-proof.md`: Deployment section.
-4. Proof doc: Runtime Env Summary, without any secret values.
-5. Proof doc: Health Evidence with `authMode=api_key`,
-   `providerMode=qwen`, and `storeMode=in-memory`.
-6. Terminal: placeholder `/health` command after restart and revalidation.
+2. Show Singapore region, running status, subscription expiry, and auto-renewal
+   off without revealing account or billing identifiers.
+3. `docs/deployment/alibaba-cloud-proof.md`: Current International Deployment.
+4. Proof doc: Runtime Summary, without any secret values.
+5. Proof doc: Health And Access Evidence with `authMode=api_key`,
+   `providerMode=qwen`, `storeMode=postgres`, and `embeddingMode=qwen`.
+6. Terminal: public `/health` command and redacted strict validator command.
 7. Terminal: placeholder remote validator command.
 8. Output callouts: tools/list, `memory_recall`, Qwen-backed
    `memory_remember`.
-9. Proof doc: Known Limitations, especially in-memory store and public HTTP.
+9. Proof doc: Current Boundaries, especially single-host Postgres and the free
+   HTTPS hostname.
 
 ## Optional Short Clips And B-Roll
 
@@ -116,7 +116,7 @@ node --check scripts/validate-remote-mcp.mjs
   coupon/voucher code, or card details.
 - Gmail inbox contents or participant private details.
 - Any command output that includes real endpoint auth headers.
-- Any claim that the live endpoint is online while the ECS instance is stopped.
+- Any availability claim beyond the dated validation and judging window.
 
 ## Emergency Redaction Checklist
 
@@ -132,13 +132,13 @@ node --check scripts/validate-remote-mcp.mjs
 ## Final Upload Checklist
 
 - Public YouTube, Vimeo, Youku, or other accepted video link is available.
-- Main demo is about 3 minutes.
+- Main demo is no more than 2 minutes 50 seconds.
 - Alibaba proof clip is 45-90 seconds.
 - No real secret, auth token, UID, phone number, coupon/voucher code, or payment
   detail is visible.
 - `.env.*` files never appear.
 - Audio is clear and the terminal text is readable.
-- The video does not claim production durability, TLS, domain routing, or a live
-  endpoint unless those were actually revalidated.
-- The Alibaba proof says ECS may be paused for cost control and must be
-  revalidated after restart.
+- The video distinguishes verified single-host persistence and HTTPS from
+  managed multi-zone durability or a custom product domain.
+- The Alibaba proof states the validation date and keeps all access credentials
+  private.

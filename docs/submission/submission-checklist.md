@@ -5,15 +5,16 @@ remote validation.
 
 ## Repository Readiness
 
-- [ ] Public repo check: make the repository public only after explicit user
-  approval, or confirm the repository is otherwise shareable with judges.
+- [ ] Public repo check: after explicit owner approval, make the repository
+  publicly accessible as required by the event rules.
 - [ ] Repo URL check: add the final public repository URL to Devpost after
   visibility changes.
-- [ ] LICENSE check: MIT license is present.
+- [ ] LICENSE check: MIT `LICENSE` is present and visibly linked on the public
+  GitHub repository page.
 - [ ] GitHub Actions check: confirm the latest `CI` workflow run is green after
   pushing the final integration commit.
-- [ ] README check: README clearly states the project purpose, Qwen usage, MCP
-  surface, local commands, limitations, and current in-memory runtime truth.
+- [ ] README check: README clearly distinguishes the credential-free in-memory
+  local default from the live Postgres/Qwen deployment.
 - [ ] Architecture diagram check: `docs/assets/architecture.mmd` and
   architecture docs are present and accurate.
 - [ ] Devpost architecture check: add the architecture diagram or rendered
@@ -30,6 +31,9 @@ remote validation.
   `<add-alibaba-cloud-proof-video-link-before-submission>`.
 - [ ] Alibaba Cloud deployment proof check:
   `docs/deployment/alibaba-cloud-proof.md` is current and redacted.
+- [ ] Devpost Alibaba code-file links: after publishing, paste direct public
+  GitHub blob links to `deploy/alibaba/compose.yaml` and
+  `packages/memory-core/src/reasoning/providers/qwen.ts`.
 - [ ] Memory Vault dashboard demo path check:
   `docs/demo-dashboard.md` matches the recorded demo flow.
 
@@ -41,25 +45,25 @@ remote validation.
 - [ ] Dashboard build validation: `npm run dashboard:build`.
 - [ ] Dashboard test validation: `npm run test:dashboard`.
 - [ ] Remote validator script syntax: `node --check scripts/validate-remote-mcp.mjs`.
-- [ ] Final remote validator check after ECS restart:
-  `MCP_VALIDATION_PROFILE=alibaba-demo MCP_ENDPOINT=<deployed-mcp-url> MCP_AUTH_TOKEN=<temporary-handoffbase-demo-key> npm run mcp:validate-remote`.
+- [x] Final remote validator check: strict mode assertions passed through
+  `https://47-236-247-69.sslip.io/mcp` with two persisted candidates.
 - [ ] Final secret scan check: tracked files contain no real API keys, auth
   tokens, database URLs, cookies, cloud credentials, UID, phone number,
   coupon/voucher codes, payment data, or auth headers.
 
 ## Alibaba Cloud And Qwen
 
-- [ ] ECS restart/revalidation check: restart the stopped ECS demo only for the
-  approved submission or judging window, then revalidate `/health` and remote
-  MCP.
-- [ ] ECS endpoint check: confirm the current public IP or deployment URL after
-  restart, because the previous IP may change after economical stop mode.
-- [ ] ECS stop/release after judging window: stop or release the pay-as-you-go
-  ECS instance after the approved demo window.
+- [x] ECS deployment/revalidation check: the Singapore subscription deployment
+  passed `/health`, authenticated readiness, and strict remote MCP validation.
+- [x] ECS endpoint check: current judge endpoint is
+  `https://47-236-247-69.sslip.io/mcp`.
+- [ ] ECS release after judging window: release or allow the non-renewing
+  subscription to expire after the approved judging window.
 - [ ] Coupon/voucher status check: record only non-secret status, never a real
   coupon or voucher code.
-- [ ] Qwen free quota / free-quota-only check: verify the relevant `qwen-plus`
-  row still has free quota and stop-when-free-quota-runs-out enabled.
+- [ ] Qwen free quota / Free Quota Only check: verify both exact rows
+  `qwen-plus-2025-09-11` and `text-embedding-v4` still have quota and
+  Stop-on-Exhaust enabled.
 - [ ] Private testing key check: if judges need live access, share only a
   temporary HandoffBase API key in a private Devpost testing field.
 - [ ] Qwen secret check: do not share the Qwen API key or DashScope API key with
@@ -76,9 +80,11 @@ remote validation.
 - [ ] One-liner is `Open memory handoff for AI agents.`
 - [ ] Copy says Qwen backs reasoning-heavy memory operations.
 - [ ] Copy says Alibaba Cloud ECS deployment proof exists.
-- [ ] Copy says runtime proof uses `storeMode=in-memory`.
+- [ ] Copy says the live proof uses `storeMode=postgres` and
+  `embeddingMode=qwen`, while local development defaults to in-memory.
 - [ ] Copy does not claim benchmark scores.
-- [ ] Copy does not claim the ECS endpoint is currently online while stopped.
+- [ ] Copy limits availability claims to the dated live validation and judging
+  window.
 - [ ] Copy distinguishes HandoffBase from ordinary RAG, Mem0, Zep, Letta, and
   LangMem without claiming universal superiority.
 - [ ] Copy explains governed lifecycle, traces, pending review, and conflict

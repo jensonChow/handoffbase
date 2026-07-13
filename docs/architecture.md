@@ -5,13 +5,11 @@ agent runtime, a generic vector store wrapper, or a project-local note file. Its
 job is to expose durable memory operations through MCP so different hosts can
 share the same governed continuity layer without changing their own runtimes.
 
-The current project is in product-proof integration mode. The default path is
-still intentionally narrow and credential-free: Remote Streamable HTTP MCP,
-`MockMemoryProvider`, and an in-memory store. Postgres runtime selection,
-explicit migration, server-backed dashboard access, conflict resolution, and a
-real HTTP/MCP cross-host proof are implemented. The separate Alibaba Cloud ECS
-record remains historical Qwen/API-key/in-memory proof; the instance was later
-stopped to reduce cost.
+The current project is in product-proof integration mode. The credential-free
+local default remains intentionally narrow: Remote Streamable HTTP MCP,
+`MockMemoryProvider`, and an in-memory store. The live Alibaba Cloud
+International deployment uses Qwen reasoning and embeddings,
+Postgres/pgvector, Caddy HTTPS, and API-key auth on one Singapore ECS instance.
 
 ## System Shape
 
@@ -43,7 +41,7 @@ flowchart LR
     Core["Records, lifecycle,<br/>validation, scopes"]
     Store["MemoryStore"]
     InMemory["InMemoryMemoryStore<br/>credential-free default"]
-    Postgres["PostgresMemoryStore + pgvector<br/>opt-in runtime"]
+    Postgres["PostgresMemoryStore + pgvector<br/>live cloud / opt-in local"]
     Events["Memory events"]
     Trace["Memory traces"]
     Conflicts["Memory conflict records"]
@@ -59,8 +57,10 @@ flowchart LR
   end
 
   subgraph CloudProof["Alibaba Cloud deployment proof"]
-    ECS["ECS + Docker backend proof"]
-    Limits["Public HTTP IP proof<br/>no TLS, LB, domain, or managed gateway"]
+    ECS["Singapore ECS + Docker"]
+    Edge["Caddy HTTPS"]
+    LiveDB["Postgres + pgvector<br/>single-host persistence"]
+    Limits["No custom domain, load balancer,<br/>or managed HA database"]
   end
 
   Codex --> Endpoint
@@ -91,7 +91,10 @@ flowchart LR
   Dashboard --> ConflictReview
   Dashboard --> TraceView
 
-  ECS -. "validated deployment proof; instance currently stopped" .-> Endpoint
+  ECS --> Edge
+  Edge --> Endpoint
+  ECS --> LiveDB
+  LiveDB --> Postgres
   ECS --> Limits
 ```
 
@@ -242,35 +245,33 @@ mutations also enforce a same-origin request check.
 
 ## Live Deployment Proof
 
-The deployed proof is recorded in
+The current proof is recorded in
 [`docs/deployment/alibaba-cloud-proof.md`](deployment/alibaba-cloud-proof.md).
-It shows a single Alibaba Cloud ECS instance running the Dockerized server.
+It shows a Singapore Alibaba Cloud International ECS instance running the
+Dockerized server, Caddy, and Postgres/pgvector.
 
-Historical `/health` proof from 2026-07-07:
+Current `/health` proof from 2026-07-13:
 
 ```text
 authMode=api_key
 providerMode=qwen
-storeMode=in-memory
+storeMode=postgres
+embeddingMode=qwen
 ```
 
-That historical image returned the then-current seven-tool MCP surface and
-validated discovery, `memory_recall`, and Qwen-backed `memory_remember`. It
-predates the current nine-tool surface, including conflict resolution and
-feedback, as well as the Postgres wiring, so a future relaunch
-must rebuild and revalidate the current image before making current-runtime
-claims.
-
-The ECS instance has since been stopped to reduce cost. Treat the deployment
-record as proof that validation passed, not as a guarantee that the public
-endpoint is currently online.
+Public-hostname validation returned the current nine-tool MCP surface,
+authenticated readiness, a recall trace, and two persisted Qwen-created pending
+candidates. An exact memory remained after the application restarted, and the
+database contained memory, trace, and embedding rows. The first Beijing
+HTTP/in-memory proof is retained only as history in the proof document.
 
 ## Current Limitations
 
-- Runtime storage was in-memory on the historical live proof; the integrated
-  Postgres path has not been deployed to cloud infrastructure.
-- The public ECS endpoint is HTTP on an IP address, without domain, TLS, load
-  balancer, or managed gateway.
+- The live runtime uses single-host Postgres rather than a managed multi-zone
+  database. A verified logical backup is off-server, but it is not a managed
+  backup service.
+- The public ECS endpoint uses Caddy HTTPS with a free `sslip.io` hostname,
+  without a custom product domain, load balancer, or managed gateway.
 - The dashboard is server-backed by default but is not a hardened production
   admin console.
 - HandoffBase should not claim to be more mature or more production-ready than

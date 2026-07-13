@@ -1,6 +1,7 @@
 # Main Demo Video Script
 
-Target runtime: about 3 minutes.
+Target runtime: no more than 2 minutes 50 seconds, leaving a clear margin below
+the event's less-than-3-minute limit.
 
 Purpose: show HandoffBase as open memory handoff for AI agents: MCP-native,
 Qwen-backed, traceable, and governed. The demo should feel like infrastructure,
@@ -128,7 +129,7 @@ Callouts:
 - The handoff is cross-session and cross-host through MCP, not a vendor-specific
   agent runtime.
 
-## 1:55-2:25 Trace And Governance
+## 1:55-2:20 Trace And Governance
 
 Visuals:
 
@@ -154,7 +155,7 @@ Callouts:
 - Candidate versus existing memory conflict.
 - Conflict type, severity, and recommended action.
 
-## 2:25-2:45 Alibaba Cloud And Qwen Proof
+## 2:20-2:40 Alibaba Cloud And Qwen Proof
 
 Visuals:
 
@@ -165,15 +166,15 @@ Visuals:
 Voiceover:
 
 > The backend was deployed on Alibaba Cloud ECS as a Dockerized Remote MCP
-> server. The live validation previously showed API-key auth, `providerMode=qwen`,
-> and `storeMode=in-memory`. The ECS instance is currently stopped to control
-> cost, so the endpoint should be restarted and revalidated before final
-> submission footage if a live terminal proof is needed.
+> server. The live Singapore deployment uses HTTPS, API-key auth,
+> `providerMode=qwen`, `storeMode=postgres`, and `embeddingMode=qwen`. Strict
+> remote validation persisted Qwen-created candidates, and an exact memory
+> remained after the application restarted.
 
-Do not say the live endpoint is currently online unless it has been restarted
-and revalidated during the recording window.
+Use the current dated proof and recheck `/health` immediately before recording.
+Never show the judge token or backend Qwen key.
 
-## 2:45-3:00 Wrap
+## 2:40-2:50 Wrap
 
 Visuals:
 

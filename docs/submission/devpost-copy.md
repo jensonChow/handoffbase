@@ -80,18 +80,20 @@ preferences and later applies them across sessions. The dashboard is not a full
 production admin console yet, but it demonstrates the user-facing governance
 loop that makes memory trustworthy.
 
-Alibaba Cloud is used for deployment proof. The project has been validated on a
-single ECS instance running Docker with API-key auth, Qwen provider mode, and an
-in-memory runtime store. The proof covered `/health`, MCP `tools/list`,
-authenticated `memory_recall`, and Qwen-backed `memory_remember`. The instance
-may be paused to control cost, so the repository records non-secret proof and
-revalidation instructions rather than assuming the public endpoint is always
-online.
+Alibaba Cloud is the live judging deployment. HandoffBase runs on one prepaid
+Alibaba Cloud International ECS instance in Singapore with Docker, Caddy HTTPS,
+Postgres/pgvector, API-key auth, Qwen reasoning, and Qwen embeddings. Strict
+public-hostname validation covered `/health`, authenticated `/ready`, the exact
+nine-tool MCP manifest, `memory_recall`, and Qwen-backed `memory_remember` with
+persisted pending candidates. An exact memory remained after an application
+restart, proving that the deployed store survives process restarts.
 
 The honest limitation is that HandoffBase is not yet a production SaaS memory
-platform. The historical live proof uses `storeMode=in-memory`; durable cloud
-Postgres deployment, managed hardening, TLS, monitoring, and a full official
-benchmark run are future work. The point of the project is narrower and concrete:
+platform. The live Postgres database and Caddy TLS state are on one ECS host;
+the verified logical backup is off-server, but it is not a managed backup
+service. The hostname is a free `sslip.io` address, monitoring is minimal, and
+no full official benchmark run or official score exists. The point of the
+project is narrower and concrete:
 make memory portable, traceable, governed, and accessible through MCP, so agents
 can behave like long-term collaborators without forcing users into one runtime.
 
@@ -128,13 +130,16 @@ can behave like long-term collaborators without forcing users into one runtime.
 ## How It Uses Alibaba Cloud
 
 - The deployment proof runs HandoffBase on Alibaba Cloud ECS with Docker.
-- The deployed proof validated API-key auth, Qwen provider mode, and the Remote
-  Streamable HTTP MCP endpoint.
+- The current deployment is on Alibaba Cloud International in Singapore and
+  exposes an authenticated Remote Streamable HTTP MCP endpoint through HTTPS.
+- The live runtime uses Postgres/pgvector for durable memory and embeddings;
+  restart validation proved that an exact memory survived an app restart.
+- Qwen Cloud International powers both reasoning and embeddings through the
+  deployed backend.
 - The proof intentionally keeps runtime secrets in cloud/ECS secret
   configuration and records only redacted, non-secret evidence in the repo.
-- The current ECS instance may be stopped in economical mode to control cost;
-  judges can test after the endpoint is reactivated and revalidated.
-- The proof uses the in-memory runtime store, not durable production storage.
+- The prepaid subscription covers the judging window, auto-renewal is disabled,
+  and Model Studio Free Quota Only is enabled for both deployed model rows.
 
 ## Why It Matters
 
@@ -197,8 +202,9 @@ multiple hosts can use.
 - Governed helpful/unhelpful feedback, pending corrections, and explicit
   feedback-fixture conversion into runnable benchmark regressions.
 - `QwenMemoryProvider`, `MockMemoryProvider`, and the provider boundary.
-- In-memory runtime store by default.
-- `PostgresMemoryStore`, explicit migration, and opt-in runtime selection.
+- In-memory runtime store by default for credential-free local development.
+- `PostgresMemoryStore`, explicit migration, and the deployed Postgres/pgvector
+  runtime.
 - API-key auth for the deployed server path.
 - Authenticated, same-origin, service-governed Memory Vault dashboard with
   explicit mock mode.
@@ -208,23 +214,24 @@ multiple hosts can use.
 
 ## Current Limitations
 
-- The current Alibaba Cloud proof is Qwen-backed but uses `storeMode=in-memory`.
-- Postgres runtime selection is opt-in and has not been deployed to a durable
-  cloud database; the default remains in-memory.
-- The public ECS proof is a minimal HTTP demo endpoint, not a production TLS
-  service with a domain, load balancer, monitoring, and managed persistence.
+- The current Alibaba Cloud proof uses `storeMode=postgres` and
+  `embeddingMode=qwen`; the credential-free local default remains in-memory.
+- Postgres and Caddy TLS state are on one ECS host. A verified logical backup is
+  off-server, but there is no managed multi-zone database or backup service.
+- The public ECS proof uses a free `sslip.io` HTTPS hostname, not a custom
+  product domain, load balancer, or fully monitored production platform.
 - The Memory Vault dashboard is a prototype.
 - The local comparison and LongMemEval tiny fixture are deterministic and
   synthetic; no full official run or official score exists.
-- The ECS endpoint may be stopped or restarted around submission windows to
-  control pay-as-you-go cost.
+- The live endpoint requires a temporary HandoffBase access token, which must
+  be supplied privately to judges and rotated after judging.
 
 ## Future Roadmap
 
-- Validate the implemented `STORE_MODE=postgres` path against an approved
-  durable database service with verified vector-extension support.
-- Add managed deployment hardening: TLS, domain routing, monitoring, rotation,
-  and operational runbooks.
+- Add a managed multi-zone Postgres-compatible deployment with verified vector
+  support and managed backups.
+- Add production hardening: custom-domain TLS, monitoring, rotation, rate
+  limiting, and operational runbooks.
 - Expand benchmark integrations for long-term conversational memory,
   multi-session recall, conflict handling, forgetting, and active memory use.
 - Improve Memory Vault review workflows for approvals, merges, supersession,
@@ -241,8 +248,8 @@ multiple hosts can use.
 - Express adapter with Remote Streamable HTTP transport
 - Qwen Cloud through `QwenMemoryProvider`
 - `@handoffbase/memory-core`
-- In-memory store for the current runtime proof
-- Postgres/pgvector storage with explicit migration and opt-in runtime selection
+- In-memory store for credential-free local development
+- Postgres/pgvector storage with explicit migration in the live ECS runtime
 - Next.js Memory Vault dashboard with same-origin server APIs
 - Docker
 - Alibaba Cloud ECS

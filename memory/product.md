@@ -29,7 +29,7 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 
 公开定位必须保持克制：HandoffBase 是 MCP-native memory handoff layer，不声称全面替代 Mem0、Zep、Letta、LangMem 或成熟 managed memory 平台。比较文档应强调不同定位：跨 host MCP handoff、可追踪 context pack、冲突治理、用户可审计控制。
 
-当前 README 的主 tagline 是 “Open memory handoff for AI agents.”，并且必须诚实区分：historical Alibaba live proof 是 Qwen-backed、`storeMode=in-memory`；当前代码已有 selectable Postgres runtime，但没有完成 Alibaba durable deployment proof。
+当前 README 的主 tagline 是 “Open memory handoff for AI agents.”。2026-07-13 的当前 Alibaba Cloud International live proof 已验证 Qwen-backed reasoning/embeddings、`storeMode=postgres`、HTTPS 和 application-restart persistence；credential-free local default 仍是 mock + in-memory。旧 Beijing `storeMode=in-memory` proof 仅保留为 historical record。
 
 ## Effect Proof First
 
@@ -41,10 +41,10 @@ handoffbase 是一个 MCP-native 的 Agent 连续性层。它通过远程 MCP se
 
 Dashboard 的产品身份来自 HandoffBase API-key caller mapping，而不是固定 tenant/user 环境变量；登录只建立签名 HttpOnly session，所有 lifecycle 写操作都经 `ContinuityMemoryService`。`memory_feedback` 让用户对 memory 或 trace 标记 helpful/unhelpful，并可把纠正生成为 pending memory 和去标识化 regression fixture。该 fixture 必须经过显式 public-safe 人工确认，才可转换为额外的本地 benchmark case；它不会自动污染 tracked benchmark suite。
 
-Alibaba ECS proof 是 historical deployment proof and may be stopped for cost control；其 live truth 仍为 `authMode=api_key`、`providerMode=qwen`、`storeMode=in-memory`，并早于当前 9-tool build。Managed durable deployment、TLS/domain/LB/monitoring、backup/restore 和 multi-process conflict-resolution atomicity 仍是 future work。当前本地 17-case comparative benchmark 仍只是 deterministic synthetic regression，不是 official benchmark score。
+Alibaba Cloud International ECS proof 当前在线；live truth 为 `authMode=api_key`、`providerMode=qwen`、`storeMode=postgres`、`embeddingMode=qwen` 和 9-tool manifest。Postgres memory、trace、embedding rows 以及 exact memory id 在 app restart 后仍存在，off-server logical backup 也已验证。它仍是 single-host hackathon deployment，不是 managed multi-zone SaaS；custom domain、HA、完整 monitoring/rate limiting 和 multi-process conflict-resolution atomicity 仍是 future work。当前本地 17-case comparative benchmark 仍只是 deterministic synthetic regression，不是 official benchmark score。
 
 ## Submission Readiness
 
 2026-07-09 起，项目有一套面向 Devpost 的 submission-readiness docs-only package。核心材料在 `docs/submission/`：Devpost copy、testing instructions、submission checklist、main demo script、Alibaba proof video script、recording shot list、architecture-for-devpost、final public-readiness checklist。
 
-Submission copy 必须继续强调 Track 1: MemoryAgent、Qwen-backed memory reasoning、Remote Streamable HTTP MCP、Memory Vault governance、Alibaba ECS proof、local deterministic eval pack，以及当前限制。不能声称 ECS endpoint 当前在线、不能声称 production SaaS readiness、不能声称 benchmark score、不能声称 live store 已经 durable。
+Submission copy 必须继续强调 Track 1: MemoryAgent、Qwen-backed memory reasoning/embeddings、Remote Streamable HTTP MCP、Memory Vault governance、Alibaba ECS + Postgres proof、local deterministic eval pack，以及当前限制。可以引用 2026-07-13 dated live validation 和 process-restart persistence；不能把它扩张为 production SaaS、managed HA、official benchmark score 或无限期 availability claim。

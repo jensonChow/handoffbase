@@ -36,10 +36,9 @@ It is complete enough to show the intended product shape:
 - Alibaba ECS + Docker proof showed the remote server can run with API-key auth
   and Qwen provider mode.
 
-It is not production SaaS. The Alibaba proof still used `storeMode=in-memory`,
-the public ECS proof is historical and may be stopped for cost control, no
-production database or hardened dashboard deployment exists, and no official
-LongMemEval score has been produced.
+It is not production SaaS. The live Alibaba proof uses single-host Postgres and
+Caddy HTTPS, but it is not a managed multi-zone database or hardened dashboard
+deployment, and no official LongMemEval score has been produced.
 
 It is not only a demo. The repository has a real MCP server surface, a memory
 core package, provider abstraction, local checks, dashboard API tests, examples,
@@ -58,7 +57,7 @@ exists; the issue is which completeness standard HandoffBase should claim.
 | Memory Vault | API-key-backed signed caller sessions protect server APIs; mutations use `ContinuityMemoryService`, while caller-scoped snapshots support vault, pending, audit/delete, trace feedback, and conflict views. Explicit mock mode remains available. |
 | Deterministic product proof | Opportunity Scout evals, HandoffBase 17/17 versus no-memory 0/17 comparative fixtures, 34/34 conformance, LongMemEval tiny adapter gate, and real HTTP/MCP cross-host E2E. |
 | Durable runtime path | Explicit migration plus `STORE_MODE=postgres`/`DATABASE_URL` wiring for both MCP runtime and scoped dashboard backend. |
-| Deployment proof | Alibaba ECS + Docker proof validated API-key auth, Qwen provider mode, MCP discovery, recall, and Qwen-backed remember against a remote server. |
+| Deployment proof | Live Alibaba Cloud International ECS + Docker proof validated HTTPS, API-key auth, Qwen reasoning/embeddings, Postgres restart persistence, MCP discovery, recall, and Qwen-backed remember. |
 | Public package | README, architecture, lifecycle, comparison, eval, dashboard, deployment, and submission docs describe the current system and its limitations. |
 
 These pieces make HandoffBase credible as infrastructure. They also make the
@@ -141,13 +140,13 @@ completeness without pretending to be a mature managed service.
 | Can claim | Product feedback can become a governed correction and an explicitly reviewed runnable regression fixture. | Supported by `memory_feedback`, the Memory Vault trace flow, and `npm run feedback:to-benchmark`. |
 | Can claim | The repo includes deterministic evals and a comparative local benchmark where HandoffBase passes 17/17 and no-memory 0/17 with 34/34 expectation conformance. | Synthetic local product proof, not an official benchmark score. |
 | Can claim | Host A memory reaches Host B through real Streamable HTTP MCP while project isolation, traces, and forgetting are asserted. | Supported by `npm run e2e:cross-host`. |
-| Can claim with caveat | HandoffBase has Alibaba Cloud deployment proof. | True as historical ECS + Docker validation; revalidate before claiming a currently live endpoint. |
+| Can claim with caveat | HandoffBase has a live Alibaba Cloud deployment proof dated 2026-07-13. | True for the Singapore ECS + Docker + Caddy + Postgres deployment; recheck health before recording and submission. |
 | Can claim with caveat | HandoffBase has an authenticated dashboard for memory governance. | API-key-backed signed caller sessions, production same-origin mutation checks, service-governed actions, and a shared Postgres path exist; it is not a production admin console. |
-| Can claim with caveat | A Postgres persistence path is implemented. | Migration, runtime selection, unit/config tests, and an unexecuted Docker restart harness exist; live durable deployment proof does not. |
+| Can claim with caveat | Postgres persistence is implemented and live-validated. | Migration, runtime selection, tests, persisted rows, exact-id app-restart survival, and an off-server logical backup are proven; managed HA is not. |
 | Cannot claim yet | HandoffBase is production SaaS. | Missing validated durable deployment, production hardening, operations, billing, tenant administration, and availability proof. |
 | Cannot claim yet | HandoffBase has an official LongMemEval score. | No official dataset run or official paid QA evaluation has been completed. |
-| Cannot claim yet | The public ECS endpoint is currently online. | The proof may be stopped for cost control and must be revalidated before use. |
-| Cannot claim yet | HandoffBase is ready for real private user memory in production. | Current public proof lacks validated durable storage, TLS/domain/LB, auth administration/rotation, observability, rate limiting, and production governance operations. |
+| Cannot claim yet | The public ECS endpoint has indefinite production availability. | It is live under a dated judging deployment and must be rechecked before use. |
+| Cannot claim yet | HandoffBase is ready for real private user memory in production. | The public proof has single-host persistence and HTTPS but lacks managed HA, auth administration, observability, rate limiting, and production governance operations. |
 
 ## Relationship To Submission
 

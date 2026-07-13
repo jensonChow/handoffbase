@@ -95,14 +95,14 @@ HandoffBase uses retrieval as one part of memory, not the whole product.
 - First-class conflict records.
 - Qwen-backed memory reasoning behind a provider boundary.
 - Open-source memory control plane with clear storage and provider adapters.
-- Current live proof with `providerMode=qwen`, `authMode=api_key`, and
-  `storeMode=in-memory`.
+- Current live proof with `providerMode=qwen`, `authMode=api_key`,
+  `storeMode=postgres`, and `embeddingMode=qwen`.
 
 ## What HandoffBase Should Not Claim Yet
 
 - Not a replacement for all managed memory platforms.
 - Not more production-ready than mature hosted systems.
-- Not a fully wired durable Postgres deployment yet.
+- Not a managed multi-zone Postgres deployment or production SaaS yet.
 - Not an enterprise graph memory platform.
 - Not a full agent runtime.
 - Not a generic vector database.
