@@ -4,10 +4,11 @@ Updated: 2026-07-13
 
 ## Outcome
 
-HandoffBase is live on Alibaba Cloud International in Singapore at
-`https://47-236-247-69.sslip.io/mcp`. The deployment uses Caddy HTTPS,
-API-key authentication, Qwen reasoning and embeddings, and Postgres/pgvector.
-The Memory Vault dashboard is intentionally not hosted on the judging ECS.
+HandoffBase is live on Alibaba Cloud International in Singapore; the current
+endpoint is recorded in `docs/deployment/alibaba-cloud-proof.md`. The
+deployment uses Caddy HTTPS, API-key authentication, Qwen reasoning and
+embeddings, and Postgres/pgvector. The Memory Vault dashboard is intentionally
+not hosted on the judging ECS.
 
 Runtime truth:
 
@@ -24,17 +25,14 @@ in-memory runtime, and relaunch instructions are historical only.
 
 ## Cloud And Cost State
 
-- ECS: `i-t4neg1sj9bowdymjfkrx`, Singapore Zone A, Ubuntu 24.04 x86_64,
-  2 vCPU, 4 GiB RAM, 40 GiB system disk, prepaid fixed 1 Mbps bandwidth.
-- The subscription expires on 2026-08-13 at 08:59:59 Singapore time, after
-  judging ends on 2026-08-12 at 05:00 Singapore time.
-- Checkout used USD 21.74 of the USD 40 event coupon and charged USD 0.00 to
-  the payment method. Auto-renewal is disabled.
+- ECS: Singapore Zone A, Ubuntu 24.04 x86_64, 2 vCPU, 4 GiB RAM, 40 GiB system
+  disk, prepaid fixed 1 Mbps bandwidth (instance id in the proof file).
+- The subscription runs past the end of the judging window, with auto-renewal
+  disabled, and was covered by the event coupon at no real-money cost.
 - No managed database, snapshot service, load balancer, paid security product,
   marketplace image, or traffic-billed public networking was added.
-- Model Studio Stop-on-Exhaust is enabled on both exact deployed model rows.
-  Final remaining quota was 984,060 / 1,000,000 generation tokens and
-  999,628 / 1,000,000 embedding tokens; both expire 2026-10-11.
+- Model Studio Stop-on-Exhaust is enabled on both deployed model rows, keeping
+  the deployment within the free quota.
 - The dedicated Qwen key is limited to the ECS public IP and the two deployed
   model ids. Do not broaden the model scope or disable Stop-on-Exhaust.
 - Do not run the credentialed LongMemEval benchmark through judging; the local

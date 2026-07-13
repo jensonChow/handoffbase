@@ -54,12 +54,11 @@ mock/deterministic paths.
 
 ## Hackathon Resource Support
 
-The international event coupon was applied to the prepaid ECS order on
-2026-07-12: USD 21.74 coupon value, USD 0.00 charged to the payment method.
-Model Studio Stop-on-Exhaust is enabled for both exact deployed model rows.
-After final validation, generation quota was 984,060 / 1,000,000 and embedding
-quota was 999,628 / 1,000,000; both expire 2026-10-11. Do not record account
-identifiers, coupon codes, or credentials in the repository.
+The international event coupon covered the prepaid ECS order at no real-money
+cost. Model Studio Stop-on-Exhaust is enabled for both exact deployed model
+rows, and after final validation both stayed within the free quota. Do not
+record account identifiers, coupon codes, quota counts, or credentials in the
+repository.
 
 ## Station Pivot — International (2026-07-12)
 
@@ -67,8 +66,8 @@ The hackathon's platform is the Alibaba Cloud **international** station: "Qwen
 Cloud" = Model Studio intl, docs at `docs.qwencloud.com`, API base
 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` (verified against the
 event's resources page). Keys are NOT interchangeable between stations; the
-$40 event voucher lives on the intl account. The request was submitted Jul 8;
-the coupon was later activated and applied to the prepaid ECS order.
+event voucher lives on the intl account and was later activated and applied to
+the prepaid ECS order.
 
 Consequences executed 2026-07-12:
 

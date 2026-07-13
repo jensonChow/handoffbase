@@ -322,7 +322,7 @@ MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
 npm run mcp:validate-remote
 ```
 
-For the live Singapore deployment, use explicit assertions because the legacy
+For a live Postgres deployment, use explicit assertions because the legacy
 `alibaba-demo` profile expects the released in-memory proof:
 
 ```bash
@@ -330,7 +330,7 @@ EXPECTED_AUTH_MODE=api_key \
 EXPECTED_PROVIDER_MODE=qwen \
 EXPECTED_STORE_MODE=postgres \
 EXPECTED_EMBEDDING_MODE=qwen \
-MCP_ENDPOINT=https://47-236-247-69.sslip.io/mcp \
+MCP_ENDPOINT=https://<your-deployment-host>/mcp \
 MCP_AUTH_TOKEN=<temporary-handoffbase-access-token> \
 npm run mcp:validate-remote
 ```
@@ -520,7 +520,6 @@ More detail:
 - [Submission checklist](docs/submission/submission-checklist.md)
 - [Video recording shot list](docs/submission/recording-shot-list.md)
 - [Final public-readiness checklist](docs/submission/final-public-readiness.md)
-- [Current handoff](docs/handoff.md)
 
 ## Examples And Demo
 

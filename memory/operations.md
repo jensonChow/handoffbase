@@ -71,20 +71,20 @@
 - Local credential material belongs only in ignored `.env.*` files such as `.env.hackathon.local`; keep file mode restrictive and never commit those values.
 - Recommended first Alibaba Cloud deployment path is ECS + Docker for the long-running Remote Streamable HTTP server. Defer ACK and Function Compute unless operational needs justify the extra shape changes.
 - The approved hackathon deployment is live on Alibaba Cloud International ECS
-  in Singapore at `https://47-236-247-69.sslip.io/mcp`. It runs Caddy HTTPS,
-  API-key auth, Qwen reasoning/embeddings, and Postgres/pgvector on one host.
+  in Singapore; the current endpoint and instance facts are recorded in
+  `docs/deployment/alibaba-cloud-proof.md`. It runs Caddy HTTPS, API-key auth,
+  Qwen reasoning/embeddings, and Postgres/pgvector on one host.
 - Runtime secrets are configured only in `/etc/handoffbase/runtime.env`, owned
   by root with mode 0600 and outside the checkout/build context. Never record
   values in docs, logs, shell history, Docker layers, or Git.
-- The prepaid subscription expires 2026-08-13 08:59:59 Singapore time and has
-  auto-renewal disabled. Checkout used USD 21.74 of the USD 40 event coupon and
-  charged USD 0.00 to the payment method.
+- The prepaid subscription runs past the end of judging with auto-renewal
+  disabled, and was covered by the event coupon at no real-money cost.
 - Fixed bandwidth is prepaid. No managed database, snapshot service, load
   balancer, marketplace image, paid security product, or traffic-billed public
   networking was added.
 - Model Studio Stop-on-Exhaust is enabled for `qwen-plus-2025-09-11` and
-  `text-embedding-v4`. Final remaining quota was 984,060 generation tokens and
-  999,628 embedding tokens; do not enable paid fallback or broaden key scope.
+  `text-embedding-v4`, keeping the deployment within the free quota; do not
+  enable paid fallback or broaden key scope.
 - Strict validation through the public hostname passed the nine-tool manifest,
   authenticated readiness, recall trace, and two persisted pending candidates.
   An exact memory survived app restart; the database contained memory, trace,
@@ -186,5 +186,5 @@ Placeholder matches such as `<your-handoffbase-api-key>` or `<redacted>` are acc
 
 Do not run `npm run mcp:validate-remote` unless `MCP_ENDPOINT` and
 `MCP_AUTH_TOKEN` are already present safely in the shell environment. The live
-judge endpoint is `https://47-236-247-69.sslip.io/mcp`; never print or commit
-the temporary HandoffBase judge token.
+judge endpoint is recorded in `docs/deployment/alibaba-cloud-proof.md`; never
+print or commit the temporary HandoffBase judge token.
