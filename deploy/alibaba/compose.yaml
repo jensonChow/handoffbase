@@ -1,0 +1,138 @@
+name: handoffbase-alibaba
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg16
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-handoffbase}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: "${POSTGRES_DB:-handoffbase}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - backend
+
+  migrate:
+    image: "handoffbase:${HANDOFFBASE_IMAGE_TAG:-event}"
+    restart: "no"
+    user: node
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-handoffbase}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-handoffbase}"
+    command:
+      - node
+      - scripts/db/migrate.mjs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  app:
+    image: "handoffbase:${HANDOFFBASE_IMAGE_TAG:-event}"
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    user: node
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      MCP_PATH: /mcp
+      STORE_MODE: postgres
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-handoffbase}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-handoffbase}"
+      HANDOFFBASE_AUTH_MODE: api_key
+      HANDOFFBASE_API_KEY: "${HANDOFFBASE_API_KEY:?HANDOFFBASE_API_KEY is required}"
+      HANDOFFBASE_TENANT_ID: "${HANDOFFBASE_TENANT_ID:-demo-tenant}"
+      HANDOFFBASE_USER_ID: "${HANDOFFBASE_USER_ID:-demo-user}"
+      HANDOFFBASE_ACTOR_TYPE: "${HANDOFFBASE_ACTOR_TYPE:-mcp_host}"
+      HANDOFFBASE_ACTOR_ID: "${HANDOFFBASE_ACTOR_ID:-judge-client}"
+      HANDOFFBASE_EMBEDDINGS: qwen
+      HANDOFFBASE_READINESS_CACHE_MS: "3600000"
+      HANDOFFBASE_READINESS_TIMEOUT_MS: "${HANDOFFBASE_READINESS_TIMEOUT_MS:-5000}"
+      QWEN_API_KEY: "${QWEN_API_KEY:?QWEN_API_KEY is required}"
+      QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      QWEN_MODEL: qwen-plus-2025-09-11
+      QWEN_TIMEOUT_MS: "${QWEN_TIMEOUT_MS:-30000}"
+      QWEN_EMBEDDING_MODEL: text-embedding-v4
+      QWEN_EMBEDDING_DIMENSIONS: "1536"
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - edge
+      - backend
+
+  caddy:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      HANDOFFBASE_DOMAIN: "${HANDOFFBASE_DOMAIN:?HANDOFFBASE_DOMAIN is required}"
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - edge
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+  backend:
+    internal: true

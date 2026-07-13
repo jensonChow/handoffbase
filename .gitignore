@@ -7,6 +7,8 @@ coverage/
 .env
 .env.*
 !.env.example
+deploy/alibaba/runtime.env
+artifacts/deployment/*.dump
 *.log
 .DS_Store
 *.tsbuildinfo

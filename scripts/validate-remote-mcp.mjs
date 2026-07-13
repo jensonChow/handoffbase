@@ -36,6 +36,7 @@ export function resolveValidationExpectations(env = process.env) {
     authMode: readOptional(env.EXPECTED_AUTH_MODE) ?? profile.authMode,
     providerMode: readOptional(env.EXPECTED_PROVIDER_MODE) ?? profile.providerMode,
     storeMode: readOptional(env.EXPECTED_STORE_MODE) ?? profile.storeMode,
+    embeddingMode: readOptional(env.EXPECTED_EMBEDDING_MODE) ?? profile.embeddingMode,
   };
 }
 
@@ -44,7 +45,7 @@ export function assertExpectedHealth(health, expectations) {
   assertField(health, "name", "handoffbase-mcp-server");
   assertField(health, "transport", "streamable-http");
 
-  for (const field of ["authMode", "providerMode", "storeMode"]) {
+  for (const field of ["authMode", "providerMode", "storeMode", "embeddingMode"]) {
     const expected = expectations[field];
     if (expected !== undefined) {
       assertField(health, field, expected);
@@ -81,6 +82,40 @@ export function summarizeReadiness(readiness) {
     store: summarizeReadinessCheck(readiness.checks.store, "store"),
     provider: summarizeReadinessCheck(readiness.checks.provider, "provider"),
   };
+}
+
+export function resolveToolResultPayload(result, toolName) {
+  const textContent = Array.isArray(result?.content)
+    ? result.content
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => part.text)
+    : [];
+
+  if (result?.isError === true) {
+    const details = sanitizeToolErrorText(textContent.join("\n"));
+    throw new RemoteValidationError(
+      details
+        ? `${toolName} returned an MCP tool error: ${details}`
+        : `${toolName} returned an MCP tool error without text details.`,
+    );
+  }
+
+  if (result?.structuredContent !== undefined) {
+    return result.structuredContent;
+  }
+
+  const textPayload = textContent.join("\n").trim();
+  if (!textPayload) {
+    throw new RemoteValidationError(`${toolName} did not return structuredContent or JSON text content.`);
+  }
+
+  try {
+    return JSON.parse(textPayload);
+  } catch {
+    throw new RemoteValidationError(
+      `${toolName} did not return structuredContent and its text content was not valid JSON.`,
+    );
+  }
 }
 
 export async function validateRemoteMcp(env = process.env) {
@@ -140,7 +175,7 @@ export async function validateRemoteMcp(env = process.env) {
       name: "memory_recall",
       arguments: await readPayload("examples/http/payloads/memory-recall-rank-opportunities.json"),
     });
-    const recallSummary = summarizeRecall(recall.structuredContent);
+    const recallSummary = summarizeRecall(resolveToolResultPayload(recall, "memory_recall"));
     if (!recallSummary.hasTraceId) {
       throw new RemoteValidationError("memory_recall did not return a trace_id.");
     }
@@ -149,7 +184,7 @@ export async function validateRemoteMcp(env = process.env) {
       name: "memory_remember",
       arguments: await readPayload("examples/http/payloads/memory-remember-preferences.json"),
     });
-    const rememberSummary = summarizeRemember(remember.structuredContent);
+    const rememberSummary = summarizeRemember(resolveToolResultPayload(remember, "memory_remember"));
 
     console.log("HandoffBase remote validation passed.");
     console.log(`Endpoint: ${redactUrl(endpointUrl)}`);
@@ -163,7 +198,7 @@ export async function validateRemoteMcp(env = process.env) {
     console.log(`Tools: ${toolNames.length} (${toolNames.join(", ")})`);
     console.log(`memory_recall: memories=${recallSummary.memoryCount}, trace_id=present`);
     console.log(
-      `memory_remember: candidate_memories=${rememberSummary.candidateCount}, statuses=${rememberSummary.statuses.join(", ") || "none"}`,
+      `memory_remember: candidate_memories=${rememberSummary.candidateCount}, persisted_candidates=${rememberSummary.persistedCount}, statuses=${rememberSummary.statuses.join(", ") || "none"}`,
     );
   } finally {
     await client.close();
@@ -189,11 +224,22 @@ function summarizeRecall(value) {
   };
 }
 
-function summarizeRemember(value) {
-  const candidates = Array.isArray(value?.candidate_memories) ? value.candidate_memories : [];
+export function summarizeRemember(value) {
+  const candidates = value?.candidate_memories;
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    throw new RemoteValidationError("memory_remember did not return any candidate_memories.");
+  }
+  const persistedCandidates = candidates.filter(
+    (candidate) =>
+      typeof candidate?.id === "string" && candidate.id.trim().length > 0 && candidate.status !== "rejected",
+  );
+  if (persistedCandidates.length === 0) {
+    throw new RemoteValidationError("memory_remember did not return a persisted candidate memory with an id.");
+  }
   const statuses = [...new Set(candidates.map((candidate) => candidate?.status).filter((status) => typeof status === "string"))].sort();
   return {
     candidateCount: candidates.length,
+    persistedCount: persistedCandidates.length,
     statuses,
   };
 }
@@ -208,6 +254,7 @@ function pickHealth(value) {
     authMode: value.authMode,
     providerMode: value.providerMode,
     storeMode: value.storeMode,
+    embeddingMode: value.embeddingMode,
   };
 }
 
@@ -242,6 +289,13 @@ function redactUrl(url) {
 function readOptional(value) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function sanitizeToolErrorText(value) {
+  const withoutAnsi = value.replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "");
+  const withoutControls = withoutAnsi.replace(/[\u0000-\u001F\u007F-\u009F]+/gu, " ");
+  const compact = withoutControls.replace(/\s+/gu, " ").trim();
+  return compact.length > 500 ? `${compact.slice(0, 500)}...` : compact;
 }
 
 const isMain = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);

@@ -10,6 +10,8 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+deploy/alibaba/runtime.env
+artifacts/deployment/*.dump
 
 packages/*/dist
 apps/*/.next

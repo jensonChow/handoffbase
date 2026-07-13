@@ -9,7 +9,9 @@ import {
   RemoteValidationError,
   assertExactToolManifest,
   assertExpectedHealth,
+  resolveToolResultPayload,
   resolveValidationExpectations,
+  summarizeRemember,
   summarizeReadiness,
 } from "../scripts/validate-remote-mcp.mjs";
 
@@ -57,6 +59,7 @@ test("remote validation defaults to discovery and supports profile or field expe
     authMode: undefined,
     providerMode: undefined,
     storeMode: undefined,
+    embeddingMode: undefined,
   });
 
   assert.deepEqual(resolveValidationExpectations({ MCP_VALIDATION_PROFILE: "alibaba-demo" }), {
@@ -64,18 +67,21 @@ test("remote validation defaults to discovery and supports profile or field expe
     authMode: "api_key",
     providerMode: "qwen",
     storeMode: "in-memory",
+    embeddingMode: undefined,
   });
 
   assert.deepEqual(
     resolveValidationExpectations({
       MCP_VALIDATION_PROFILE: "alibaba-demo",
       EXPECTED_STORE_MODE: "postgres",
+      EXPECTED_EMBEDDING_MODE: "qwen",
     }),
     {
       profile: "alibaba-demo",
       authMode: "api_key",
       providerMode: "qwen",
       storeMode: "postgres",
+      embeddingMode: "qwen",
     },
   );
 
@@ -93,12 +99,17 @@ test("generic health validation accepts runtime modes while explicit expectation
     authMode: "disabled",
     providerMode: "mock",
     storeMode: "postgres",
+    embeddingMode: "mock",
   };
 
   assert.doesNotThrow(() => assertExpectedHealth(health, resolveValidationExpectations({})));
   assert.throws(
     () => assertExpectedHealth(health, resolveValidationExpectations({ EXPECTED_STORE_MODE: "in-memory" })),
     /storeMode expected in-memory, got postgres/,
+  );
+  assert.throws(
+    () => assertExpectedHealth(health, resolveValidationExpectations({ EXPECTED_EMBEDDING_MODE: "qwen" })),
+    /embeddingMode expected qwen, got mock/,
   );
 });
 
@@ -136,4 +147,79 @@ test("readiness output includes only mode, ok, and cached", () => {
     },
   );
   assert.throws(() => summarizeReadiness({ ok: false }), /invalid readiness payload/);
+});
+
+test("remote validation preserves structured tool results and falls back to JSON text content", () => {
+  const structuredPayload = { memories: [], trace_id: "trace-structured" };
+  assert.equal(
+    resolveToolResultPayload(
+      {
+        structuredContent: structuredPayload,
+        content: [{ type: "text", text: "not-json" }],
+      },
+      "memory_recall",
+    ),
+    structuredPayload,
+  );
+
+  assert.deepEqual(
+    resolveToolResultPayload(
+      {
+        content: [
+          { type: "image", data: "ignored", mimeType: "image/png" },
+          { type: "text", text: '{"candidate_memories":[{"status":"created"}]}' },
+        ],
+      },
+      "memory_remember",
+    ),
+    { candidate_memories: [{ status: "created" }] },
+  );
+});
+
+test("remote validation surfaces sanitized MCP tool errors before reading payloads", () => {
+  assert.throws(
+    () =>
+      resolveToolResultPayload(
+        {
+          isError: true,
+          structuredContent: { should_not: "be accepted" },
+          content: [{ type: "text", text: "\u001b[31m  Qwen\nupstream\tfailed\u0000 " }],
+        },
+        "memory_recall",
+      ),
+    (error) => {
+      assert.ok(error instanceof RemoteValidationError);
+      assert.equal(error.message, "memory_recall returned an MCP tool error: Qwen upstream failed");
+      return true;
+    },
+  );
+
+  assert.throws(
+    () => resolveToolResultPayload({ content: [{ type: "text", text: "not-json" }] }, "memory_remember"),
+    /text content was not valid JSON/,
+  );
+});
+
+test("remote validation requires memory_remember to persist at least one candidate", () => {
+  assert.deepEqual(
+    summarizeRemember({
+      candidate_memories: [
+        { id: "memory-1", status: "pending" },
+        { id: "memory-2", status: "pending" },
+      ],
+    }),
+    { candidateCount: 2, persistedCount: 2, statuses: ["pending"] },
+  );
+  assert.throws(
+    () => summarizeRemember({ candidate_memories: [] }),
+    /memory_remember did not return any candidate_memories/,
+  );
+  assert.throws(
+    () => summarizeRemember({ candidate_memories: [{ status: "pending" }] }),
+    /did not return a persisted candidate memory with an id/,
+  );
+  assert.throws(
+    () => summarizeRemember({ candidate_memories: [{ id: "rejected-1", status: "rejected" }] }),
+    /did not return a persisted candidate memory with an id/,
+  );
 });

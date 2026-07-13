@@ -1,0 +1,6 @@
+{$HANDOFFBASE_DOMAIN} {
+	reverse_proxy app:3000 {
+		# Disable proxy buffering for MCP Streamable HTTP responses.
+		flush_interval -1
+	}
+}
