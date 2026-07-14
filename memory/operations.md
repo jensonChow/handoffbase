@@ -105,7 +105,14 @@
 - `.github/workflows/ci.yml` runs on push and pull request.
 - CI uses Node 22, `npm ci`, and one authoritative `npm run check`; eval, comparative benchmark, tiny LongMemEval, cross-host E2E, link and tracked-secret gates are inside that command.
 - CI sets `QWEN_API_KEY` and `DASHSCOPE_API_KEY` to empty strings, so the default verification path must remain mock-provider compatible.
-- GitHub Actions are enabled for `jensonChow/handoffbase`; the current CI workflow is `CI`.
+- A second CI job runs a full-history `gitleaks` secret scan
+  (`gitleaks git . --log-opts=--all`), complementing the tree-only
+  `check:tracked-secrets` gate. `.gitleaks.toml` path-allowlists the synthetic
+  sanitizer fixtures; `.gitleaksignore` holds one frozen fingerprint for a
+  retired, non-credential China workspace id in old history. Neither config
+  stores a secret value. A clean full-history scan was verified 2026-07-13.
+- GitHub Actions are enabled for `jensonChow/handoffbase`; the current CI
+  workflow is `CI`.
 
 ## Handoff Protocol
 

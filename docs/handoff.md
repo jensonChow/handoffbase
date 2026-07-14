@@ -1,6 +1,7 @@
 # Current Handoff
 
-Updated: 2026-07-13
+Updated: 2026-07-13 (second update: reviewed diff committed and pushed;
+public-surface scrub; pre-public security confirm; full-history gitleaks CI)
 
 ## Outcome
 
@@ -58,12 +59,23 @@ The canonical non-secret record is
 `docs/deployment/alibaba-cloud-proof.md`. Deployment files are in
 `deploy/alibaba/`.
 
-## Local Worktree State
+## Repository State
 
-The deployment bundle, hardened remote validator, tests, and current submission
-docs are modified or untracked locally. They have not been committed or pushed.
-Do not commit, push, or change repository visibility without explicit owner
-approval.
+All reviewed work is committed and pushed to `main`; the worktree is clean.
+Commits after the deployment: `ee518db` (deploy kit + stricter remote
+validator), `12fd8be` (proof + submission-pack docs), `a183d2e` (public-surface
+scrub — removed the raw live endpoint and the coupon/quota/instance specifics
+from the README and durable memory, keeping the endpoint in the proof and
+testing docs where judges need it), and `50c9410` (full-history gitleaks
+secret-scan CI job + `.gitleaks.toml` / `.gitleaksignore`). HEAD is `50c9410`.
+Repository visibility changes remain owner-only.
+
+Pre-public gate is cleared: a full-history gitleaks scan reports no leaks (the
+only hits are synthetic test fixtures and one non-credential retired-China
+workspace id, allowlisted); the public surface is scrubbed; and a read-only
+security check of the live box passed (security group exposes only 80/443, SSH
+is restricted, ports 3000/5432 are not public, and `/ready` + MCP POST reject
+unauthenticated calls).
 
 Validation completed after the implementation:
 
@@ -86,14 +98,15 @@ judging window.
 
 Submission is not complete until the owner:
 
-1. Reviews and publishes the local deployment/proof changes to the public
-   repository.
-2. Adds links in Devpost to `deploy/alibaba/compose.yaml` and the Qwen provider
-   code.
-3. Places a temporary HandoffBase judge token only in Devpost's private testing
-   instructions.
+1. Flips the GitHub repository to public (the pre-public gate is cleared), then
+   re-runs CI so the README badge goes green and enables GitHub Push Protection.
+2. Rotates/revokes the retired China Bailian Qwen key, which fully neutralizes
+   the one non-credential workspace id left in git history.
+3. Adds links in Devpost to `deploy/alibaba/compose.yaml` and the Qwen provider
+   code, with a temporary HandoffBase judge token only in Devpost's private
+   testing instructions.
 4. Renders/uploads the architecture diagram and a public demo video under three
-   minutes.
+   minutes, with no judge token visible in any frame.
 5. Rechecks endpoint health and both model quotas immediately before submission
    and recording.
 
@@ -103,8 +116,14 @@ improvement, not a current event-compliance blocker.
 
 ## Next Session Prompt
 
-Review the uncommitted Alibaba deployment and submission-proof diff. Keep all
-credentials private. If approved, commit and push the exact reviewed files,
-confirm the GitHub repository is public, then finish the Devpost code links,
-private judge-token instructions, architecture asset, and video links. Do not
-enable paid inference, auto-renewal, or additional Alibaba services.
+The reviewed deployment, proof, submission pack, public-surface scrub, and
+full-history gitleaks CI are committed and pushed (HEAD `50c9410`); the
+repo-public gate is cleared (history-clean + surface-scrubbed + box-locked).
+What remains is owner-only, all before the Jul 20 2:00pm PDT submission close:
+flip the repository public (then re-run CI for the badge and enable Push
+Protection), rotate the retired China key, record the sub-three-minute public
+demo video and export the architecture diagram, and submit the Devpost form
+(Track 1; links to `deploy/alibaba/compose.yaml` and the Qwen provider file;
+judge token only in the private field). Do not enable paid inference,
+auto-renewal, or additional Alibaba services, and do not run the credentialed
+LongMemEval benchmark through judging.
