@@ -1,0 +1,21 @@
+title = "HandoffBase gitleaks configuration"
+
+# Full default gitleaks ruleset plus a small, manually verified allowlist so the
+# secret scan stays green on KNOWN non-secrets. Do not add an entry here without
+# confirming the match is synthetic test data or a non-credential value.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Sanitizer / sensitive-data unit-test fixtures. These files intentionally embed
+FAKE keys, tokens, and private keys so the tests can prove the input sanitizer
+redacts them. Every 'secret' in these paths is synthetic by design. This mirrors
+the intentionalSensitiveFixtureFiles set in scripts/check-tracked-secrets.mjs.
+"""
+paths = [
+  '''packages/memory-core/test/qwen-sanitizer\.test\.mjs''',
+  '''packages/memory-core/test/sensitive\.test\.mjs''',
+  '''tests/structured-output\.test\.ts''',
+]

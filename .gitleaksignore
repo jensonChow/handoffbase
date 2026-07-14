@@ -1,0 +1,9 @@
+# gitleaks fingerprints for verified, one-time HISTORICAL findings.
+# Format: <commit>:<file>:<rule>:<line>. No secret values are stored here.
+#
+# A retired Beijing (China) Model Studio workspace id + API host in an old
+# snapshot of the dev-materials checklist. It is a non-credential account
+# identifier (cannot authenticate on its own), was scrubbed from every current
+# file, and survives only in this commit's historical diff. The associated
+# China Bailian key is rotated/revoked. Kept as history; not a secret.
+5cc6a7e0bcc9c4b4080f77f1facadd7db238a690:docs/dev-materials-checklist.md:generic-api-key:53
