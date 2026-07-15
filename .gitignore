@@ -13,3 +13,6 @@ artifacts/deployment/*.dump
 .DS_Store
 *.tsbuildinfo
 .claude/
+# local video/recording files never belong in the repo (Devpost takes links)
+*.mp4
+*.mov
