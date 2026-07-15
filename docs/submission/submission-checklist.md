@@ -15,10 +15,11 @@ remote validation.
   pushing the final integration commit.
 - [ ] README check: README clearly distinguishes the credential-free in-memory
   local default from the live Postgres/Qwen deployment.
-- [ ] Architecture diagram check: `docs/assets/architecture.mmd` and
-  architecture docs are present and accurate.
-- [ ] Devpost architecture check: add the architecture diagram or rendered
-  diagram asset to Devpost.
+- [ ] Architecture diagram check: `docs/assets/architecture.mmd` (source) and
+  the rendered `docs/assets/architecture.svg` / `architecture.png` are present,
+  accurate, and consistent with each other.
+- [ ] Devpost architecture check: upload `docs/assets/architecture.png`
+  (1920x1080) as the Devpost architecture diagram asset.
 - [ ] Devpost track check: submission is entered under Track 1: MemoryAgent.
 - [ ] Testing instructions check: `docs/submission/testing-instructions.md`
   includes local, Qwen-backed, and remote testing paths.

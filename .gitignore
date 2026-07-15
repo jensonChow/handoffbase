@@ -12,3 +12,4 @@ artifacts/deployment/*.dump
 *.log
 .DS_Store
 *.tsbuildinfo
+.claude/

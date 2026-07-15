@@ -497,7 +497,7 @@ flowchart LR
 More detail:
 
 - [Architecture](docs/architecture.md)
-- [Architecture diagram](docs/assets/architecture.mmd)
+- [Architecture diagram](docs/assets/architecture.svg) ([mermaid source](docs/assets/architecture.mmd))
 - [Memory lifecycle](docs/memory-lifecycle.md)
 - [Technical design](docs/technical-design.md)
 - [Comparison](docs/comparison.md)

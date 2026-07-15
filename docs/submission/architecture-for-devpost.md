@@ -173,8 +173,14 @@ seeding. It is not yet a production admin console.
 
 ## Render Instructions
 
-No Mermaid export CLI is included in this repository. To create a submission
-image without adding dependencies:
+Pre-rendered submission images are committed at
+[docs/assets/architecture.svg](../assets/architecture.svg) and
+[docs/assets/architecture.png](../assets/architecture.png) (1920x1080). They
+are hand-drawn presentation versions whose content matches
+[docs/assets/architecture.mmd](../assets/architecture.mmd); the mermaid file
+remains the maintained source of truth for structure.
+
+To re-render from the mermaid source without adding dependencies:
 
 1. Open [docs/assets/architecture.mmd](../assets/architecture.mmd).
 2. Paste the source into Mermaid Live Editor, or preview the Mermaid block in
