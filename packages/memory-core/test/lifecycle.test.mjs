@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  FEEDBACK_REINFORCEMENT_NET_CAP,
+  FEEDBACK_REINFORCEMENT_WEIGHT,
+  compareRecallRank,
   compareRetentionForEviction,
   createMemoryRecord,
+  feedbackReinforcement,
   filterRecallableMemories,
   getEffectiveMemoryStatus,
   InMemoryMemoryStore,
+  lexicalRecallScore,
   MemoryMutationPreconditionError,
+  netFeedbackByMemoryId,
   retentionScore
 } from "../dist/index.js";
 
@@ -583,4 +589,196 @@ test("recall limit is normalized identically across stores", async () => {
 
   const defaulted = await store.recallMemories({ scope });
   assert.ok(defaulted.memories.some((record) => record.id === "limit-parity"));
+});
+
+test("feedbackReinforcement is bounded, symmetric, and ignores non-finite nets", () => {
+  assert.equal(feedbackReinforcement(0), 0);
+  assert.equal(feedbackReinforcement(1), FEEDBACK_REINFORCEMENT_WEIGHT);
+  assert.equal(feedbackReinforcement(-1), -FEEDBACK_REINFORCEMENT_WEIGHT);
+  const max = FEEDBACK_REINFORCEMENT_NET_CAP * FEEDBACK_REINFORCEMENT_WEIGHT;
+  assert.equal(feedbackReinforcement(FEEDBACK_REINFORCEMENT_NET_CAP), max);
+  assert.equal(feedbackReinforcement(FEEDBACK_REINFORCEMENT_NET_CAP + 50), max);
+  assert.equal(feedbackReinforcement(-(FEEDBACK_REINFORCEMENT_NET_CAP + 50)), -max);
+  assert.equal(feedbackReinforcement(Number.NaN), 0);
+  assert.equal(feedbackReinforcement(Number.POSITIVE_INFINITY), 0);
+});
+
+test("retentionScore adds the bounded feedback reinforcement term", () => {
+  const now = new Date("2026-07-14T00:00:00.000Z");
+  const base = { ...memory({ id: "retention-feedback", importance: 0.5 }), confidence: 0.8, useCount: 0 };
+
+  const neutral = retentionScore(base, now);
+  assert.equal(retentionScore(base, now, 2), neutral + 2 * FEEDBACK_REINFORCEMENT_WEIGHT);
+  assert.equal(retentionScore(base, now, -3), neutral - 3 * FEEDBACK_REINFORCEMENT_WEIGHT);
+  // The cap keeps runaway feedback from dominating importance.
+  assert.equal(retentionScore(base, now, 100), retentionScore(base, now, FEEDBACK_REINFORCEMENT_NET_CAP));
+});
+
+test("compareRetentionForEviction evicts unhelpful-feedback memories before endorsed equals", () => {
+  const now = new Date("2026-07-14T00:00:00.000Z");
+  const endorsed = { ...memory({ id: "evict-endorsed", importance: 0.5 }), confidence: 0.8, useCount: 0 };
+  const rejected = { ...memory({ id: "evict-rejected", importance: 0.5 }), confidence: 0.8, useCount: 0 };
+  const net = new Map([
+    ["evict-endorsed", 2],
+    ["evict-rejected", -2]
+  ]);
+
+  assert.ok(compareRetentionForEviction(rejected, endorsed, now, net) < 0, "unhelpful memory must sort first for eviction");
+  // Without the feedback map the two are tied and fall through to id order.
+  assert.ok(compareRetentionForEviction(rejected, endorsed, now) > 0);
+});
+
+test("netFeedbackByMemoryId aggregates helpful minus unhelpful and skips trace-only feedback", () => {
+  const record = (memoryId, signal) => ({ memoryId, signal });
+  const net = netFeedbackByMemoryId([
+    record("mem-a", "helpful"),
+    record("mem-a", "helpful"),
+    record("mem-a", "unhelpful"),
+    record("mem-b", "unhelpful"),
+    record(undefined, "helpful")
+  ]);
+
+  assert.equal(net.get("mem-a"), 1);
+  assert.equal(net.get("mem-b"), -1);
+  assert.equal(net.size, 2, "trace-only feedback must not create a ranking entry");
+});
+
+test("lexicalRecallScore mirrors the Postgres keyword formula", () => {
+  const record = {
+    ...memory({ id: "lexical-parity", canonicalText: "Verify deadline and timezone before ranking." }),
+    sourceKind: "user_correction"
+  };
+
+  // canonical-text substring = 1.0 per term, normalized by term count.
+  assert.equal(lexicalRecallScore(record, ["deadline"]), 1.0);
+  assert.equal(lexicalRecallScore(record, ["deadline", "missingterm"]), 0.5);
+  // exact type match adds 0.5; source-kind substring adds 0.25.
+  assert.equal(lexicalRecallScore(record, ["procedure"]), 0.5);
+  assert.equal(lexicalRecallScore(record, ["correction"]), 0.25);
+  // A term can hit text, type, and source-kind cumulatively.
+  const typed = { ...record, canonicalText: "procedure checklist for deadlines" };
+  assert.equal(lexicalRecallScore(typed, ["procedure"]), 1.5);
+  assert.equal(lexicalRecallScore(record, []), 0);
+
+  // Underscores are LITERAL, mirroring String.includes and the Postgres
+  // position() match — not a SQL LIKE `_` wildcard. A term with `_` must not
+  // match a space at that position, or the two stores would diverge.
+  const spaced = { ...memory({ id: "lexical-underscore", canonicalText: "reset the tool id cache" }), sourceKind: "manual_import" };
+  assert.equal(lexicalRecallScore(spaced, ["tool_id"]), 0);
+  const joined = { ...memory({ id: "lexical-underscore-hit", canonicalText: "reset the tool_id cache" }), sourceKind: "manual_import" };
+  assert.equal(lexicalRecallScore(joined, ["tool_id"]), 1.0);
+});
+
+test("compareRecallRank breaks equal scores with the Postgres ORDER BY tiebreakers", () => {
+  const base = (id, overrides = {}) => ({
+    ...memory({ id, importance: 0.5 }),
+    confidence: 0.8,
+    useCount: 0,
+    ...overrides
+  });
+
+  // Higher importance first.
+  assert.ok(compareRecallRank(base("rank-a", { importance: 0.9 }), base("rank-b"), 1, 1) < 0);
+  // Then higher confidence.
+  assert.ok(compareRecallRank(base("rank-a", { confidence: 0.9 }), base("rank-b"), 1, 1) < 0);
+  // Recently used beats never used (nulls last).
+  const used = base("rank-used", { lastUsedAt: new Date("2026-07-13T00:00:00.000Z") });
+  assert.ok(compareRecallRank(used, base("rank-never"), 1, 1) < 0);
+  assert.ok(compareRecallRank(base("rank-never"), used, 1, 1) > 0);
+  // Then use count, and finally id gives a total order.
+  assert.ok(compareRecallRank(base("rank-a", { useCount: 3 }), base("rank-b"), 1, 1) < 0);
+  assert.ok(compareRecallRank(base("rank-a"), base("rank-b"), 1, 1) < 0);
+  // Score always dominates the tiebreakers.
+  assert.ok(compareRecallRank(base("rank-a"), base("rank-b", { importance: 0.9 }), 2, 1) < 0);
+});
+
+test("in-memory recall blends feedback reinforcement into ranking", async () => {
+  const now = new Date("2026-07-14T00:00:00.000Z");
+  const store = new InMemoryMemoryStore({ clock: () => now });
+  const seed = (id, canonicalText) =>
+    store.addMemory({
+      id,
+      scope,
+      type: "procedure",
+      canonicalText,
+      sourceKind: "user_correction",
+      importance: 0.5
+    });
+  await seed("recall-fb-a", "Verify deadline and timezone before ranking events.");
+  await seed("recall-fb-b", "Verify official rules and eligibility before ranking events.");
+  const feedback = (id, memoryId, signal) =>
+    store.addFeedback({
+      id,
+      scope,
+      memoryId,
+      signal,
+      regressionFixture: {
+        schema_version: "1",
+        target: "memory",
+        signal,
+        correction: "none",
+        scope_dimensions: ["tenant", "user"]
+      }
+    });
+
+  await feedback("fb-1", "recall-fb-b", "helpful");
+  const first = await store.recallMemories({ scope: { tenantId: scope.tenantId, userId: scope.userId }, limit: 2 });
+  assert.deepEqual(
+    first.memories.map((record) => record.id),
+    ["recall-fb-b", "recall-fb-a"],
+    "helpful feedback must outrank an otherwise-equal memory"
+  );
+
+  await feedback("fb-2", "recall-fb-b", "unhelpful");
+  await feedback("fb-3", "recall-fb-b", "unhelpful");
+  const second = await store.recallMemories({ scope: { tenantId: scope.tenantId, userId: scope.userId }, limit: 2 });
+  assert.deepEqual(
+    second.memories.map((record) => record.id),
+    ["recall-fb-a", "recall-fb-b"],
+    "net-unhelpful feedback must sink below an otherwise-equal memory"
+  );
+});
+
+test("in-memory recall does not leak feedback across scopes", async () => {
+  const now = new Date("2026-07-14T00:00:00.000Z");
+  const store = new InMemoryMemoryStore({ clock: () => now });
+  const scopeA = { tenantId: "tenant_A", userId: "user_A", projectId: "p", agentProfileId: "a" };
+  const scopeB = { tenantId: "tenant_B", userId: "user_B", projectId: "p", agentProfileId: "a" };
+  await store.addMemory({
+    id: "mem-A",
+    scope: scopeA,
+    type: "procedure",
+    canonicalText: "Scope A memory.",
+    sourceKind: "user_correction",
+    importance: 0.5
+  });
+  await store.addMemory({
+    id: "mem-B",
+    scope: scopeB,
+    type: "procedure",
+    canonicalText: "Scope B memory.",
+    sourceKind: "user_correction",
+    importance: 0.5
+  });
+  // Pile helpful feedback on the scope-A memory. Recall aggregates the whole
+  // feedback map keyed by (globally unique) memory id, so this must be
+  // invisible to a scope-B recall: mem-A is filtered out by tenant, and its
+  // feedback keys an id that no scope-B memory shares.
+  for (let index = 0; index < 5; index += 1) {
+    await store.addFeedback({
+      id: `fb-A-${index}`,
+      scope: scopeA,
+      memoryId: "mem-A",
+      signal: "helpful",
+      regressionFixture: {
+        schema_version: "1",
+        target: "memory",
+        signal: "helpful",
+        correction: "none",
+        scope_dimensions: ["tenant", "user"]
+      }
+    });
+  }
+  const result = await store.recallMemories({ scope: { tenantId: "tenant_B", userId: "user_B" }, limit: 10 });
+  assert.deepEqual(result.memories.map((record) => record.id), ["mem-B"]);
 });

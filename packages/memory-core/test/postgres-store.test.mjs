@@ -233,6 +233,15 @@ test("buildRecallQuery applies structured scope, lifecycle, type, keyword, and l
   assert.match(query.sql, /lower\(m\.type\)/);
   assert.match(query.sql, /lower\(m\.source_kind\)/);
   assert.match(query.sql, /order by recall_score desc/);
+  // Keyword matching must be a literal substring test (position), not LIKE:
+  // the tokenizer preserves underscores, and LIKE's `_` wildcard would match
+  // strings the in-memory String.includes twin does not, breaking parity.
+  assert.match(query.sql, /position\(query_terms\.term in lower\(m\.canonical_text\)\) > 0/);
+  assert.match(query.sql, /position\(query_terms\.term in lower\(m\.source_kind\)\) > 0/);
+  assert.doesNotMatch(query.sql, /like '%' \|\| query_terms\.term/);
+  // The recall ORDER BY must end with an id tiebreaker so fully-tied rows sort
+  // identically to compareRecallRank's final id-ascending comparison.
+  assert.match(query.sql, /m\.created_at desc,\s*m\.id asc\s*limit/);
 });
 
 test("buildIgnoredMemoryQuery finds scoped non-recallable candidates", () => {
@@ -276,6 +285,32 @@ test("buildRecallQuery has an optional pgvector-ready scoring path", () => {
   assert.match(query.sql, /e\.embedding <=> \$4::vector/);
   assert.equal(query.values[3], "[0.1,0.2,0.3]");
   assert.equal(query.values[4], "test-embedding-model");
+});
+
+test("buildRecallQuery blends bounded feedback reinforcement and floors the vector similarity at zero", () => {
+  const query = buildRecallQuery(
+    {
+      scope: {
+        tenantId: "tenant_1",
+        userId: "user_1"
+      },
+      now: new Date("2026-07-14T12:00:00.000Z")
+    },
+    {
+      queryEmbedding: [0.1, 0.2, 0.3],
+      embeddingModel: "test-embedding-model"
+    }
+  );
+
+  // Feedback term: the SQL twin of lifecycle's feedbackReinforcement — same
+  // weight, same net cap, aggregated per memory id from memory_feedback.
+  assert.match(
+    query.sql,
+    /0\.15 \* greatest\(-4, least\(4, coalesce\(\(\s*select sum\(case when f\.signal = 'helpful' then 1\.0 else -1\.0 end\)\s*from memory_feedback f\s*where f\.memory_id = m\.id\s*\), 0\)\)\)/
+  );
+  // Vector similarity is floored at zero exactly like the in-memory
+  // semanticBonus, so anti-similar vectors cannot penalize one store only.
+  assert.match(query.sql, /greatest\(0, 1 - \(e\.embedding <=> \$4::vector\)\)/);
 });
 
 test("mapRecallRows maps selected recall rows and ignores SQL-only score columns", () => {

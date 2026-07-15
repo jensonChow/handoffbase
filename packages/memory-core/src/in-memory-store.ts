@@ -33,13 +33,18 @@ import {
 import {
   applyMemoryPatch,
   assertMemoryExpectedStatus,
+  compareRecallRank,
   createMemoryConflictRecord,
   createMemoryRecord,
   createRunRecord,
   getEffectiveMemoryStatus,
   isRecallableMemory,
+  lexicalRecallScore,
+  netFeedbackByMemoryId,
   normalizeRecallLimit,
+  recallQueryTerms,
   resolveMemoryConflictRecord,
+  retentionScore,
   scopeMatches,
   supersedeMemoryRecord,
   touchMemoryUsage
@@ -226,16 +231,28 @@ export class InMemoryMemoryStore implements MemoryStore {
 
     const ignored = scoped.filter((memory) => !isRecallableMemory(memory, now));
     const recallable = scoped.filter((memory) => isRecallableMemory(memory, now));
-    // Precompute each score once (the semantic term reads a stored vector) so
-    // the comparator is a cheap map lookup and cannot recompute inconsistently.
+    // One ranking everywhere: the same additive formula as the Postgres
+    // buildRecallScoreSql — the shared retention prior (importance,
+    // confidence, capped usage, recency, bounded feedback reinforcement)
+    // plus the shared lexical term and the semantic cosine bonus. Memory ids
+    // are globally unique, so the unfiltered feedback aggregate cannot leak
+    // ranking signal across scopes. Precompute each score once (the semantic
+    // term reads a stored vector) so the comparator is a cheap map lookup
+    // and cannot recompute inconsistently.
+    const feedbackNet = netFeedbackByMemoryId([...this.feedback.values()]);
+    const terms = recallQueryTerms(query.query);
     const recallScores = new Map(
       recallable.map((memory) => [
         memory.id,
-        scoreMemory(memory, query.query) + this.semanticBonus(memory, query.queryEmbedding)
+        retentionScore(memory, now, feedbackNet.get(memory.id) ?? 0) +
+          lexicalRecallScore(memory, terms) +
+          this.semanticBonus(memory, query.queryEmbedding)
       ])
     );
     const selected = recallable
-      .sort((left, right) => (recallScores.get(right.id) ?? 0) - (recallScores.get(left.id) ?? 0))
+      .sort((left, right) =>
+        compareRecallRank(left, right, recallScores.get(left.id) ?? 0, recallScores.get(right.id) ?? 0)
+      )
       .slice(0, limit);
 
     const touched = selected.map((memory) => touchMemoryUsage(memory, now));
@@ -610,27 +627,6 @@ export class InMemoryMemoryStore implements MemoryStore {
   private optionTime(options: { now?: Date }): Date {
     return options.now ? new Date(options.now.getTime()) : this.clock();
   }
-}
-
-function scoreMemory(memory: MemoryRecord, query: string | undefined): number {
-  let score = memory.importance + memory.confidence * 0.25;
-  if (query === undefined || query.trim().length === 0) {
-    return score;
-  }
-
-  const terms = tokenize(query);
-  if (terms.length === 0) {
-    return score;
-  }
-
-  const text = `${memory.type} ${memory.canonicalText}`.toLowerCase();
-  const hits = terms.filter((term) => text.includes(term)).length;
-  score += hits / terms.length;
-  return score;
-}
-
-function tokenize(text: string): string[] {
-  return [...new Set(text.toLowerCase().split(/[^a-z0-9_]+/).filter((term) => term.length >= 3))];
 }
 
 function traceReferencesMemoryForRedaction(trace: MemoryTrace, memoryId: string): boolean {

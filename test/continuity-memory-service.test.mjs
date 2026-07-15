@@ -1860,3 +1860,106 @@ test("enforceTokenBudget keeps each memory id exactly once when a provider echoe
   assert.ok(!pack.ignoredMemories.some((memory) => memory.memoryId === "fits"), "a retained id must not stay in ignored");
   assert.ok(pack.ignoredMemories.some((memory) => memory.memoryId === "other"), "genuine provider skips are preserved");
 });
+
+test("enforceTokenBudget suppresses only exact-duplicate lines, never meaning-differing ones", async () => {
+  const { enforceTokenBudget } = await import("../dist/services/continuity-memory-service.js");
+  const packMemory = (id, text, type = "user_preference") => ({ memoryId: id, type, text, reason: "test", score: 1 });
+  const basePack = (memories) => ({
+    contextBlock: "unused-by-enforcer",
+    selectedMemories: memories,
+    ignoredMemories: [],
+    tokenBudget: 0,
+    estimatedTokens: 0,
+    trace: { query: "q", scope: { tenantId: "t", userId: "u" } }
+  });
+
+  // Exact duplicate (differs only by case/whitespace, same type) is suppressed.
+  const original = packMemory("dedup-original", "Prefer credentials and founder network over prize money.");
+  const exactDup = packMemory("dedup-exact", "Prefer  credentials and founder network over PRIZE money.");
+  const distinct = packMemory("dedup-distinct", "Verify deadline, timezone, and eligibility before ranking.");
+  const roomy = enforceTokenBudget(basePack([original, exactDup, distinct]), 500);
+  assert.deepEqual(
+    roomy.selectedMemories.map((memory) => memory.memoryId),
+    ["dedup-original", "dedup-distinct"]
+  );
+  assert.match(
+    roomy.ignoredMemories.find((memory) => memory.memoryId === "dedup-exact").reason,
+    /Exact duplicate of higher-ranked memory dedup-original/
+  );
+  assert.ok(roomy.estimatedTokens <= 500);
+
+  // Data-loss guard: facts that differ ONLY by a number or a negation must both
+  // survive — the exact one that fuzzy Jaccard matching used to silently drop.
+  const numeric = enforceTokenBudget(
+    basePack([
+      packMemory("num-5", "Q4 revenue target is 5.", "project_fact"),
+      packMemory("num-9", "Q4 revenue target is 9.", "project_fact")
+    ]),
+    500
+  );
+  assert.deepEqual(numeric.selectedMemories.map((memory) => memory.memoryId), ["num-5", "num-9"]);
+
+  const polarity = enforceTokenBudget(
+    basePack([
+      packMemory("pol-may", "Contributors may merge their own pull requests after one approval.", "procedure"),
+      packMemory("pol-maynot", "Contributors may not merge their own pull requests after one approval.", "procedure")
+    ]),
+    500
+  );
+  assert.deepEqual(polarity.selectedMemories.map((memory) => memory.memoryId), ["pol-may", "pol-maynot"]);
+
+  // A same-type/different-id exact repeat is dropped before the budget check,
+  // so its reason is the duplicate reason, not the trim reason.
+  const tight = enforceTokenBudget(basePack([original, exactDup, distinct]), 25);
+  assert.deepEqual(tight.selectedMemories.map((memory) => memory.memoryId), ["dedup-original"]);
+  assert.match(
+    tight.ignoredMemories.find((memory) => memory.memoryId === "dedup-exact").reason,
+    /Exact duplicate of higher-ranked memory dedup-original/
+  );
+  assert.match(
+    tight.ignoredMemories.find((memory) => memory.memoryId === "dedup-distinct").reason,
+    /Trimmed to fit the token budget/
+  );
+});
+
+test("memory_forget enforce_capacity lets helpful feedback rescue a low-importance memory", async () => {
+  const store = new InMemoryMemoryStore();
+  await seedCapacityFixture(store);
+  // Endorse the weaker cap-evict-1 (retention 1.45) three times: +0.45 lifts
+  // it above cap-keep-3 (retention 1.75), so the sweep must evict cap-keep-3
+  // instead — users' explicit "helpful" signals earn retention under pressure.
+  for (const [index] of ["a", "b", "c"].entries()) {
+    await store.addFeedback({
+      id: `capacity-feedback-${index}`,
+      scope: capacityScope,
+      memoryId: "cap-evict-1",
+      signal: "helpful",
+      regressionFixture: {
+        schema_version: "1",
+        target: "memory",
+        signal: "helpful",
+        correction: "none",
+        scope_dimensions: ["tenant", "user"]
+      }
+    });
+  }
+  const service = capacityService(store);
+
+  const output = await service.forget(
+    {
+      mode: "enforce_capacity",
+      capacity: 3,
+      reason: "Feedback-informed capacity sweep.",
+      scopes: capacityToolScopes
+    },
+    { caller: capacityCaller() }
+  );
+
+  assert.deepEqual(
+    output.evicted_memories.map((entry) => entry.memory_id).sort(),
+    ["cap-evict-2", "cap-keep-3"],
+    "helpful feedback must rescue cap-evict-1 at cap-keep-3's expense"
+  );
+  const rescued = await store.getMemory("cap-evict-1");
+  assert.equal(rescued.status, "active");
+});

@@ -30,6 +30,8 @@ import {
   type UpdateMemoryPatch
 } from "./types.js";
 import {
+  FEEDBACK_REINFORCEMENT_NET_CAP,
+  FEEDBACK_REINFORCEMENT_WEIGHT,
   applyMemoryPatch,
   assertMemoryExpectedStatus,
   contextPackFromMemories,
@@ -1640,7 +1642,8 @@ order by recall_score desc,
   m.last_used_at desc nulls last,
   m.use_count desc,
   m.updated_at desc,
-  m.created_at desc
+  m.created_at desc,
+  m.id asc
 limit $${limitIndex}`,
     values
   };
@@ -1659,7 +1662,7 @@ export function buildIgnoredMemoryQuery(query: MemoryRecallQuery): SqlQueryParts
   return {
     sql: `select m.id
 from memories m${whereClause(where)}
-order by m.updated_at desc, m.created_at desc`,
+order by m.updated_at desc, m.created_at desc, m.id asc`,
     values
   };
 }
@@ -1811,18 +1814,39 @@ function buildRecallScoreSql(input: {
     when ${alias}.last_used_at is null then 0
     else 0.05 / (1 + greatest(extract(epoch from ($${input.nowIndex}::timestamptz - ${alias}.last_used_at)) / 86400, 0))
   end`,
+    feedbackScoreSql(alias),
     input.vectorScoreSql
   ].join(" + ");
 }
 
+/**
+ * Bounded feedback reinforcement — the SQL twin of feedbackReinforcement in
+ * lifecycle.ts: net helpful-minus-unhelpful feedback per memory, capped, then
+ * weighted. Weight and cap are imported constants so the two implementations
+ * cannot drift apart. Feedback rows without a memory_id target only traces or
+ * runs and contribute nothing here.
+ */
+function feedbackScoreSql(tableAlias: string): string {
+  return `${FEEDBACK_REINFORCEMENT_WEIGHT} * greatest(-${FEEDBACK_REINFORCEMENT_NET_CAP}, least(${FEEDBACK_REINFORCEMENT_NET_CAP}, coalesce((
+    select sum(case when f.signal = 'helpful' then 1.0 else -1.0 end)
+    from memory_feedback f
+    where f.memory_id = ${tableAlias}.id
+  ), 0)))`;
+}
+
 function keywordScoreSql(tableAlias: string, termsIndex: number): string {
+  // Literal substring match via position(): the tokenizer preserves
+  // underscores (tool_id, user_id, session_id), and SQL LIKE would treat `_`
+  // as a single-character wildcard while the in-memory twin lexicalRecallScore
+  // uses String.includes (literal). position(term in text) > 0 is a literal
+  // substring test with no pattern semantics, so both stores match identically.
   return `case
     when cardinality($${termsIndex}::text[]) = 0 then 0
     else (
       select coalesce(sum(
-        case when lower(${tableAlias}.canonical_text) like '%' || query_terms.term || '%' then 1.0 else 0 end +
+        case when position(query_terms.term in lower(${tableAlias}.canonical_text)) > 0 then 1.0 else 0 end +
         case when lower(${tableAlias}.type) = query_terms.term then 0.5 else 0 end +
-        case when lower(${tableAlias}.source_kind) like '%' || query_terms.term || '%' then 0.25 else 0 end
+        case when position(query_terms.term in lower(${tableAlias}.source_kind)) > 0 then 0.25 else 0 end
       ), 0) / greatest(cardinality($${termsIndex}::text[]), 1)
       from unnest($${termsIndex}::text[]) as query_terms(term)
     )
@@ -1856,9 +1880,12 @@ function buildVectorRecallSql(
   // so `<=>` is only evaluated for same-dimension rows, degrading a mismatch to
   // no semantic bonus — matching the in-memory cosineSimilarity, which returns 0
   // for mismatched-length vectors. queryDim is an integer, so it is safe inline.
+  // The similarity is floored at 0 (greatest) exactly like the in-memory
+  // semanticBonus's Math.max(0, cosine): anti-similar vectors must not act as
+  // a ranking penalty in one store but not the other.
   return {
     joinSql: ` left join memory_embeddings e on e.memory_id = m.id${modelClause}`,
-    scoreSql: `case when e.embedding is null or vector_dims(e.embedding) <> ${queryDim} then 0 else 1 - (e.embedding <=> $${embeddingIndex}::vector) end`
+    scoreSql: `case when e.embedding is null or vector_dims(e.embedding) <> ${queryDim} then 0 else greatest(0, 1 - (e.embedding <=> $${embeddingIndex}::vector)) end`
   };
 }
 

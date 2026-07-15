@@ -13,6 +13,7 @@ import {
   assertNoSensitiveText,
   compareRetentionForEviction,
   estimateTokens,
+  netFeedbackByMemoryId,
   MemoryMutationPreconditionError,
   redactSensitiveText,
   rejectSensitiveText,
@@ -899,14 +900,24 @@ export class ContinuityMemoryService implements MemoryService {
       };
     }
 
+    // Feedback-informed retention: net helpful/unhelpful feedback shifts the
+    // same bounded reinforcement term recall ranks with, so a memory users
+    // called unhelpful is evicted before an equally-ranked one they endorsed.
+    // The sweep scope is a full MemoryScope, and hierarchical scope matching
+    // keeps the aggregate to feedback this sweep may see; ids are then the
+    // join key against candidates.
+    const feedbackNet = netFeedbackByMemoryId(await this.store.listFeedback({ scope }));
     const victims = [...candidates]
-      .sort((left, right) => compareRetentionForEviction(left, right, now))
+      .sort((left, right) => compareRetentionForEviction(left, right, now, feedbackNet))
       .slice(0, excess)
-      .map((memory, index) => ({
-        memory,
-        score: retentionScore(memory, now),
-        reason: `${input.reason} [capacity ${capacity}: retention ${retentionScore(memory, now).toFixed(4)}, rank ${index + 1}/${candidates.length}]`,
-      }));
+      .map((memory, index) => {
+        const score = retentionScore(memory, now, feedbackNet.get(memory.id) ?? 0);
+        return {
+          memory,
+          score,
+          reason: `${input.reason} [capacity ${capacity}: retention ${score.toFixed(4)}, rank ${index + 1}/${candidates.length}]`,
+        };
+      });
 
     if (dryRun) {
       return {
@@ -2113,22 +2124,41 @@ function memoryScopeWithinSweepScope(memoryScope: MemoryScope, sweepScope: Memor
  * Greedy skip-and-continue over the rendered `- [type] text` lines: a memory
  * is retained only if the joined block including it still fits, so
  * `estimateTokens(contextBlock) <= budget` holds by construction (measured on
- * the actual rendered artifact, not per-memory text). Trimming only removes —
- * an empty provider selection stays empty. Trimmed memories move to
- * ignoredMemories with a reason distinct from the provider's own budget skip,
- * so traces distinguish provider-skip from server-trim.
+ * the actual rendered artifact, not per-memory text). An exact duplicate of an
+ * already-retained line (normalized rendered line, so type is part of the
+ * identity) is suppressed before it can consume budget — the budget buys
+ * distinct facts, not repeats. The match is deliberately EXACT, not fuzzy:
+ * collapsing near-duplicates risks dropping a fact that differs only by a
+ * number, date, or negation ("target is 5" vs "target is 9", "may merge" vs
+ * "may not merge"), which for a memory system is worse than paying budget for
+ * a paraphrase. Trimming only removes — an empty provider selection stays
+ * empty. Trimmed and suppressed memories move to ignoredMemories with reasons
+ * distinct from the provider's own budget skip, so traces distinguish
+ * provider-skip, server-trim, and exact-duplicate.
  */
 export function enforceTokenBudget(pack: ContextPack, budget: number): ContextPack {
   const retainedLines: string[] = [];
+  const retainedByNormalizedLine = new Map<string, string>();
   const retained: ContextPack["selectedMemories"] = [];
   const trimmed: ContextPack["ignoredMemories"] = [];
   let contextBlock = "";
 
   for (const memory of pack.selectedMemories) {
     const line = `- [${memory.type}] ${memory.text}`;
+    const normalized = normalizePackLine(line);
+    const duplicateOfMemoryId = retainedByNormalizedLine.get(normalized);
+    if (duplicateOfMemoryId !== undefined) {
+      trimmed.push({
+        memoryId: memory.memoryId,
+        reason: `Exact duplicate of higher-ranked memory ${duplicateOfMemoryId} in this context pack.`,
+      });
+      continue;
+    }
+
     const candidateBlock = [...retainedLines, line].join("\n");
     if (estimateTokens(candidateBlock) <= budget) {
       retainedLines.push(line);
+      retainedByNormalizedLine.set(normalized, memory.memoryId);
       retained.push(memory);
       contextBlock = candidateBlock;
     } else {
@@ -2156,6 +2186,17 @@ export function enforceTokenBudget(pack: ContextPack, budget: number): ContextPa
     tokenBudget: budget,
     estimatedTokens: estimateTokens(contextBlock),
   };
+}
+
+/**
+ * Normalize a rendered pack line for exact-duplicate detection: lowercase and
+ * collapse whitespace runs. Two lines that normalize equal render the same
+ * fact under the same type and differ only in case or spacing, so keeping both
+ * only wastes budget. Anything that differs by a real token — a number, date,
+ * or negation — normalizes differently and is preserved.
+ */
+function normalizePackLine(line: string): string {
+  return line.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function scopeFromTool(scope: MemoryRecallInput["scopes"], caller: CallerContext | undefined): MemoryScope {
