@@ -1,182 +1,96 @@
 # Current Handoff
 
-Updated: 2026-07-14 (video-prep verification; rendered architecture assets;
-submission-pack currency pass; benchmark plan defined but not yet executed)
+Updated: 2026-07-19 (SUBMITTED; post-submission audit passed; cost audit
+folded in)
 
 ## Outcome
 
-HandoffBase is live on Alibaba Cloud International in Singapore; the current
-endpoint is recorded in `docs/deployment/alibaba-cloud-proof.md`. The
-deployment uses Caddy HTTPS, API-key authentication, Qwen reasoning and
-embeddings, and Postgres/pgvector. The Memory Vault dashboard is intentionally
-not hosted on the judging ECS.
+HandoffBase is **submitted** to the Global AI Hackathon Series with Qwen
+Cloud, Track 1: MemoryAgent (submitted 2026-07-19, ahead of the Jul 20
+2:00pm PDT close).
 
-Runtime truth:
+- Demo video (public, 2:30): <https://www.youtube.com/watch?v=urIx8_8kzlM>
+- Journey thread (Blog Post Prize field):
+  <https://x.com/jensonchowzzx/status/2078848695530143909>
+- Repository: public, MIT, secret scanning + push protection enabled.
+- Devpost: Track 1, architecture image, Alibaba code links, honest AI-tools
+  disclosure (Qwen Cloud first; Claude Code, Codex, Claude Design,
+  ElevenLabs listed), judge token only in the private testing field.
 
-- `authMode=api_key`
-- `providerMode=qwen`
-- `storeMode=postgres`
-- `embeddingMode=qwen`
-- generation: `qwen-plus-2025-09-11`
-- embeddings: `text-embedding-v4`
-- source base commit: `90c517ac4e2fa5d855f70d61735c45c6a99c1efb`
+The demo video is a fully animated product film with voiceover and burned
+captions; its title card and the Devpost copy disclose that visuals are
+animated while every command, output, and data point shown comes from the
+real deployed system. The narration and captions were generated from the
+repository's own validated outputs.
 
-The first Beijing deployment was released on 2026-07-12. Its HTTP endpoint,
-in-memory runtime, and relaunch instructions are historical only.
+## Live Deployment (unchanged, judged)
 
-## Cloud And Cost State
+- Endpoint: `https://47-236-247-69.sslip.io/mcp` (health: `/health`).
+- Runtime truth: `authMode=api_key`, `providerMode=qwen`,
+  `storeMode=postgres`, `embeddingMode=qwen`; models pinned to
+  `qwen-plus-2025-09-11` + `text-embedding-v4`.
+- Quotas (console-verified 2026-07-19): 984,060 generation and 999,628
+  embedding tokens remaining, both expire 2026-10-11, Free-Quota-Only
+  (stop-on-exhaust) ON for both rows — exhaustion rejects calls
+  (`AllocationQuota.FreeTierOnly`) and can never bill.
+- ECS: prepaid subscription ends 2026-08-13 08:59:59 SGT, auto-renewal OFF.
+  Documented post-expiry behavior: instance STOPS at expiry (demo offline),
+  disk data retained 15 days, released day 16. The grace period protects
+  data, not uptime — **if the judging schedule extends, renew BEFORE
+  Aug 13**. Coupons are documented as applicable to ECS renewals and Model
+  Studio pay-as-you-go, subject to the coupon's scope/validity.
+- Total real-money spend to date: $0. Model Studio July spend: $0.
 
-- ECS: Singapore Zone A, Ubuntu 24.04 x86_64, 2 vCPU, 4 GiB RAM, 40 GiB system
-  disk, prepaid fixed 1 Mbps bandwidth (instance id in the proof file).
-- The subscription runs past the end of the judging window, with auto-renewal
-  disabled, and was covered by the event coupon at no real-money cost.
-- No managed database, snapshot service, load balancer, paid security product,
-  marketplace image, or traffic-billed public networking was added.
-- Model Studio Stop-on-Exhaust is enabled on both deployed model rows, keeping
-  the deployment within the free quota.
-- The dedicated Qwen key is limited to the ECS public IP and the two deployed
-  model ids. Do not broaden the model scope or disable Stop-on-Exhaust.
-- Never run any credentialed benchmark through the deployed key or the two
-  demo model rows: even a 5-question calibration (~1.2M tokens) would exhaust
-  the generation row and kill the judge endpoint. The sanctioned path, if the
-  owner proceeds, is a separate benchmark-only key on different model rows
-  (`QWEN_MODEL=qwen-plus` unpinned, `QWEN_EMBEDDING_MODEL=text-embedding-v3`),
-  with owner-approved cost. Owner picks (scale / judge / dataset download) are
-  still pending; the dataset source is verified (Hugging Face
-  `xiaowu0162/longmemeval-cleaned`, `longmemeval_s_cleaned.json`, 277 MB). The
-  local `npm run check` benchmark paths remain deterministic/mock and spend no
-  quota.
+## Post-Submission Audit (2026-07-19)
 
-## Live Proof
+Agent-run audit 20/21 PASS + one independent close: YouTube video Public,
+X thread public with working links, all Devpost fields verified (including
+non-empty private token field), all public repo surfaces 200, CI badge
+green. The single FAIL (health URL `ERR_BLOCKED_BY_CLIENT`) was an
+ad-blocker in the auditing browser profile — endpoint verified healthy
+directly. Note: IP-pattern `sslip.io` hostnames can trip aggressive
+ad-blockers; a DuckDNS alternate hostname remains an optional resilience
+add. The Alibaba Billing console pages (coupon balance/expiry, lifetime
+spend, orders) failed to render in that same profile (loading skeletons,
+embedded-frame error) — retry in an extension-free profile around Jul 27;
+prior sweeps (Jul 8/13) showed no other billable resources and zero spend.
 
-- Outside-in `/health` passed and reported all four expected modes.
-- Unauthenticated `/ready` returned HTTP 401 `readiness_auth_required`.
-- The strict HTTPS MCP validator passed with exit code 0, the exact nine-tool
-  manifest, a recall trace, and two persisted non-rejected candidate memories
-  with ids and `pending` status.
-- Memory `dd2b6907-9d27-465e-8b36-d5056baa3ff2` remained after the app
-  container restarted; final counts were 9 memories, 16 traces, and 9
-  embeddings.
-- A compressed Postgres backup passed `pg_restore --list`, was copied off ECS,
-  and is stored locally at
-  `artifacts/deployment/handoffbase-2026-07-13.dump` with mode 0600. SHA-256:
-  `753688b3beb45550dd0c03febf2a437ddaa80114c4ed7431f258c792f7f64aae`.
+## Judging Window Ops (Jul 28 – Aug 11)
 
-The canonical non-secret record is
-`docs/deployment/alibaba-cloud-proof.md`. Deployment files are in
-`deploy/alibaba/`.
+- Do NOT touch the deployed box, key, model rows, or quota toggles.
+- Auto-renewal stays OFF; renew manually before Aug 13 only if judging
+  dates shift.
+- ~Jul 27 pre-judging check: console quota rows (balances +
+  stop-on-exhaust ON), `/health`, video plays, badge renders, and the
+  Billing-console retry (coupon expiry is the one unread number).
+- Respond promptly to judge comments on Devpost.
+
+## Post-Judging Checklist
+
+- Rotate/delete the temporary HandoffBase judge token.
+- Rotate/delete the retired China-station Bailian key (safe any time now;
+  hand-done, in the China console — never the live international key).
+- ECS lapses Aug 13 (no action needed).
+- Options afterward: CockroachDB × AWS agentic-memory hackathon (deadline
+  Aug 18; ~1-day `STORE_MODE=cockroach` adapter; this repo qualifies as
+  created in-window), credentialed LongMemEval subset (quota lives to
+  Oct 11; plan in the owner's runbook), LongMemEval-V2 adapter as a future
+  flagship eval.
 
 ## Repository State
 
-All previously reviewed work is committed and pushed to `main` (HEAD
-`661b3c2`). Repository visibility changes remain owner-only.
-
-Uncommitted working set from 2026-07-14, awaiting owner review/"go":
-
-- New rendered architecture assets `docs/assets/architecture.svg` and
-  `docs/assets/architecture.png` (1920x1080, hand-drawn to match
-  `architecture.mmd` and the dashboard's amber style; Devpost-upload ready).
-- `README.md` and `docs/submission/architecture-for-devpost.md` point to the
-  rendered assets (mermaid stays the source of truth).
-- `docs/submission/submission-checklist.md` names the rendered assets.
-- Untracked `.claude/launch.json` (local dashboard-preview convenience; no
-  secrets; keep untracked or gitignore).
-
-Same-day engine strengthening (also uncommitted, gates re-run green after):
-
-- One recall ranking everywhere: the in-memory store now uses the exact
-  Postgres formula (shared `retentionScore` prior + shared `lexicalRecallScore`
-  + clamped semantic term + `compareRecallRank` tiebreakers), closing three of
-  the four parity gaps documented on 2026-07-11.
-- Feedback-informed reinforcement: helpful/unhelpful feedback shifts recall
-  ranking and capacity eviction through one bounded term (0.15/net, cap ±4),
-  aggregated at read time — no migration, no contract change.
-- Context packs suppress exact-duplicate lines (normalized rendered line)
-  before they consume budget, with a distinct trace reason.
-- A pre-merge adversarial review (lens-diverse workflow → skeptic verify)
-  confirmed 7 defects, all fixed before commit: the pack dedup was downgraded
-  from fuzzy Jaccard to exact-match after it was shown to silently drop facts
-  differing only by a number or a negation; Postgres keyword matching moved
-  from `LIKE` to `position()` (the `_` LIKE-wildcard diverged from the
-  in-memory `includes` twin); the recall ORDER BY gained an `m.id asc`
-  tiebreaker to match `compareRecallRank`; plus test and docstring fixes.
-- Details and rationale in `memory/decisions.md` under 2026-07-14; +15
-  regression tests (memory-core 57→66, service 39→41).
-
-The full gate set passed on this working tree on 2026-07-14: `npm run check`
-(CI parity, includes eval, comparative benchmark, tiny LongMemEval matrix,
-cross-host E2E, link and tracked-secret gates) and `npm run dashboard:build` —
-both re-run green after the engine changes. The deployed Singapore image
-predates these engine changes (they are repo-side only); redeploying before
-judging is optional and NOT required for the validated live demo.
-
-Pre-public gate is cleared: a full-history gitleaks scan reports no leaks (the
-only hits are synthetic test fixtures and one non-credential retired-China
-workspace id, allowlisted); the public surface is scrubbed; and a read-only
-security check of the live box passed (security group exposes only 80/443, SSH
-is restricted, ports 3000/5432 are not public, and `/ready` + MCP POST reject
-unauthenticated calls).
-
-Validation completed after the implementation:
-
-- `npm run check` passed in full.
-- `npm run test:onboarding` passed 11/11.
-- `node --check scripts/validate-remote-mcp.mjs` passed.
-- `git diff --check`, Markdown-link checking, and tracked-secret scanning passed.
-- The latest validator overlay SHA-256 on ECS is
-  `e0c725cd69d2411b9e434fc8e661c9409f0b096de724a6142658738a6bb2ec6d`.
-
-Local Docker is not installed, so Compose syntax was validated on the ECS host,
-not with a local `docker compose config` run.
-
-## Event Readiness
-
-The live backend now fits the Qwen Cloud MemoryAgent requirement: Qwen is used
-for memory reasoning and embeddings, and Postgres proves persistent,
-cross-restart memory. The subscription and free model quotas extend beyond the
-judging window.
-
-Submission is not complete until the owner:
-
-1. Flips the GitHub repository to public (the pre-public gate is cleared), then
-   re-runs CI so the README badge goes green and enables GitHub Push Protection.
-2. Rotates/revokes the retired China Bailian Qwen key, which fully neutralizes
-   the one non-credential workspace id left in git history.
-3. Adds links in Devpost to `deploy/alibaba/compose.yaml` and the Qwen provider
-   code, with a temporary HandoffBase judge token only in Devpost's private
-   testing instructions.
-4. Records and uploads the public demo video under three minutes, with no
-   judge token visible in any frame. The architecture diagram is now rendered
-   (`docs/assets/architecture.png`) and ready for the Devpost upload. All
-   on-camera commands and all five dashboard views were verified working on
-   2026-07-14; recording setup is `npm run start:server` plus
-   `npm run dashboard:dev`. An optional Claude Design animated intro (scenes
-   1-2 open the video, scene 3 closes it) is mid-build and paused at that
-   tool's session limit; the full generation prompt is preserved in the
-   2026-07-14 session transcript.
-5. Rechecks endpoint health and both model quotas immediately before submission
-   and recording.
-
-`sslip.io` currently resolves and the issued TLS certificate covers the judging
-window. Moving to a dedicated DuckDNS hostname is an optional reliability
-improvement, not a current event-compliance blocker.
+`main` is even with origin; all submission work is committed. The untracked
+`demo-take.sh` in the repo root is a local auto-play recording aid kept as
+a fallback for a future real-footage video; it is deliberately not tracked.
 
 ## Next Session Prompt
 
-Committed state is HEAD `661b3c2` with the repo-public gate cleared. The
-2026-07-14 working set (rendered architecture assets + doc pointers +
-checklist currency) is uncommitted but fully gate-verified (`npm run check`
-and `npm run dashboard:build` green) — review and commit it first. Then the
-remaining owner-only work before the Jul 20 2:00pm PDT close: flip the
-repository public (re-run CI for the badge, enable Push Protection), rotate
-the retired China key, record the sub-three-minute demo video (script and
-shot list verified; recording setup is `npm run start:server` +
-`npm run dashboard:dev`; resume the paused Claude Design animated intro if
-its session limit has reset, else use the static diagram open), and submit
-the Devpost form (Track 1; upload `docs/assets/architecture.png`; links to
-`deploy/alibaba/compose.yaml` and the Qwen provider file; judge token only in
-the private field). The credentialed LongMemEval run stays parked on three
-owner picks (scale / judge / dataset download) and a benchmark-only key on
-separate model rows — never the deployed key or demo rows. Do not enable paid
-inference, auto-renewal, or additional Alibaba services without explicit
-owner approval.
+HandoffBase is submitted and audited (video, thread, Devpost, repo all
+verified public and correct). The deployment must stay untouched through
+judging (Jul 28–Aug 11). Near-term work is operational only: the Jul 27
+pre-judging check (quotas, health, video, badge, Billing-console retry for
+the coupon expiry), responding to judge questions, and the renew-before-
+Aug-13 rule if the schedule moves. After judging: rotate the judge token
+and the retired China key, then choose between the CockroachDB × AWS event
+(Aug 18) and the LongMemEval subset run. Do not enable paid inference,
+auto-renewal, or new cloud resources without explicit owner approval.

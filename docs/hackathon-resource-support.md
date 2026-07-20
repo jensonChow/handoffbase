@@ -1,6 +1,6 @@
 # Hackathon Resource Support
 
-Last verified: 2026-07-13
+Last verified: 2026-07-19 (post-submission cost audit)
 
 This file records non-secret resource-support status for the Global AI
 Hackathon Series with Qwen Cloud. Do not add UID, phone number, API keys,
@@ -30,6 +30,11 @@ credentials, auth headers, database URLs, or invoice details here.
   database contains memory, trace, and embedding rows.
 - Availability coverage: the prepaid ECS subscription expires on 2026-08-13 at
   08:59:59 Singapore time, more than one day after the judging window ends.
+  Documented expiry behavior: the instance stops at expiration (endpoint
+  offline) with disk data retained for 15 days before release, so the grace
+  period protects data, not uptime. If the judging schedule is extended,
+  renew before 2026-08-13; coupons are documented as applicable to ECS
+  renewals subject to the coupon's scope and validity.
 - Coupon posture: the ECS checkout used less than USD 22 of the USD 40 event
   coupon and charged no real money. Auto-renewal is disabled, and no paid cloud
   add-on was created for this deployment.
@@ -38,7 +43,7 @@ credentials, auth headers, database URLs, or invoice details here.
   Calls stop rather than becoming paid inference when either quota is exhausted.
   After final validation, 984,060 generation tokens and 999,628 embedding
   tokens remained; both quotas expire on 2026-10-11.
-- Current cost plan: keep the credentialed LongMemEval benchmark disabled
+- Current cost plan (post-submission): keep the credentialed LongMemEval benchmark disabled
   through judging, monitor coupon and quota status, and do not add managed
   databases, snapshots, load balancers, paid security products, marketplace
   images, or traffic-billed networking.
