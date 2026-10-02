@@ -1,13 +1,15 @@
 # Alibaba Cloud Deployment Proof
 
-Status: **live Alibaba Cloud International validation passed on 2026-07-13.**
+Status: **historical record.** Alibaba Cloud International validation passed on
+2026-07-13. The ECS subscription ended on 2026-08-13 with auto-renewal disabled,
+so the instance and the endpoints listed below are no longer online.
 
 This file records non-secret proof for the HandoffBase Alibaba Cloud
 deployment. It intentionally omits API keys, authorization headers, database
 URLs, cloud access credentials, account identifiers, coupon codes, and payment
 details.
 
-## Current International Deployment
+## International Deployment (retired 2026-08-13)
 
 ### Deployment
 
