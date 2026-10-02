@@ -23,7 +23,7 @@ A Remote Streamable HTTP MCP server that preserves, recalls, budgets, and strate
 
 <sub>Runnable infrastructure MVP · default in-memory store + mock provider · Postgres + Qwen are opt-in · built for the Alibaba Cloud / Qwen agentic-memory hackathon (Track 1)</sub>
 
-<sub>▶ <a href="https://www.youtube.com/watch?v=urIx8_8kzlM"><b>Watch the 2:30 demo video</b></a></sub>
+<sub>▶ <a href="https://www.youtube.com/watch?v=urIx8_8kzlM"><b>Watch the 2:30 demo video</b></a> · <a href="https://devpost.com/software/handoffbase"><b>Devpost project page</b></a></sub>
 
 <sub><a href="#quickstart"><b>Quickstart</b></a> · <a href="#what-is-implemented">What's implemented</a> · <a href="#mcp-tools">MCP surface</a> · <a href="#the-memory-vault-dashboard">Dashboard</a> · <a href="#eval-awareness">Benchmarks</a> · <a href="#architecture">Architecture</a></sub>
 
